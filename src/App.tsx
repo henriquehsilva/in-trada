@@ -165,7 +165,7 @@ function App() {
           } 
         />
         <Route 
-          path="/operador/participantes/:eventoId" 
+          path="/operador/participantes" 
           element={
             <ProtectedRoute requiredRole="operador">
               <GerenciarParticipantes />

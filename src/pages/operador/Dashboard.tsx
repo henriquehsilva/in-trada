@@ -172,6 +172,7 @@ const OperadorDashboard: React.FC = () => {
             </button>
 
             <button
+              disabled
               onClick={() => navigate('/operador/editor-painel/' + (eventos[0]?.id || ''))}
               className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-left"
             >
@@ -183,7 +184,7 @@ const OperadorDashboard: React.FC = () => {
             </button>
 
             <button
-              onClick={() => navigate('/operador/participantes/' + (eventos[0]?.id || ''))}
+              onClick={() => navigate('/operador/participantes')}
               className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-left"
             >
               <Users className="w-8 h-8 text-warning mb-2" />
