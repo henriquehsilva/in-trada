@@ -156,17 +156,23 @@ const EditorCrachas: React.FC = () => {
     if (!eventoId || !currentUser?.uid) return;
     setSalvando(true);
     try {
-      if (modeloId) {
+      if (modelo && modeloId) {
+        // modelo já salvo anteriormente
         await atualizarModeloCracha(modeloId, {
-          nome: nomeModelo, componentes, eventoId
+          nome: nomeModelo,
+          componentes,
+          eventoId
         });
       } else {
+        // novo modelo criado localmente → precisa ser criado no Firebase agora
         const id = await criarModeloCracha({
-          nome: nomeModelo, componentes, eventoId,
+          nome: nomeModelo,
+          componentes,
+          eventoId,
           criadoPorId: currentUser.uid
         });
         setModeloId(id);
-      }
+      }      
       setMensagem({ tipo: 'success', texto: 'Modelo salvo com sucesso!' });
       setTimeout(() => setMensagem(null), 3000);
     } catch (err) {

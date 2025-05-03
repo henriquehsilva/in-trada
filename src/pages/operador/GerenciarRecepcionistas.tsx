@@ -129,7 +129,7 @@ const GerenciarRecepcionistas: React.FC = () => {
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <div className="flex justify-end space-x-2">
                       <button
-                        onClick={() => navigate(`/operador/recepcionistas/${usuario.id}/editar`)}
+                        onClick={() => navigate(`/operador/recepcionistas/${usuario.id}`)}
                         className="text-primary hover:text-primary-700"
                         title="Editar"
                       >

@@ -28,6 +28,7 @@ import EditorCrachas from './pages/operador/EditorCrachas';
 import EditorPainel from './pages/operador/EditorPainel';
 import GerenciarParticipantes from './pages/operador/GerenciarParticipantes';
 import CriarRecepcionista from './pages/operador/recepcionistas/CriarRecepcionista';
+import EditarRecepcionista from './pages/operador/recepcionistas/EditarRecepcionista';  
 
 // Páginas de Recepcionista
 import RecepcionistaDashboard from './pages/recepcionista/Dashboard';
@@ -136,6 +137,14 @@ function App() {
           element={
             <ProtectedRoute requiredRole="operador">
               <CriarRecepcionista />
+            </ProtectedRoute>
+          }
+        />
+        <Route 
+          path="/operador/recepcionistas/:id" 
+          element={
+            <ProtectedRoute requiredRole="operador">
+              <EditarRecepcionista />
             </ProtectedRoute>
           }
         />
