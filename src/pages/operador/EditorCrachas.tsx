@@ -10,6 +10,9 @@ import { obterModeloCrachaPorId, criarModeloCracha, atualizarModeloCracha } from
 import { useAuth } from '../../contexts/AuthContext';
 import { ComponenteEditor, Evento, ModeloCracha } from '../../models/types';
 import CrachaPreviewToPrint from './CrachaPreviewToPrint';
+import { getDocs, collection, query, where, deleteDoc, doc } from 'firebase/firestore';
+import { db } from '../../firebase/config';
+import { Pencil, Trash2, Upload } from 'lucide-react';
 
 const camposParticipantePadrao = [
   'nome', 
@@ -19,6 +22,17 @@ const camposParticipantePadrao = [
   'categoria', 
   'id'
 ];
+
+export const listarModelosCrachaPorEvento = async (eventoId: string): Promise<ModeloCracha[]> => {
+  const modelosRef = collection(db, 'modelosCracha');
+  const q = query(modelosRef, where('eventoId', '==', eventoId));
+  const querySnapshot = await getDocs(q);
+  
+  return querySnapshot.docs.map((doc) => ({
+    id: doc.id,
+    ...(doc.data() as Omit<ModeloCracha, 'id'>),
+  }));
+};
 
 const EditorCrachas: React.FC = () => {
   const { eventoId } = useParams<{ eventoId: string }>();
@@ -34,9 +48,26 @@ const EditorCrachas: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [salvando, setSalvando] = useState(false);
   const [mensagem, setMensagem] = useState<{ tipo: 'success' | 'error', texto: string } | null>(null);
+  const [erro, setErro] = useState('');
 
   const tamanhoCracha = { largura: 400, altura: 250 };
 
+  const [modelosSalvos, setModelosSalvos] = useState<ModeloCracha[]>([]);
+
+  useEffect(() => {
+    const carregarModelos = async () => {
+      if (!eventoId) return;
+      try {
+        const modelos = await listarModelosCrachaPorEvento(eventoId);
+        setModelosSalvos(modelos);
+      } catch (err) {
+        console.error('Erro ao carregar modelos:', err);
+        setMensagem({ tipo: 'error', texto: 'Erro ao carregar os modelos salvos.' });
+      }
+    };
+    carregarModelos();
+  }, [eventoId]);
+  
   useEffect(() => {
     const carregarDados = async () => {
       if (!eventoId) return;
@@ -48,8 +79,8 @@ const EditorCrachas: React.FC = () => {
           const camposPersonalizados = eventoDados.camposPersonalizados?.map(campo => campo.nome) || [];
           setCamposDisponiveis([...camposParticipantePadrao, ...camposPersonalizados]);
 
-          const modeloExistente: ModeloCracha = {
-            id: nanoid(),
+          const modeloTemporario: ModeloCracha = {
+            id: '',
             eventoId,
             nome: 'Modelo Padrão',
             componentes: [
@@ -133,14 +164,14 @@ const EditorCrachas: React.FC = () => {
               }
             ],
             criadoPorId: currentUser?.uid || '',
-            criadoEm: new Date().toISOString(),
-            atualizadoEm: new Date().toISOString()
-          };
-
-          setModelo(modeloExistente);
-          setModeloId(modeloExistente.id);
-          setNomeModelo(modeloExistente.nome);
-          setComponentes(modeloExistente.componentes);
+            criadoEm: '',
+            atualizadoEm: ''
+          };          
+          
+          setModelo(modeloTemporario);
+          setModeloId(null);
+          setNomeModelo(modeloTemporario.nome);
+          setComponentes(modeloTemporario.componentes);
         }
       } catch (err) {
         console.error('Erro ao carregar dados:', err);
@@ -155,24 +186,35 @@ const EditorCrachas: React.FC = () => {
   const handleSalvarModelo = async () => {
     if (!eventoId || !currentUser?.uid) return;
     setSalvando(true);
+    setErro('');
+    setMensagem(null);
+  
     try {
-      if (modelo && modeloId) {
-        // modelo já salvo anteriormente
+      // Se já houver um modelo salvo, atualiza
+      if (modeloId) {
         await atualizarModeloCracha(modeloId, {
           nome: nomeModelo,
           componentes,
-          eventoId
+          eventoId          
         });
       } else {
-        // novo modelo criado localmente → precisa ser criado no Firebase agora
-        const id = await criarModeloCracha({
+        // Cria novo modelo no Firestore
+        const novoModelo: Omit<ModeloCracha, 'id'> = {
           nome: nomeModelo,
-          componentes,
           eventoId,
-          criadoPorId: currentUser.uid
-        });
-        setModeloId(id);
-      }      
+          componentes,
+          criadoPorId: currentUser.uid,
+          criadoEm: new Date().toISOString(),
+          atualizadoEm: new Date().toISOString()
+        };
+  
+        const novoId = await criarModeloCracha(novoModelo);
+        setModeloId(novoId);
+
+        const modelosAtualizados = await listarModelosCrachaPorEvento(eventoId);
+        setModelosSalvos(modelosAtualizados);
+      }
+  
       setMensagem({ tipo: 'success', texto: 'Modelo salvo com sucesso!' });
       setTimeout(() => setMensagem(null), 3000);
     } catch (err) {
@@ -182,7 +224,7 @@ const EditorCrachas: React.FC = () => {
       setSalvando(false);
     }
   };
-
+  
   const participanteExemplo = {
     id: 'P12345', nome: 'João Silva', empresa: 'Empresa Exemplo Ltda',
     email: 'joao@exemplo.com', telefone: '(11) 98765-4321', categoria: 'VIP'
@@ -382,6 +424,61 @@ const EditorCrachas: React.FC = () => {
           participante={participanteExemplo}
           tamanho={tamanhoCracha}
         />
+      </div>
+      <div className="bg-white p-4 rounded-lg shadow-sm mb-6">
+        <h3 className="text-lg font-semibold mb-4">Modelos Salvos</h3>
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200 text-sm">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-4 py-2 text-left font-bold text-gray-600">Nome</th>
+                <th className="px-4 py-2 text-right font-bold text-gray-600">Ações</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {modelosSalvos.map((modelo) => (
+                <tr key={modelo.id}>
+                  <td className="px-4 py-2">{modelo.nome}</td>
+                  <td className="px-4 py-2 text-right space-x-2">
+                    <button
+                      title="Usar modelo"
+                      onClick={() => {
+                        setModeloId(modelo.id);
+                        setNomeModelo(modelo.nome);
+                        setComponentes(modelo.componentes);
+                      }}
+                      className="text-blue-600 hover:text-blue-800"
+                    >
+                      <Upload size={18} />
+                    </button>
+                    <button
+                      title="Excluir modelo"
+                      onClick={async () => {
+                        if (!window.confirm(`Deseja excluir o modelo "${modelo.nome}"?`)) return;
+                        try {
+                          await deleteDoc(doc(db, 'modelosCracha', modelo.id));
+                          setModelosSalvos((prev) => prev.filter((m) => m.id !== modelo.id));
+                          if (modeloId === modelo.id) {
+                            setModeloId(null);
+                            setNomeModelo('Novo Modelo de Crachá');
+                            setComponentes([]);
+                          }
+                          setMensagem({ tipo: 'success', texto: 'Modelo excluído com sucesso.' });
+                        } catch (err) {
+                          console.error('Erro ao excluir modelo:', err);
+                          setMensagem({ tipo: 'error', texto: 'Erro ao excluir modelo.' });
+                        }
+                      }}
+                      className="text-red-600 hover:text-red-800"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </LayoutDefault>
   );
