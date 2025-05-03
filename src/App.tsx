@@ -19,6 +19,7 @@ import GerenciarOperadores from './pages/admin/GerenciarOperadores';
 import CriarEvento from './pages/admin/eventos/CriarEvento';
 import EditarEvento from './pages/admin/eventos/EditarEvento';
 import CriarOperador from './pages/admin/operadores/CriarOperador';
+import EditarOperador from './pages/admin/operadores/EditarOperador';
 
 // Páginas de Operador
 import OperadorDashboard from './pages/operador/Dashboard';
@@ -105,6 +106,14 @@ function App() {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/admin/operadores/:id"
+          element={
+            <ProtectedRoute requiredRole="admin">
+              <EditarOperador />
+            </ProtectedRoute>
+          }
+        />        
         {/* Rotas de Operador */}
         <Route 
           path="/operador" 

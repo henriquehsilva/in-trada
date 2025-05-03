@@ -151,7 +151,7 @@ const GerenciarOperadores: React.FC = () => {
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <div className="flex justify-end space-x-2">
                       <button
-                        onClick={() => navigate(`/admin/operadores/${operador.id}/editar`)}
+                        onClick={() => navigate(`/admin/operadores/${operador.id}`)}
                         className="text-primary hover:text-primary-700"
                         title="Editar operador"
                       >
