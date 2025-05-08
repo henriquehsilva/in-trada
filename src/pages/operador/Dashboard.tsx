@@ -13,7 +13,7 @@ const OperadorDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
-  const { currentUser } = useAuth();
+  const {} = useAuth();
 
   useEffect(() => {
     const carregarEventos = async () => {

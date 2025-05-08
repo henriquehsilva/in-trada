@@ -28,7 +28,9 @@ import EditorCrachas from './pages/operador/EditorCrachas';
 import EditorPainel from './pages/operador/EditorPainel';
 import GerenciarParticipantes from './pages/operador/GerenciarParticipantes';
 import CriarRecepcionista from './pages/operador/recepcionistas/CriarRecepcionista';
-import EditarRecepcionista from './pages/operador/recepcionistas/EditarRecepcionista';  
+import EditarRecepcionista from './pages/operador/recepcionistas/EditarRecepcionista'; 
+import CriarParticipante from './pages/operador/participantes/CriarParticipante';
+import EditarParticipante from './pages/operador/participantes/EditarParticipante'; 
 
 // Páginas de Recepcionista
 import RecepcionistaDashboard from './pages/recepcionista/Dashboard';
@@ -145,6 +147,22 @@ function App() {
           element={
             <ProtectedRoute requiredRole="operador">
               <EditarRecepcionista />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/operador/participantes/:eventoId/novo" 
+          element={
+            <ProtectedRoute requiredRole="operador">
+              <CriarParticipante />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/operador/participantes/:eventoId/:id/editar" 
+          element={
+            <ProtectedRoute requiredRole="operador">
+              <EditarParticipante />
             </ProtectedRoute>
           }
         />
