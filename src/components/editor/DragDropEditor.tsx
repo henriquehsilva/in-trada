@@ -41,15 +41,20 @@ const DragDropEditor: React.FC<DragDropEditorProps> = ({
     { tipo: 'divisao', label: 'Divisão', icon: <Minus className="w-4 h-4" /> },
   ];
 
+  const cmToPx = (cm: number) => Math.round((cm / 2.54) * 96);
+
   const adicionarComponente = (tipo: string) => {
+    const largura = tipo === 'qrcode' || tipo === 'barcode' ? cmToPx(5) : 100;
+    const altura = tipo === 'qrcode' || tipo === 'barcode' ? cmToPx(5) : 30;
+
     const novo: ComponenteEditor = {
       id: nanoid(),
       tipo: tipo as ComponenteEditor['tipo'],
       propriedades: {
         x: 10,
         y: 10,
-        largura: tipo === 'barcode' ? 200 : 100,
-        altura: tipo === 'barcode' ? 40 : 30,
+        largura,
+        altura,
         texto: tipo === 'texto' ? 'Texto' : '',
         campoVinculado: tipo === 'campo' || tipo === 'barcode' ? 'id' : undefined,
         estilos: {
