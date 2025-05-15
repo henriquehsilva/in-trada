@@ -4,31 +4,42 @@ import { Save, Layout, Copy, Download } from 'lucide-react';
 import LayoutDefault from '../../components/layout/LayoutDefault';
 import DragDropEditor from '../../components/editor/DragDropEditor';
 import { nanoid } from 'nanoid';
-import { 
-  obterEventoPorId 
+import {
+  obterEventoPorId
 } from '../../services/eventoService';
-import { 
-  obterModeloPainelPorId, 
-  criarModeloPainel, 
-  atualizarModeloPainel 
+import {
+  obterModeloPainelPorId,
+  criarModeloPainel,
+  atualizarModeloPainel
 } from '../../services/modeloService';
 import { useAuth } from '../../contexts/AuthContext';
 import { ComponenteEditor, Evento, ModeloPainel } from '../../models/types';
 
 const camposParticipantePadrao = [
-  'nome', 
-  'empresa', 
-  'email', 
-  'telefone', 
-  'categoria', 
+  'nome',
+  'empresa',
+  'email',
+  'telefone',
+  'categoria',
   'id'
+];
+
+const fontesWindows = [
+  'Arial',
+  'Verdana',
+  'Tahoma',
+  'Trebuchet MS',
+  'Georgia',
+  'Times New Roman',
+  'Courier New',
+  'Lucida Console'
 ];
 
 const EditorPainel: React.FC = () => {
   const { eventoId } = useParams<{ eventoId: string }>();
   const { currentUser } = useAuth();
   const navigate = useNavigate();
-  
+
   const [evento, setEvento] = useState<Evento | null>(null);
   const [modelo, setModelo] = useState<ModeloPainel | null>(null);
   const [modeloId, setModeloId] = useState<string | null>(null);
@@ -38,119 +49,111 @@ const EditorPainel: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [salvando, setSalvando] = useState(false);
   const [mensagem, setMensagem] = useState<{ tipo: 'success' | 'error', texto: string } | null>(null);
-  
-  // Configurações do painel
+
   const tamanhoPainel = { largura: 800, altura: 600 };
 
   useEffect(() => {
     const carregarDados = async () => {
       if (!eventoId) return;
-      
+
       try {
-        // Carrega dados do evento
         const eventoDados = await obterEventoPorId(eventoId);
         if (eventoDados) {
           setEvento(eventoDados);
-          
-          // Prepara campos disponíveis
+
           const camposPersonalizados = eventoDados.camposPersonalizados?.map(campo => campo.nome) || [];
           setCamposDisponiveis([...camposParticipantePadrao, ...camposPersonalizados]);
-          
-          // Tenta carregar um modelo existente
-          try {
-            // Modelo mockado para exemplo
-            const modeloExistente = {
-              id: nanoid(),
-              eventoId,
-              nome: 'Modelo Padrão',
-              componentes: [
-                {
-                  id: nanoid(),
-                  tipo: 'texto',
-                  propriedades: {
-                    x: 20,
-                    y: 20,
-                    largura: 760,
-                    altura: 60,
-                    texto: 'Bem-vindo ao ' + eventoDados.nome,
-                    estilos: {
-                      corFonte: '#063a80',
-                      tamanhoFonte: 32,
-                      alinhamento: 'center',
-                      negrito: true
-                    }
-                  }
-                },
-                {
-                  id: nanoid(),
-                  tipo: 'divisao',
-                  propriedades: {
-                    x: 20,
-                    y: 100,
-                    largura: 760,
-                    altura: 2,
-                    estilos: {
-                      corFundo: '#e0e0e0'
-                    }
-                  }
-                },
-                {
-                  id: nanoid(),
-                  tipo: 'texto',
-                  propriedades: {
-                    x: 20,
-                    y: 120,
-                    largura: 760,
-                    altura: 40,
-                    texto: 'Faça seu credenciamento',
-                    estilos: {
-                      corFonte: '#666666',
-                      tamanhoFonte: 24,
-                      alinhamento: 'center'
-                    }
-                  }
-                },
-                {
-                  id: nanoid(),
-                  tipo: 'qrcode',
-                  propriedades: {
-                    x: 300,
-                    y: 180,
-                    largura: 200,
-                    altura: 200
-                  }
-                },
-                {
-                  id: nanoid(),
-                  tipo: 'texto',
-                  propriedades: {
-                    x: 20,
-                    y: 400,
-                    largura: 760,
-                    altura: 30,
-                    texto: 'Aponte a câmera do seu celular para o QR Code',
-                    estilos: {
-                      corFonte: '#666666',
-                      tamanhoFonte: 18,
-                      alinhamento: 'center'
-                    }
+
+          const modeloExistente: ModeloPainel = {
+            id: nanoid(),
+            eventoId,
+            nome: 'Modelo Padrão',
+            componentes: [
+              {
+                id: nanoid(),
+                tipo: 'texto',
+                propriedades: {
+                  x: 20,
+                  y: 20,
+                  largura: 760,
+                  altura: 60,
+                  texto: 'Bem-vindo ao ' + eventoDados.nome,
+                  estilos: {
+                    corFonte: '#063a80',
+                    tamanhoFonte: 32,
+                    alinhamento: 'center',
+                    negrito: true,
+                    fonte: 'Arial'
                   }
                 }
-              ],
-              criadoPorId: currentUser?.uid || '',
-              criadoEm: new Date().toISOString(),
-              atualizadoEm: new Date().toISOString()
-            };
-            
-            setModelo(modeloExistente);
-            setModeloId(modeloExistente.id);
-            setNomeModelo(modeloExistente.nome);
-            setComponentes(modeloExistente.componentes);
-          } catch (err) {
-            console.error('Erro ao carregar modelo:', err);
-            // Inicia com modelo vazio
-            setComponentes([]);
-          }
+              },
+              {
+                id: nanoid(),
+                tipo: 'divisao',
+                propriedades: {
+                  x: 20,
+                  y: 100,
+                  largura: 760,
+                  altura: 2,
+                  estilos: {
+                    corFundo: '#e0e0e0'
+                  }
+                }
+              },
+              {
+                id: nanoid(),
+                tipo: 'texto',
+                propriedades: {
+                  x: 20,
+                  y: 120,
+                  largura: 760,
+                  altura: 40,
+                  texto: 'Faça seu credenciamento',
+                  estilos: {
+                    corFonte: '#666666',
+                    tamanhoFonte: 24,
+                    alinhamento: 'center',
+                    fonte: 'Verdana'
+                  }
+                }
+              },
+              {
+                id: nanoid(),
+                tipo: 'qrcode',
+                propriedades: {
+                  x: 300,
+                  y: 180,
+                  largura: 200,
+                  altura: 200
+                }
+              },
+              {
+                id: nanoid(),
+                tipo: 'texto',
+                propriedades: {
+                  x: 20,
+                  y: 400,
+                  largura: 760,
+                  altura: 30,
+                  texto: 'Aponte a câmera do seu celular para o QR Code',
+                  estilos: {
+                    corFonte: '#666666',
+                    tamanhoFonte: 18,
+                    alinhamento: 'center',
+                    fonte: 'Georgia'
+                  }
+                }
+              }
+            ],
+            criadoPorId: currentUser?.uid || '',
+            criadoEm: new Date().toISOString(),
+            atualizadoEm: new Date().toISOString()
+          };
+
+          setModelo(modeloExistente);
+          setModeloId(modeloExistente.id);
+          setNomeModelo(modeloExistente.nome);
+          setComponentes(modeloExistente.componentes as ComponenteEditor[]);
         }
       } catch (err) {
         console.error('Erro ao carregar dados:', err);
@@ -162,26 +165,23 @@ const EditorPainel: React.FC = () => {
         setLoading(false);
       }
     };
-    
+
     carregarDados();
   }, [eventoId, currentUser]);
 
   const handleSalvarModelo = async () => {
     if (!eventoId || !currentUser?.uid) return;
-    
+
     setSalvando(true);
-    
+
     try {
-      // Verifica se é uma criação ou atualização
       if (modeloId) {
-        // Atualizar modelo existente
         await atualizarModeloPainel(modeloId, {
           nome: nomeModelo,
           componentes,
           eventoId
         });
       } else {
-        // Criar novo modelo
         const id = await criarModeloPainel({
           nome: nomeModelo,
           componentes,
@@ -190,13 +190,12 @@ const EditorPainel: React.FC = () => {
         });
         setModeloId(id);
       }
-      
+
       setMensagem({
         tipo: 'success',
         texto: 'Modelo salvo com sucesso!'
       });
-      
-      // Limpa a mensagem após 3 segundos
+
       setTimeout(() => setMensagem(null), 3000);
     } catch (err) {
       console.error('Erro ao salvar modelo:', err);
@@ -230,20 +229,13 @@ const EditorPainel: React.FC = () => {
   }
 
   return (
-    <LayoutDefault 
-      title="Editor de Painel" 
-      backUrl={`/operador`}
-    >
+    <LayoutDefault title="Editor de Painel" backUrl={`/operador`}>
       {mensagem && (
-        <div className={`mb-4 p-3 rounded-md ${
-          mensagem.tipo === 'success' 
-            ? 'bg-success-light text-success' 
-            : 'bg-error-light text-error'
-        }`}>
+        <div className={`mb-4 p-3 rounded-md ${mensagem.tipo === 'success' ? 'bg-success-light text-success' : 'bg-error-light text-error'}`}>
           {mensagem.texto}
         </div>
       )}
-      
+
       <div className="bg-white p-4 rounded-lg shadow-sm mb-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4">
           <div className="mb-4 sm:mb-0">
@@ -258,7 +250,7 @@ const EditorPainel: React.FC = () => {
               className="input-field max-w-md"
             />
           </div>
-          
+
           <div className="flex space-x-2">
             <button
               onClick={handleSalvarModelo}
@@ -270,12 +262,12 @@ const EditorPainel: React.FC = () => {
             </button>
           </div>
         </div>
-        
+
         <div className="text-sm text-gray-600 mb-4">
           Evento: <span className="font-medium">{evento.nome}</span>
         </div>
       </div>
-      
+
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-6">
         <div className="lg:col-span-3">
           <DragDropEditor
@@ -285,10 +277,10 @@ const EditorPainel: React.FC = () => {
             camposDisponiveis={camposDisponiveis}
           />
         </div>
-        
+
         <div className="bg-white p-4 rounded-lg shadow-sm">
           <h3 className="text-lg font-semibold mb-4">Pré-visualização</h3>
-          
+
           <div className="border border-gray-300 rounded-lg p-2 mb-4">
             <div
               style={{
@@ -297,17 +289,15 @@ const EditorPainel: React.FC = () => {
                 position: 'relative',
                 transform: 'scale(0.25)',
                 transformOrigin: 'top left',
-                overflow: 'hidden',
+                overflow: 'hidden'
               }}
             >
               <div className="absolute inset-0 bg-white border border-gray-300">
-                <p className="text-center text-xs p-2">
-                  Pré-visualização reduzida
-                </p>
+                <p className="text-center text-xs p-2">Pré-visualização reduzida</p>
               </div>
             </div>
           </div>
-          
+
           <div className="space-y-2">
             <h4 className="font-medium text-sm">Ações:</h4>
             <button className="btn btn-outline w-full flex items-center justify-center">

@@ -64,9 +64,24 @@ export interface ModeloPainel {
   atualizadoEm: string;
 }
 
+export interface EstilosComponente {
+  corFonte?: string;
+  tamanhoFonte?: number;
+  alinhamento?: 'left' | 'center' | 'right';
+  negrito?: boolean;
+  italico?: boolean;
+  sublinhado?: boolean;
+  corFundo?: string;
+  bordaLargura?: number;
+  bordaCor?: string;
+  raio?: number;
+  fonte?: string;
+  [key: string]: string | number | boolean | undefined; // <-- Esta linha permite indexação dinâmica
+}
+
 export interface ComponenteEditor {
   id: string;
-  tipo: 'texto' | 'campo' | 'botao' | 'qrcode' | 'imagem' | 'divisao';
+  tipo: 'texto' | 'campo' | 'botao' | 'qrcode' | 'imagem' | 'divisao' | 'barcode';
   propriedades: {
     x: number;
     y: number;
@@ -74,19 +89,8 @@ export interface ComponenteEditor {
     altura: number;
     texto?: string;
     campoVinculado?: string;
-    estilos?: {
-      corFonte?: string;
-      tamanhoFonte?: number;
-      alinhamento?: 'left' | 'center' | 'right';
-      negrito?: boolean;
-      italico?: boolean;
-      sublinhado?: boolean;
-      corFundo?: string;
-      bordaLargura?: number;
-      bordaCor?: string;
-      raio?: number;
-    };
-    url?: string; // Para imagens
+    estilos?: EstilosComponente;
+    url?: string;
   };
 }
 

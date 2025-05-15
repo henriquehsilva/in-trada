@@ -4,6 +4,7 @@ import { Save, Printer, Download, Copy } from 'lucide-react';
 import LayoutDefault from '../../components/layout/LayoutDefault';
 import DragDropEditor from '../../components/editor/DragDropEditor';
 import QRCode from 'qrcode.react';
+import Barcode from 'react-barcode';
 import { nanoid } from 'nanoid';
 import { obterEventoPorId } from '../../services/eventoService';
 import { obterModeloCrachaPorId, criarModeloCracha, atualizarModeloCracha } from '../../services/modeloService';
@@ -51,7 +52,6 @@ const EditorCrachas: React.FC = () => {
   const [erro, setErro] = useState('');
 
   const tamanhoCracha = { largura: 400, altura: 250 };
-
   const [modelosSalvos, setModelosSalvos] = useState<ModeloCracha[]>([]);
 
   useEffect(() => {
@@ -67,7 +67,7 @@ const EditorCrachas: React.FC = () => {
     };
     carregarModelos();
   }, [eventoId]);
-  
+
   useEffect(() => {
     const carregarDados = async () => {
       if (!eventoId) return;
@@ -86,10 +86,21 @@ const EditorCrachas: React.FC = () => {
             componentes: [
               {
                 id: nanoid(),
-                tipo: 'texto',
+                tipo: 'barcode',
                 propriedades: {
                   x: 20,
                   y: 20,
+                  largura: 200,
+                  altura: 40,
+                  campoVinculado: 'id'
+                }
+              },
+              {
+                id: nanoid(),
+                tipo: 'texto',
+                propriedades: {
+                  x: 20,
+                  y: 70,
                   largura: 360,
                   altura: 40,
                   texto: eventoDados.nome,
@@ -106,7 +117,7 @@ const EditorCrachas: React.FC = () => {
                 tipo: 'campo',
                 propriedades: {
                   x: 20,
-                  y: 80,
+                  y: 120,
                   largura: 360,
                   altura: 40,
                   campoVinculado: 'nome',
@@ -123,7 +134,7 @@ const EditorCrachas: React.FC = () => {
                 tipo: 'campo',
                 propriedades: {
                   x: 20,
-                  y: 130,
+                  y: 170,
                   largura: 360,
                   altura: 30,
                   campoVinculado: 'empresa',
@@ -139,7 +150,7 @@ const EditorCrachas: React.FC = () => {
                 tipo: 'qrcode',
                 propriedades: {
                   x: 20,
-                  y: 170,
+                  y: 210,
                   largura: 60,
                   altura: 60
                 }
@@ -149,7 +160,7 @@ const EditorCrachas: React.FC = () => {
                 tipo: 'campo',
                 propriedades: {
                   x: 90,
-                  y: 180,
+                  y: 220,
                   largura: 290,
                   altura: 20,
                   campoVinculado: 'categoria',
@@ -317,7 +328,7 @@ const EditorCrachas: React.FC = () => {
     printWindow.document.write(html);
     printWindow.document.close();
   };
-  
+
   return (
     <LayoutDefault title="Editor de Crachás" backUrl="/operador">
       {mensagem && (
@@ -387,19 +398,33 @@ const EditorCrachas: React.FC = () => {
                       width: props.largura,
                       height: props.altura,
                       fontSize: props.estilos?.tamanhoFonte,
+                      fontFamily: props.estilos?.fonte || 'Arial',
                       fontWeight: props.estilos?.negrito ? 'bold' : 'normal',
+                      fontStyle: props.estilos?.italico ? 'italic' : 'normal',
+                      textDecoration: props.estilos?.sublinhado ? 'underline' : 'none',
                       textAlign: props.estilos?.alinhamento,
                       color: props.estilos?.corFonte,
                       backgroundColor: props.estilos?.corFundo,
                       borderRadius: props.estilos?.raio,
+                      borderWidth: props.estilos?.bordaLargura || 0,
+                      borderColor: props.estilos?.bordaCor || 'transparent',
+                      borderStyle: props.estilos?.bordaLargura ? 'solid' : 'none',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       overflow: 'hidden'
                     }}
                   >
-                    {comp.tipo === 'qrcode' ? (
+                        {comp.tipo === 'qrcode' ? (
                       <QRCode value={JSON.stringify(participanteExemplo)} size={props.altura} />
+                    ) : comp.tipo === 'barcode' ? (
+                      <Barcode
+                        value={valor}
+                        width={1}
+                        height={props.altura || 40}
+                        displayValue={false}
+                        background="transparent"
+                      />
                     ) : (
                       valor
                     )}
@@ -479,7 +504,7 @@ const EditorCrachas: React.FC = () => {
             </tbody>
           </table>
         </div>
-      </div>
+      </div>      
     </LayoutDefault>
   );
 };

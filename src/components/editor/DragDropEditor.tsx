@@ -12,6 +12,7 @@ import {
   QrCode,
   Image as ImageIcon,
   Minus,
+  Barcode,
 } from 'lucide-react';
 
 interface DragDropEditorProps {
@@ -32,9 +33,10 @@ const DragDropEditor: React.FC<DragDropEditorProps> = ({
 
   const toolboxItems = [
     { tipo: 'texto', label: 'Texto', icon: <Type className="w-4 h-4" /> },
-    { tipo: 'campo', label: 'Campo', icon: <PanelTop className="w-4 h-4" /> }, // representando um campo de formulário
+    { tipo: 'campo', label: 'Campo', icon: <PanelTop className="w-4 h-4" /> },
     { tipo: 'botao', label: 'Botão', icon: <MousePointerClick className="w-4 h-4" /> },
     { tipo: 'qrcode', label: 'QR Code', icon: <QrCode className="w-4 h-4" /> },
+    { tipo: 'barcode', label: 'Cod Barra', icon: <Barcode className="w-4 h-4" /> },
     { tipo: 'imagem', label: 'Imagem', icon: <ImageIcon className="w-4 h-4" /> },
     { tipo: 'divisao', label: 'Divisão', icon: <Minus className="w-4 h-4" /> },
   ];
@@ -42,13 +44,14 @@ const DragDropEditor: React.FC<DragDropEditorProps> = ({
   const adicionarComponente = (tipo: string) => {
     const novo: ComponenteEditor = {
       id: nanoid(),
-      tipo: tipo as any,
+      tipo: tipo as ComponenteEditor['tipo'],
       propriedades: {
         x: 10,
         y: 10,
-        largura: 100,
-        altura: 30,
+        largura: tipo === 'barcode' ? 200 : 100,
+        altura: tipo === 'barcode' ? 40 : 30,
         texto: tipo === 'texto' ? 'Texto' : '',
+        campoVinculado: tipo === 'campo' || tipo === 'barcode' ? 'id' : undefined,
         estilos: {
           corFonte: '#000000',
           tamanhoFonte: 14,
@@ -137,7 +140,7 @@ const DragDropEditor: React.FC<DragDropEditorProps> = ({
                     cursor: 'move'
                   }}
                 >
-                  <ComponentePreview componente={comp} />
+                  <ComponentePreview componente={comp} dados={{ id: '1234567890' }} />
                 </div>
               </Draggable>
             ))}

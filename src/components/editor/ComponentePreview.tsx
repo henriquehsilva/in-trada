@@ -1,4 +1,5 @@
 import { QrCode } from 'lucide-react';
+import Barcode from 'react-barcode';
 import { ComponenteEditor } from '../../models/types';
 
 interface ComponentePreviewProps {
@@ -13,16 +14,15 @@ const ComponentePreview: React.FC<ComponentePreviewProps> = ({
   const { tipo, propriedades } = componente;
   const { estilos = {} } = propriedades;
   
-  // Obtém o valor do campo se estiver vinculado a algum dado
   const getValorCampo = () => {
     if (!propriedades.campoVinculado || !dados) return propriedades.texto || '';
     return dados[propriedades.campoVinculado] || '';
   };
 
-  // Estilos base para todos os componentes
   const estilosBase = {
     color: estilos.corFonte || '#000000',
     fontSize: `${estilos.tamanhoFonte || 12}px`,
+    fontFamily: estilos.fonte || 'Arial', // AQUI A FONTE É APLICADA
     textAlign: estilos.alinhamento || 'left',
     fontWeight: estilos.negrito ? 'bold' : 'normal',
     fontStyle: estilos.italico ? 'italic' : 'normal',
@@ -43,45 +43,38 @@ const ComponentePreview: React.FC<ComponentePreviewProps> = ({
 
   switch (tipo) {
     case 'texto':
-      return (
-        <div style={estilosBase}>
-          {propriedades.texto || 'Texto de exemplo'}
-        </div>
-      );
-      
+      return <div style={estilosBase}>{propriedades.texto || 'Texto de exemplo'}</div>;
+
     case 'campo':
-      return (
-        <div style={estilosBase}>
-          {getValorCampo() || `{${propriedades.campoVinculado || 'campo'}}`}
-        </div>
-      );
-      
+      return <div style={estilosBase}>{getValorCampo() || `{${propriedades.campoVinculado || 'campo'}}`}</div>;
+
     case 'botao':
       return (
-        <button
-          type="button"
-          style={{
-            ...estilosBase,
-            backgroundColor: estilos.corFundo || '#063a80',
-            color: estilos.corFonte || 'white',
-            borderRadius: estilos.raio || '4px',
-            cursor: 'pointer',
-          }}
-        >
+        <button type="button" style={{ ...estilosBase, cursor: 'pointer' }}>
           {propriedades.texto || 'Botão'}
         </button>
       );
-      
+
     case 'qrcode':
       return (
-        <div style={{
-          ...estilosBase,
-          justifyContent: 'center',
-        }}>
+        <div style={{ ...estilosBase, justifyContent: 'center' }}>
           <QrCode size={Math.min(propriedades.largura, propriedades.altura) * 0.8} />
         </div>
       );
-      
+
+    case 'barcode':
+      return (
+        <div style={{ ...estilosBase, justifyContent: 'center' }}>
+          <Barcode
+            value={getValorCampo()}
+            width={1}
+            height={propriedades.altura}
+            displayValue={false}
+            background="transparent"
+          />
+        </div>
+      );
+
     case 'imagem':
       return (
         <div style={estilosBase}>
@@ -89,12 +82,7 @@ const ComponentePreview: React.FC<ComponentePreviewProps> = ({
             <img
               src={propriedades.url}
               alt="Imagem"
-              style={{ 
-                maxWidth: '100%', 
-                maxHeight: '100%', 
-                objectFit: 'contain',
-                margin: '0 auto' 
-              }}
+              style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', margin: '0 auto' }}
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center bg-gray-100 text-gray-400 text-xs">
@@ -103,19 +91,14 @@ const ComponentePreview: React.FC<ComponentePreviewProps> = ({
           )}
         </div>
       );
-      
+
     case 'divisao':
       return (
-        <div
-          style={{
-            ...estilosBase,
-            backgroundColor: estilos.corFundo || '#f0f0f0',
-          }}
-        />
+        <div style={{ ...estilosBase, backgroundColor: estilos.corFundo || '#f0f0f0' }} />
       );
-      
+
     default:
-      return <div>Componente desconhecido</div>;
+      return <div style={estilosBase}>Componente desconhecido</div>;
   }
 };
 
