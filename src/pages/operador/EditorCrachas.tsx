@@ -86,17 +86,6 @@ const EditorCrachas: React.FC = () => {
             componentes: [
               {
                 id: nanoid(),
-                tipo: 'barcode',
-                propriedades: {
-                  x: 20,
-                  y: 20,
-                  largura: 200,
-                  altura: 40,
-                  campoVinculado: 'id'
-                }
-              },
-              {
-                id: nanoid(),
                 tipo: 'texto',
                 propriedades: {
                   x: 20,
@@ -244,30 +233,38 @@ const EditorCrachas: React.FC = () => {
   const handlePrint = () => {
     const printWindow = window.open('', '_blank', 'width=600,height=400');
     if (!printWindow) return;
-  
+
     const canvas = document.querySelector('#cracha-preview canvas') as HTMLCanvasElement | null;
     const qrDataUrl = canvas?.toDataURL() || '';
-    
+
     const htmlComponente = componentes.map(comp => {
       const props = comp.propriedades;
       const valor = props.campoVinculado
         ? participanteExemplo[props.campoVinculado as keyof typeof participanteExemplo] || ''
         : props.texto || '';
-    
+
       if (comp.tipo === 'qrcode') {
         return `
-          <div style="
+          <div style="position: absolute; top: ${props.y}px; left: ${props.x}px; width: ${props.largura}px; height: ${props.altura}px;">
+            <img src="${qrDataUrl}" width="${props.largura}" height="${props.altura}" />
+          </div>
+        `;
+      }
+
+      if (comp.tipo === 'barcode') {
+        return `
+          <div id="barcode-container-${comp.id}" style="
             position: absolute;
             top: ${props.y}px;
             left: ${props.x}px;
             width: ${props.largura}px;
             height: ${props.altura}px;
           ">
-            <img src="${qrDataUrl}" width="${props.largura}" height="${props.altura}" />
+            <svg id="barcode-${comp.id}"></svg>
           </div>
         `;
       }
-          
+
       return `
         <div style="
           position: absolute;
@@ -290,11 +287,12 @@ const EditorCrachas: React.FC = () => {
         </div>
       `;
     }).join('');
-  
+
     const html = `
       <html>
         <head>
           <title>Impressão de Crachá</title>
+          <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
           <style>
             @page {
               size: ${tamanhoCracha.largura}px ${tamanhoCracha.altura}px;
@@ -307,24 +305,34 @@ const EditorCrachas: React.FC = () => {
           </style>
         </head>
         <body>
-          <div style="
-            position: relative;
-            width: ${tamanhoCracha.largura}px;
-            height: ${tamanhoCracha.altura}px;
-            background: white;
-          ">
+          <div style="position: relative; width: ${tamanhoCracha.largura}px; height: ${tamanhoCracha.altura}px; background: white;">
             ${htmlComponente}
           </div>
           <script>
-            window.onload = function() {
+            window.onload = function () {
+              // Renderiza os códigos de barras
+              document.querySelectorAll('svg[id^="barcode-"]').forEach(svg => {
+                const container = svg.parentElement;
+                const width = parseInt(container.style.width) || 200;
+                const height = parseInt(container.style.height) || 40;
+                const value = svg.getAttribute('data-value') || container.getAttribute('data-value') || '000000';
+
+                JsBarcode(svg, value, {
+                  format: "CODE128",
+                  displayValue: false,
+                  width: Math.max(Math.floor(width / 100), 1), // proporcional ao container
+                  height: height
+                });
+              });
+
               window.print();
-              setTimeout(() => window.close(), 200);
+              setTimeout(() => window.close(), 300);
             };
           </script>
         </body>
       </html>
     `;
-  
+
     printWindow.document.write(html);
     printWindow.document.close();
   };

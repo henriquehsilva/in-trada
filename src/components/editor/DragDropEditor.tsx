@@ -72,11 +72,18 @@ const DragDropEditor: React.FC<DragDropEditorProps> = ({
   const handleStop = (e: any, data: any, id: string) => {
     const atualizados = componentesAtuais.map((c) =>
       c.id === id
-        ? { ...c, propriedades: { ...c.propriedades, x: data.x, y: data.y } }
+        ? {
+            ...c,
+            propriedades: {
+              ...c.propriedades,
+              x: data.x,
+              y: data.y
+            }
+          }
         : c
     );
     setComponentesAtuais(atualizados);
-    onSave(atualizados);
+    onSave(atualizados); // <-- ESSENCIAL para refletir no EditorCrachas
   };
 
   const handleAtualizarComponente = (componenteAtualizado: ComponenteEditor) => {
