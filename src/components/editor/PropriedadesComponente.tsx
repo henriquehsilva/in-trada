@@ -8,49 +8,67 @@ interface PropriedadesComponenteProps {
   camposDisponiveis?: string[];
 }
 
+const fontesWindows = [
+  'Arial',
+  'Verdana',
+  'Tahoma',
+  'Trebuchet MS',
+  'Times New Roman',
+  'Georgia',
+  'Courier New',
+  'Lucida Console'
+];
+
+type ChaveEstilo =
+  | 'corFonte'
+  | 'tamanhoFonte'
+  | 'alinhamento'
+  | 'negrito'
+  | 'italico'
+  | 'sublinhado'
+  | 'corFundo'
+  | 'bordaLargura'
+  | 'bordaCor'
+  | 'raio'
+  | 'fonte';
+
 const PropriedadesComponente: React.FC<PropriedadesComponenteProps> = ({
   componente,
   onUpdate,
   onDelete,
   camposDisponiveis = []
 }) => {
+  const estilos = componente.propriedades.estilos as Record<ChaveEstilo, any>;
+
   const handleChange = (
     key: string,
     value: any,
-    subKey?: string
+    subKey?: ChaveEstilo
   ) => {
     const newComponente = { ...componente };
-    
+
     if (subKey) {
-      // Atualiza uma propriedade dentro de estilos
       newComponente.propriedades.estilos = {
         ...newComponente.propriedades.estilos,
         [subKey]: value
       };
     } else {
-      // Atualiza uma propriedade direta
       newComponente.propriedades = {
         ...newComponente.propriedades,
         [key]: value
       };
     }
-    
-    onUpdate(newComponente);
-  };
 
-  const handleDeleteClick = () => {
-    onDelete(componente.id);
+    onUpdate(newComponente);
   };
 
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <h4 className="text-md font-medium capitalize">
-          {componente.tipo}
-        </h4>
+        <h4 className="text-md font-medium capitalize">{componente.tipo}</h4>
         <button
           type="button"
-          onClick={handleDeleteClick}
+          onClick={() => onDelete(componente.id)}
           className="p-1 text-error hover:bg-error-light rounded"
           title="Excluir componente"
         >
@@ -61,45 +79,20 @@ const PropriedadesComponente: React.FC<PropriedadesComponenteProps> = ({
       <div className="space-y-3">
         {/* Posição e Tamanho */}
         <div className="grid grid-cols-2 gap-2">
-          <div>
-            <label className="block text-sm font-medium text-gray-700">X</label>
-            <input
-              type="number"
-              value={componente.propriedades.x}
-              onChange={(e) => handleChange('x', parseInt(e.target.value))}
-              className="mt-1 block w-full text-sm border-gray-300 rounded-md shadow-sm focus:ring-primary focus:border-primary"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Y</label>
-            <input
-              type="number"
-              value={componente.propriedades.y}
-              onChange={(e) => handleChange('y', parseInt(e.target.value))}
-              className="mt-1 block w-full text-sm border-gray-300 rounded-md shadow-sm focus:ring-primary focus:border-primary"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Largura</label>
-            <input
-              type="number"
-              value={componente.propriedades.largura}
-              onChange={(e) => handleChange('largura', parseInt(e.target.value))}
-              className="mt-1 block w-full text-sm border-gray-300 rounded-md shadow-sm focus:ring-primary focus:border-primary"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Altura</label>
-            <input
-              type="number"
-              value={componente.propriedades.altura}
-              onChange={(e) => handleChange('altura', parseInt(e.target.value))}
-              className="mt-1 block w-full text-sm border-gray-300 rounded-md shadow-sm focus:ring-primary focus:border-primary"
-            />
-          </div>
+          {['x', 'y', 'largura', 'altura'].map((key) => (
+            <div key={key}>
+              <label className="block text-sm font-medium text-gray-700">{key.toUpperCase()}</label>
+              <input
+                type="number"
+                value={(componente.propriedades as any)[key]}
+                onChange={(e) => handleChange(key, parseInt(e.target.value))}
+                className="mt-1 block w-full text-sm border-gray-300 rounded-md shadow-sm focus:ring-primary focus:border-primary"
+              />
+            </div>
+          ))}
         </div>
 
-        {/* Texto - para componentes que usam texto */}
+        {/* Texto */}
         {(componente.tipo === 'texto' || componente.tipo === 'botao') && (
           <div>
             <label className="block text-sm font-medium text-gray-700">Texto</label>
@@ -112,7 +105,7 @@ const PropriedadesComponente: React.FC<PropriedadesComponenteProps> = ({
           </div>
         )}
 
-        {/* Campo vinculado - para o tipo campo */}
+        {/* Campo vinculado */}
         {componente.tipo === 'campo' && (
           <div>
             <label className="block text-sm font-medium text-gray-700">Campo vinculado</label>
@@ -123,15 +116,13 @@ const PropriedadesComponente: React.FC<PropriedadesComponenteProps> = ({
             >
               <option value="">Selecione um campo</option>
               {camposDisponiveis.map((campo) => (
-                <option key={campo} value={campo}>
-                  {campo}
-                </option>
+                <option key={campo} value={campo}>{campo}</option>
               ))}
             </select>
           </div>
         )}
 
-        {/* URL - para imagens */}
+        {/* Imagem */}
         {componente.tipo === 'imagem' && (
           <div>
             <label className="block text-sm font-medium text-gray-700">URL da imagem</label>
@@ -144,39 +135,31 @@ const PropriedadesComponente: React.FC<PropriedadesComponenteProps> = ({
           </div>
         )}
 
-        {/* Estilos comuns */}
+        {/* Estilos */}
         <div className="pt-2 border-t border-gray-200">
           <h5 className="text-sm font-medium mb-2">Estilo</h5>
-          
-          {/* Cores */}
-          <div className="grid grid-cols-2 gap-2 mb-2">
-            <div>
-              <label className="block text-xs font-medium text-gray-700">Cor do texto</label>
-              <input
-                type="color"
-                value={componente.propriedades.estilos?.corFonte || '#000000'}
-                onChange={(e) => handleChange('estilos', e.target.value, 'corFonte')}
-                className="mt-1 block w-full h-8 p-0 border-gray-300 rounded shadow-sm focus:ring-primary focus:border-primary"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-700">Cor de fundo</label>
-              <input
-                type="color"
-                value={componente.propriedades.estilos?.corFundo || '#ffffff'}
-                onChange={(e) => handleChange('estilos', e.target.value, 'corFundo')}
-                className="mt-1 block w-full h-8 p-0 border-gray-300 rounded shadow-sm focus:ring-primary focus:border-primary"
-              />
-            </div>
-          </div>
 
           {/* Fonte */}
+          <div className="mb-2">
+            <label className="block text-xs font-medium text-gray-700">Fonte</label>
+            <select
+              value={estilos.fonte ?? 'Arial'}
+              onChange={(e) => handleChange('estilos', e.target.value, 'fonte')}
+              className="mt-1 block w-full text-sm border-gray-300 rounded-md shadow-sm focus:ring-primary focus:border-primary"
+            >
+              {fontesWindows.map((fonte) => (
+                <option key={fonte} value={fonte}>{fonte}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Tamanho e Alinhamento */}
           <div className="grid grid-cols-2 gap-2 mb-2">
             <div>
               <label className="block text-xs font-medium text-gray-700">Tamanho da fonte</label>
               <input
                 type="number"
-                value={componente.propriedades.estilos?.tamanhoFonte || 12}
+                value={estilos.tamanhoFonte ?? 12}
                 onChange={(e) => handleChange('estilos', parseInt(e.target.value), 'tamanhoFonte')}
                 className="mt-1 block w-full text-sm border-gray-300 rounded-md shadow-sm focus:ring-primary focus:border-primary"
               />
@@ -184,7 +167,7 @@ const PropriedadesComponente: React.FC<PropriedadesComponenteProps> = ({
             <div>
               <label className="block text-xs font-medium text-gray-700">Alinhamento</label>
               <select
-                value={componente.propriedades.estilos?.alinhamento || 'left'}
+                value={estilos.alinhamento ?? 'left'}
                 onChange={(e) => handleChange('estilos', e.target.value, 'alinhamento')}
                 className="mt-1 block w-full text-sm border-gray-300 rounded-md shadow-sm focus:ring-primary focus:border-primary"
               >
@@ -197,42 +180,38 @@ const PropriedadesComponente: React.FC<PropriedadesComponenteProps> = ({
 
           {/* Formatação */}
           <div className="flex space-x-4 mb-2">
-            <div className="flex items-center">
-              <input
-                type="checkbox"
-                id="negrito"
-                checked={componente.propriedades.estilos?.negrito || false}
-                onChange={(e) => handleChange('estilos', e.target.checked, 'negrito')}
-                className="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
-              />
-              <label htmlFor="negrito" className="ml-2 block text-xs font-medium text-gray-700">
-                Negrito
-              </label>
-            </div>
-            <div className="flex items-center">
-              <input
-                type="checkbox"
-                id="italico"
-                checked={componente.propriedades.estilos?.italico || false}
-                onChange={(e) => handleChange('estilos', e.target.checked, 'italico')}
-                className="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
-              />
-              <label htmlFor="italico" className="ml-2 block text-xs font-medium text-gray-700">
-                Itálico
-              </label>
-            </div>
-            <div className="flex items-center">
-              <input
-                type="checkbox"
-                id="sublinhado"
-                checked={componente.propriedades.estilos?.sublinhado || false}
-                onChange={(e) => handleChange('estilos', e.target.checked, 'sublinhado')}
-                className="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
-              />
-              <label htmlFor="sublinhado" className="ml-2 block text-xs font-medium text-gray-700">
-                Sublinhado
-              </label>
-            </div>
+            {(['negrito', 'italico', 'sublinhado'] as ChaveEstilo[]).map((estilo) => (
+              <div className="flex items-center" key={estilo}>
+                <input
+                  type="checkbox"
+                  id={estilo}
+                  checked={!!estilos[estilo]}
+                  onChange={(e) => handleChange('estilos', e.target.checked, estilo)}
+                  className="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
+                />
+                <label htmlFor={estilo} className="ml-2 block text-xs font-medium text-gray-700 capitalize">
+                  {estilo}
+                </label>
+              </div>
+            ))}
+          </div>
+
+          {/* Cores */}
+          <div className="grid grid-cols-2 gap-2 mb-2">
+            {([
+              { key: 'corFonte', label: 'Cor do texto', default: '#000000' },
+              { key: 'corFundo', label: 'Cor de fundo', default: '#ffffff' }
+            ] as { key: ChaveEstilo, label: string, default: string }[]).map(({ key, label, default: def }) => (
+              <div key={key}>
+                <label className="block text-xs font-medium text-gray-700">{label}</label>
+                <input
+                  type="color"
+                  value={estilos[key] ?? def}
+                  onChange={(e) => handleChange('estilos', e.target.value, key)}
+                  className="mt-1 block w-full h-8 p-0 border-gray-300 rounded shadow-sm focus:ring-primary focus:border-primary"
+                />
+              </div>
+            ))}
           </div>
 
           {/* Borda */}
@@ -241,7 +220,7 @@ const PropriedadesComponente: React.FC<PropriedadesComponenteProps> = ({
               <label className="block text-xs font-medium text-gray-700">Largura da borda</label>
               <input
                 type="number"
-                value={componente.propriedades.estilos?.bordaLargura || 0}
+                value={estilos.bordaLargura ?? 0}
                 onChange={(e) => handleChange('estilos', parseInt(e.target.value), 'bordaLargura')}
                 className="mt-1 block w-full text-sm border-gray-300 rounded-md shadow-sm focus:ring-primary focus:border-primary"
               />
@@ -250,7 +229,7 @@ const PropriedadesComponente: React.FC<PropriedadesComponenteProps> = ({
               <label className="block text-xs font-medium text-gray-700">Cor da borda</label>
               <input
                 type="color"
-                value={componente.propriedades.estilos?.bordaCor || '#000000'}
+                value={estilos.bordaCor ?? '#000000'}
                 onChange={(e) => handleChange('estilos', e.target.value, 'bordaCor')}
                 className="mt-1 block w-full h-8 p-0 border-gray-300 rounded shadow-sm focus:ring-primary focus:border-primary"
               />
@@ -259,7 +238,7 @@ const PropriedadesComponente: React.FC<PropriedadesComponenteProps> = ({
               <label className="block text-xs font-medium text-gray-700">Raio da borda</label>
               <input
                 type="number"
-                value={componente.propriedades.estilos?.raio || 0}
+                value={estilos.raio ?? 0}
                 onChange={(e) => handleChange('estilos', parseInt(e.target.value), 'raio')}
                 className="mt-1 block w-full text-sm border-gray-300 rounded-md shadow-sm focus:ring-primary focus:border-primary"
               />
