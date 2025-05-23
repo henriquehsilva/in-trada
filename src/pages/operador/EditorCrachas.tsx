@@ -274,10 +274,16 @@ const EditorCrachas: React.FC = () => {
           height: ${props.altura}px;
           font-size: ${props.estilos?.tamanhoFonte || 14}px;
           font-weight: ${props.estilos?.negrito ? 'bold' : 'normal'};
+          font-style: ${props.estilos?.italico ? 'italic' : 'normal'};
+          text-decoration: ${props.estilos?.sublinhado ? 'underline' : 'none'};
+          font-family: ${props.estilos?.fonte || 'Arial, sans-serif'};
           text-align: ${props.estilos?.alinhamento || 'left'};
           color: ${props.estilos?.corFonte || '#000'};
           background-color: ${props.estilos?.corFundo || 'transparent'};
           border-radius: ${props.estilos?.raio || 0}px;
+          border-width: ${props.estilos?.bordaLargura || 0}px;
+          border-style: ${props.estilos?.bordaLargura ? 'solid' : 'none'};
+          border-color: ${props.estilos?.bordaCor || 'transparent'};
           display: flex;
           align-items: center;
           justify-content: center;
