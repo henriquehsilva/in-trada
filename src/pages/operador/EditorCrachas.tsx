@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Save, Printer, Download, Copy } from 'lucide-react';
+import { Save, Printer, Download, Copy, Pencil, Trash2, Upload } from 'lucide-react';
 import LayoutDefault from '../../components/layout/LayoutDefault';
 import DragDropEditor from '../../components/editor/DragDropEditor';
 import QRCode from 'qrcode.react';
@@ -13,7 +13,7 @@ import { ComponenteEditor, Evento, ModeloCracha } from '../../models/types';
 import CrachaPreviewToPrint from './CrachaPreviewToPrint';
 import { getDocs, collection, query, where, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '../../firebase/config';
-import { Pencil, Trash2, Upload } from 'lucide-react';
+
 
 const camposParticipantePadrao = [
   'nome', 
@@ -35,6 +35,10 @@ export const listarModelosCrachaPorEvento = async (eventoId: string): Promise<Mo
   }));
 };
 
+const fontesDisponiveisPadrao = [
+  'Arial', 'Verdana', 'Times New Roman', 'Courier New', 'Georgia', 'Tahoma', 'Trebuchet MS'
+];
+
 const EditorCrachas: React.FC = () => {
   const { eventoId } = useParams<{ eventoId: string }>();
   const { currentUser } = useAuth();
@@ -53,6 +57,10 @@ const EditorCrachas: React.FC = () => {
 
   const tamanhoCracha = { largura: 400, altura: 250 };
   const [modelosSalvos, setModelosSalvos] = useState<ModeloCracha[]>([]);
+  
+
+  const [fonteCustomizada, setFonteCustomizada] = useState<string | null>(null);
+  const [fontesDisponiveis, setFontesDisponiveis] = useState<string[]>(fontesDisponiveisPadrao);
 
   useEffect(() => {
     const carregarModelos = async () => {
@@ -343,6 +351,29 @@ const EditorCrachas: React.FC = () => {
     printWindow.document.close();
   };
 
+  const handleFonteUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && file.name.endsWith('.ttf')) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const fontDataUrl = reader.result as string;
+        const fontName = file.name.replace(/\W/g, '_');
+
+        const style = document.createElement('style');
+        style.innerHTML = `
+          @font-face {
+            font-family: '${fontName}';
+            src: url('${fontDataUrl}') format('truetype');
+          }
+        `;
+        document.head.appendChild(style);
+        setFonteCustomizada(fontName);
+        setFontesDisponiveis(prev => [...prev, fontName]);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   return (
     <LayoutDefault title="Editor de Crachás" backUrl="/operador">
       {mensagem && (
@@ -373,7 +404,13 @@ const EditorCrachas: React.FC = () => {
         </div>
         <div className="text-sm text-gray-600 mb-4">Evento: <span className="font-medium">{evento?.nome}</span></div>
       </div>
-
+      <div className="bg-white p-4 rounded-lg shadow-sm mb-6">
+        <label className="block text-sm font-medium text-gray-700 mb-1">Fonte personalizada (.ttf)</label>
+        <input type="file" accept=".ttf" onChange={handleFonteUpload} className="input-field" />
+        {fonteCustomizada && (
+          <div className="text-sm text-green-600 mt-1">Fonte carregada: {fonteCustomizada}</div>
+        )}
+      </div>
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-6">
         <div className="lg:col-span-3">
           <DragDropEditor
@@ -381,6 +418,7 @@ const EditorCrachas: React.FC = () => {
             onSave={setComponentes}
             tamanhoCracha={tamanhoCracha}
             camposDisponiveis={camposDisponiveis}
+            fontesDisponiveis={fontesDisponiveis}
           />
         </div>
         <div className="bg-white p-4 rounded-lg shadow-sm">

@@ -6,18 +6,8 @@ interface PropriedadesComponenteProps {
   onUpdate: (componente: ComponenteEditor) => void;
   onDelete: (id: string) => void;
   camposDisponiveis?: string[];
+  fontesDisponiveis?: string[];
 }
-
-const fontesWindows = [
-  'Arial',
-  'Verdana',
-  'Tahoma',
-  'Trebuchet MS',
-  'Times New Roman',
-  'Georgia',
-  'Courier New',
-  'Lucida Console'
-];
 
 type ChaveEstilo =
   | 'corFonte'
@@ -36,7 +26,8 @@ const PropriedadesComponente: React.FC<PropriedadesComponenteProps> = ({
   componente,
   onUpdate,
   onDelete,
-  camposDisponiveis = []
+  camposDisponiveis = [],
+  fontesDisponiveis = []
 }) => {
   const estilos = componente.propriedades.estilos as Record<ChaveEstilo, any>;
 
@@ -147,7 +138,7 @@ const PropriedadesComponente: React.FC<PropriedadesComponenteProps> = ({
               onChange={(e) => handleChange('estilos', e.target.value, 'fonte')}
               className="mt-1 block w-full text-sm border-gray-300 rounded-md shadow-sm focus:ring-primary focus:border-primary"
             >
-              {fontesWindows.map((fonte) => (
+              {fontesDisponiveis.map((fonte) => (
                 <option key={fonte} value={fonte}>{fonte}</option>
               ))}
             </select>

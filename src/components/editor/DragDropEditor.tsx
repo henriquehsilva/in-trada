@@ -20,13 +20,15 @@ interface DragDropEditorProps {
   onSave: (componentes: ComponenteEditor[]) => void;
   tamanhoCracha?: { largura: number; altura: number };
   camposDisponiveis?: string[];
+  fontesDisponiveis?: string[];
 }
 
 const DragDropEditor: React.FC<DragDropEditorProps> = ({
   componentes,
   onSave,
   tamanhoCracha = { largura: 400, altura: 250 },
-  camposDisponiveis = []
+  camposDisponiveis = [],
+  fontesDisponiveis = []
 }) => {
   const [componentesAtuais, setComponentesAtuais] = useState<ComponenteEditor[]>(componentes);
   const [componenteSelecionado, setComponenteSelecionado] = useState<ComponenteEditor | null>(null);
@@ -169,6 +171,7 @@ const DragDropEditor: React.FC<DragDropEditorProps> = ({
             onUpdate={handleAtualizarComponente}
             onDelete={handleExcluirComponente}
             camposDisponiveis={camposDisponiveis}
+            fontesDisponiveis={fontesDisponiveis}
           />
         ) : (
           <p className="text-gray-500">Selecione um componente para editar</p>
