@@ -15,6 +15,7 @@ import {
 } from '../../services/participanteService';
 import { useAuth } from '../../contexts/AuthContext';
 import { Evento, Participante } from '../../models/types';
+import { Dialog } from '@headlessui/react';
 
 const PainelRecepcao: React.FC = () => {
   const { eventoId } = useParams<{ eventoId: string }>();
@@ -28,7 +29,7 @@ const PainelRecepcao: React.FC = () => {
   const [showFormNovoParticipante, setShowFormNovoParticipante] = useState(false);
   const [loading, setLoading] = useState(true);
   const [mensagem, setMensagem] = useState<{ tipo: 'success' | 'error' | 'info', texto: string } | null>(null);
-  
+  const [confirmarImpressao, setConfirmarImpressao] = useState(false);
   // Refs para formulário de novo participante
   const nomeRef = useRef<HTMLInputElement>(null);
   const empresaRef = useRef<HTMLInputElement>(null);
@@ -179,6 +180,18 @@ const PainelRecepcao: React.FC = () => {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleCheckinComConfirmacao = () => {
+    setConfirmarImpressao(true);
+  };
+
+  const confirmarCheckin = async (imprimir: boolean) => {
+    setConfirmarImpressao(false);
+    await handleCheckin();
+    if (imprimir) {
+      handlePrintCredencial();
     }
   };
 
@@ -627,7 +640,7 @@ const PainelRecepcao: React.FC = () => {
               <div className="flex flex-wrap gap-2">
                 {participanteSelecionado.status !== 'credenciado' && (
                   <button
-                    onClick={handleCheckin}
+                    onClick={handleCheckinComConfirmacao}
                     disabled={loading}
                     className="btn btn-primary flex items-center"
                   >
@@ -668,6 +681,27 @@ const PainelRecepcao: React.FC = () => {
                   >
                     <UserPlus className="w-5 h-5 mr-2" />
                     Cadastrar Novo
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+          {confirmarImpressao && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+              <div className="bg-white rounded-lg shadow-lg p-6 max-w-md w-full">
+                <h2 className="text-lg font-semibold mb-4">Deseja imprimir a credencial?</h2>
+                <div className="flex justify-end gap-4">
+                  <button
+                    onClick={() => confirmarCheckin(false)}
+                    className="btn btn-outline"
+                  >
+                    Não
+                  </button>
+                  <button
+                    onClick={() => confirmarCheckin(true)}
+                    className="btn btn-primary"
+                  >
+                    Sim
                   </button>
                 </div>
               </div>
