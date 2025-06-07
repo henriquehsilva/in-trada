@@ -196,8 +196,62 @@ const PainelRecepcao: React.FC = () => {
   };
 
   const handlePrintCredencial = () => {
-    // Implementar impressão de credencial
-    alert('Funcionalidade de impressão não implementada nesta versão');
+    if (!participanteSelecionado || !evento) {
+      alert('Nenhum participante selecionado para impressão.');
+      return;
+    }
+
+    const printWindow = window.open('', '_blank', 'width=400,height=600');
+    if (!printWindow) {
+      alert('Não foi possível abrir a janela de impressão.');
+      return;
+    }
+
+    const conteudo = `
+      <html>
+        <head>
+          <style>
+            body {
+              font-family: sans-serif;
+              padding: 16px;
+              font-size: 14px;
+            }
+            .label {
+              border: 1px dashed #000;
+              padding: 16px;
+              text-align: center;
+            }
+            .nome {
+              font-size: 18px;
+              font-weight: bold;
+              margin-bottom: 8px;
+            }
+            .empresa {
+              font-size: 14px;
+              margin-bottom: 8px;
+            }
+            .categoria {
+              font-size: 12px;
+              background: #000;
+              color: #fff;
+              padding: 4px 8px;
+              display: inline-block;
+            }
+          </style>
+        </head>
+        <body onload="window.print(); window.close();">
+          <div class="label">
+            <div class="nome">${participanteSelecionado.nome}</div>
+            <div class="empresa">${participanteSelecionado.empresa || ''}</div>
+            <div class="categoria">${participanteSelecionado.categoria}</div>
+          </div>
+        </body>
+      </html>
+    `;
+
+    printWindow.document.open();
+    printWindow.document.write(conteudo);
+    printWindow.document.close();
   };
 
   const handleCadastrarParticipante = async (e: React.FormEvent) => {

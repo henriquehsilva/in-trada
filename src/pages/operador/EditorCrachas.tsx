@@ -39,6 +39,20 @@ const fontesDisponiveisPadrao = [
   'Arial', 'Verdana', 'Times New Roman', 'Courier New', 'Georgia', 'Tahoma', 'Trebuchet MS'
 ];
 
+function sanitizeObjeto(obj: any): any {
+  if (Array.isArray(obj)) {
+    return obj.map(sanitizeObjeto);
+  }
+  if (typeof obj === 'object' && obj !== null) {
+    return Object.fromEntries(
+      Object.entries(obj)
+        .filter(([_, value]) => value !== undefined)
+        .map(([key, value]) => [key, sanitizeObjeto(value)])
+    );
+  }
+  return obj;
+}
+
 const EditorCrachas: React.FC = () => {
   const { eventoId } = useParams<{ eventoId: string }>();
   const { currentUser } = useAuth();
@@ -191,38 +205,36 @@ const EditorCrachas: React.FC = () => {
     carregarDados();
   }, [eventoId, currentUser]);
 
-  const handleSalvarModelo = async () => {
+ const handleSalvarModelo = async () => {
     if (!eventoId || !currentUser?.uid) return;
     setSalvando(true);
     setErro('');
     setMensagem(null);
-  
+
     try {
-      // Se já houver um modelo salvo, atualiza
       if (modeloId) {
-        await atualizarModeloCracha(modeloId, {
+        await atualizarModeloCracha(modeloId, sanitizeObjeto({
           nome: nomeModelo,
           componentes,
-          eventoId          
-        });
+          eventoId
+        }));
       } else {
-        // Cria novo modelo no Firestore
-        const novoModelo: Omit<ModeloCracha, 'id'> = {
+        const novoModelo: Omit<ModeloCracha, 'id'> = sanitizeObjeto({
           nome: nomeModelo,
           eventoId,
           componentes,
           criadoPorId: currentUser.uid,
           criadoEm: new Date().toISOString(),
           atualizadoEm: new Date().toISOString()
-        };
-  
+        });
+
         const novoId = await criarModeloCracha(novoModelo);
         setModeloId(novoId);
 
         const modelosAtualizados = await listarModelosCrachaPorEvento(eventoId);
         setModelosSalvos(modelosAtualizados);
       }
-  
+
       setMensagem({ tipo: 'success', texto: 'Modelo salvo com sucesso!' });
       setTimeout(() => setMensagem(null), 3000);
     } catch (err) {
@@ -519,10 +531,18 @@ const EditorCrachas: React.FC = () => {
                   <td className="px-4 py-2 text-right space-x-2">
                     <button
                       title="Usar modelo"
-                      onClick={() => {
-                        setModeloId(modelo.id);
-                        setNomeModelo(modelo.nome);
-                        setComponentes(modelo.componentes);
+                      onClick={async () => {
+                        try {
+                          const modeloCompleto = await obterModeloCrachaPorId(modelo.id);
+                          if (modeloCompleto) {
+                            setModeloId(modelo.id);
+                            setNomeModelo(modeloCompleto.nome);
+                            setComponentes(modeloCompleto.componentes);
+                          }
+                        } catch (err) {
+                          console.error('Erro ao carregar modelo para edição:', err);
+                          setMensagem({ tipo: 'error', texto: 'Erro ao carregar modelo para edição.' });
+                        }
                       }}
                       className="text-blue-600 hover:text-blue-800"
                     >

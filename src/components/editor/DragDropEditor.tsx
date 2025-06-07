@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Draggable from 'react-draggable';
 import { nanoid } from 'nanoid';
 import { ComponenteEditor } from '../../models/types';
@@ -30,7 +30,12 @@ const DragDropEditor: React.FC<DragDropEditorProps> = ({
   camposDisponiveis = [],
   fontesDisponiveis = []
 }) => {
-  const [componentesAtuais, setComponentesAtuais] = useState<ComponenteEditor[]>(componentes);
+  const [componentesAtuais, setComponentesAtuais] = useState<ComponenteEditor[]>([]);
+  
+  useEffect(() => {
+    setComponentesAtuais(componentes);
+  }, [componentes]);
+
   const [componenteSelecionado, setComponenteSelecionado] = useState<ComponenteEditor | null>(null);
 
   const toolboxItems = [
