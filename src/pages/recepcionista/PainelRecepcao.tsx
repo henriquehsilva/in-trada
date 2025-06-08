@@ -19,6 +19,7 @@ import { Dialog } from '@headlessui/react';
 import qz from 'qz-tray';
 import { obterModelosCrachaPorEvento } from '../../services/modeloService';
 import { ModeloCracha } from '../../models/types';
+import QRCode from 'qrcode';
 
 
 const PainelRecepcao: React.FC = () => {
@@ -208,14 +209,9 @@ const PainelRecepcao: React.FC = () => {
     if (!participanteSelecionado || !evento) return;
 
     try {
-      if (!qz.websocket.isActive()) {
-        await qz.websocket.connect();
-      }
-
-      // Busca o modelo padrão
       const modelos = await obterModelosCrachaPorEvento(evento.id);
       const modeloPadrao = modelos.find((m) => m.padrao);
-      
+
       if (!modeloPadrao) {
         setMensagem({
           tipo: 'error',
@@ -224,48 +220,89 @@ const PainelRecepcao: React.FC = () => {
         return;
       }
 
-      const conteudo = ['\x1B\x40', '\x1B\x61\x01']; // Reset e alinhamento central
+      // Gera o QR code como imagem base64
+      const qrCodeDataUrl = await QRCode.toDataURL(JSON.stringify(participanteSelecionado));
 
-      for (const comp of modeloPadrao.componentes) {
+      const htmlComponente = modeloPadrao.componentes.map(comp => {
         const props = comp.propriedades;
+        const valor = props.campoVinculado
+          ? participanteSelecionado[props.campoVinculado as keyof typeof participanteSelecionado] || ''
+          : props.texto || '';
 
-        if (comp.tipo === 'campo') {
-          const valor = participanteSelecionado[props.campoVinculado as keyof typeof participanteSelecionado] || '';
-          conteudo.push(valor + '\n');
-        }
-
-        if (comp.tipo === 'texto') {
-          conteudo.push(props.texto + '\n');
-        }
-
-        // ESC/POS não suporta QRCode nativamente em todas as impressoras
-        // Você pode imprimir como texto ou imagem, aqui estamos simplificando
         if (comp.tipo === 'qrcode') {
-          conteudo.push(`ID: ${participanteSelecionado.id}\n`);
+          return `
+            <div style="position:absolute; top:${props.y}px; left:${props.x}px; width:${props.largura}px; height:${props.altura}px;">
+              <img src="${qrCodeDataUrl}" width="${props.largura}" height="${props.altura}" />
+            </div>
+          `;
         }
-      }
 
-      conteudo.push('\n\n', '\x1D\x56\x41'); // Espaço extra + corte
+        return `
+          <div style="
+            position:absolute;
+            top:${props.y}px; left:${props.x}px;
+            width:${props.largura}px; height:${props.altura}px;
+            font-size:${props.estilos?.tamanhoFonte || 14}px;
+            font-weight:${props.estilos?.negrito ? 'bold' : 'normal'};
+            font-family:${props.estilos?.fonte || 'Arial'};
+            text-align:${props.estilos?.alinhamento || 'left'};
+            color:${props.estilos?.corFonte || '#000'};
+            background-color:${props.estilos?.corFundo || 'transparent'};
+            border-radius:${props.estilos?.raio || 0}px;
+            display:flex; align-items:center; justify-content:center;
+            overflow:hidden;
+          ">
+            ${valor}
+          </div>
+        `;
+      }).join('');
 
-      const printer = await qz.printers.getDefault();
-      const config = await qz.configs.create(printer);
+      const largura = 400;
+      const altura = 250;
 
-      await qz.print(config, conteudo);
+      const html = `
+        <html>
+          <head>
+            <title>Imprimir Crachá</title>
+            <style>
+              @page { size: ${largura}px ${altura}px; margin: 0; }
+              body { margin: 0; padding: 0; }
+            </style>
+          </head>
+          <body>
+            <div style="position:relative; width:${largura}px; height:${altura}px;">
+              ${htmlComponente}
+            </div>
+            <script>
+              window.onload = function () {
+                window.print();
+                setTimeout(() => window.close(), 300);
+              };
+            </script>
+          </body>
+        </html>
+      `;
+
+      const printWindow = window.open('', '_blank', 'width=600,height=400');
+      if (!printWindow) return;
+
+      printWindow.document.write(html);
+      printWindow.document.close();
 
       setMensagem({
         tipo: 'success',
-        texto: 'Etiqueta enviada para impressão com sucesso!',
+        texto: 'Credencial enviada para impressão!',
       });
 
     } catch (err) {
       console.error('Erro ao imprimir:', err);
       setMensagem({
         tipo: 'error',
-        texto: 'Falha ao imprimir a etiqueta. Verifique a impressora e tente novamente.',
+        texto: 'Erro ao imprimir credencial.',
       });
     }
   };
-
+  
   const handleCadastrarParticipante = async (e: React.FormEvent) => {
     e.preventDefault();
     
