@@ -136,7 +136,7 @@ const DragDropEditor: React.FC<DragDropEditorProps> = ({
           <h3 className="text-lg font-semibold mb-4">Editor</h3>
           <div
             className="relative border border-gray-300 rounded-lg mx-auto"
-            style={{ width: tamanhoCracha.largura, height: tamanhoCracha.altura, background: '#fff', overflow: 'hidden' }}
+            style={{ width: '100%', height: tamanhoCracha.altura, background: '#fff', overflow: 'hidden' }}
           >
             {componentesAtuais.map(comp => (
               <Draggable
@@ -168,7 +168,7 @@ const DragDropEditor: React.FC<DragDropEditorProps> = ({
       </div>
 
       {/* Propriedades */}
-      <div className="w-full lg:w-80 bg-white p-4 rounded-lg shadow-sm">
+      <div className="bg-white p-4 rounded-lg shadow-sm">
         <h3 className="text-lg font-semibold mb-4">Propriedades</h3>
         {componenteSelecionado ? (
           <PropriedadesComponente

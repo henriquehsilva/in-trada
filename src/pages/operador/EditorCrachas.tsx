@@ -427,8 +427,8 @@ const EditorCrachas: React.FC = () => {
           <div className="text-sm text-green-600 mt-1">Fonte carregada: {fonteCustomizada}</div>
         )}
       </div>
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-6">
-        <div className="lg:col-span-3">
+      <div className="grid grid-cols-1 xl:grid-cols-1 gap-6 mb-6">
+        <div className="w-full">
           <DragDropEditor
             componentes={componentes}
             onSave={setComponentes}
