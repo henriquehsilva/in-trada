@@ -136,7 +136,7 @@ const DragDropEditor: React.FC<DragDropEditorProps> = ({
           <h3 className="text-lg font-semibold mb-4">Editor</h3>
           <div
             className="relative border border-gray-300 rounded-lg mx-auto"
-            style={{ width: tamanhoCracha.largura, height: tamanhoCracha.altura, background: '#fff' }}
+            style={{ width: tamanhoCracha.largura, height: tamanhoCracha.altura, background: '#fff', overflow: 'hidden' }}
           >
             {componentesAtuais.map(comp => (
               <Draggable

@@ -434,7 +434,7 @@ const EditorCrachas: React.FC = () => {
             onSave={setComponentes}
             tamanhoCracha={tamanhoCracha}
             camposDisponiveis={camposDisponiveis}
-            fontesDisponiveis={fontesDisponiveis}
+            fontesDisponiveis={fontesDisponiveis}            
           />
         </div>
         <div className="bg-white p-4 rounded-lg shadow-sm">
