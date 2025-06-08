@@ -302,7 +302,7 @@ const PainelRecepcao: React.FC = () => {
       });
     }
   };
-  
+
   const handleCadastrarParticipante = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -316,7 +316,27 @@ const PainelRecepcao: React.FC = () => {
         eventoId,
         nome: nomeRef.current?.value || '',
         empresa: empresaRef.current?.value || '',
-        email: emailRef.current?.value || '',
+        email1: emailRef.current?.value || '',
+        email2: emailRef.current?.value || '',
+        celular: telefoneRef.current?.value || '',
+        nomeCracha: nomeRef.current?.value || '',
+        empresaCracha: empresaRef.current?.value || '',
+        cargo: '',
+        observacao: '',
+        cpf: '',
+        rg: '',
+        cnpj: '',
+        codigoCliente: '',
+        opcao1: '',
+        opcao2: '',
+        opcao3: '',
+        opcao4: '',
+        opcao5: '',
+        opcao6: '',
+        opcao7: '',
+        opcao8: '',
+        opcao9: '',
+        opcao10: '',
         telefone: telefoneRef.current?.value || '',
         categoria: categoriaRef.current?.value || '',
         status: 'pendente',
@@ -471,7 +491,7 @@ const PainelRecepcao: React.FC = () => {
                       <div>
                         <h4 className="font-medium">{participante.nome}</h4>
                         <p className="text-sm text-gray-600">{participante.empresa}</p>
-                        <p className="text-xs text-gray-500">{participante.email}</p>
+                        <p className="text-xs text-gray-500">{participante.email1}</p>
                       </div>
                       <div>
                         <span className={`inline-block px-2 py-1 text-xs rounded-full ${
@@ -697,7 +717,7 @@ const PainelRecepcao: React.FC = () => {
                 
                 <div>
                   <p className="text-sm text-gray-500">Email</p>
-                  <p className="font-medium">{participanteSelecionado.email}</p>
+                  <p className="font-medium">{participanteSelecionado.email1}</p>
                 </div>
                 
                 <div>
