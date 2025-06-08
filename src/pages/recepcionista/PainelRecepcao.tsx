@@ -258,7 +258,7 @@ const PainelRecepcao: React.FC = () => {
       }).join('');
 
       const largura = 400;
-      const altura = 250;
+      const altura = 200;
 
       const html = `
         <html>
