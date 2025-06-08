@@ -29,7 +29,7 @@ const PropriedadesComponente: React.FC<PropriedadesComponenteProps> = ({
   camposDisponiveis = [],
   fontesDisponiveis = []
 }) => {
-  const estilos = componente.propriedades.estilos as Record<ChaveEstilo, any>;
+  const estilos = componente.propriedades.estilos ?? {} as Record<ChaveEstilo, any>;
 
   const handleChange = (
     key: string,
@@ -134,7 +134,7 @@ const PropriedadesComponente: React.FC<PropriedadesComponenteProps> = ({
           <div className="mb-2">
             <label className="block text-xs font-medium text-gray-700">Fonte</label>
             <select
-              value={estilos.fonte ?? 'Arial'}
+              value={estilos?.fonte ?? 'Arial'}
               onChange={(e) => handleChange('estilos', e.target.value, 'fonte')}
               className="mt-1 block w-full text-sm border-gray-300 rounded-md shadow-sm focus:ring-primary focus:border-primary"
             >

@@ -119,7 +119,8 @@ const EditorCrachas: React.FC = () => {
                     corFonte: '#063a80',
                     tamanhoFonte: 16,
                     alinhamento: 'center',
-                    negrito: true
+                    negrito: true,
+                    fonte: 'Arial'
                   }
                 }
               },
@@ -136,7 +137,8 @@ const EditorCrachas: React.FC = () => {
                     corFonte: '#000000',
                     tamanhoFonte: 18,
                     alinhamento: 'center',
-                    negrito: true
+                    negrito: true,
+                    fonte: 'Arial'
                   }
                 }
               },
@@ -152,7 +154,8 @@ const EditorCrachas: React.FC = () => {
                   estilos: {
                     corFonte: '#666666',
                     tamanhoFonte: 14,
-                    alinhamento: 'center'
+                    alinhamento: 'center',
+                    fonte: 'Arial'
                   }
                 }
               },
@@ -180,7 +183,8 @@ const EditorCrachas: React.FC = () => {
                     tamanhoFonte: 12,
                     alinhamento: 'center',
                     corFundo: '#ff914d',
-                    raio: 4
+                    raio: 4,
+                    fonte: 'Arial'
                   }
                 }
               }
@@ -524,56 +528,82 @@ const EditorCrachas: React.FC = () => {
                 <th className="px-4 py-2 text-right font-bold text-gray-600">Ações</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
-              {modelosSalvos.map((modelo) => (
-                <tr key={modelo.id}>
-                  <td className="px-4 py-2">{modelo.nome}</td>
-                  <td className="px-4 py-2 text-right space-x-2">
-                    <button
-                      title="Usar modelo"
-                      onClick={async () => {
-                        try {
-                          const modeloCompleto = await obterModeloCrachaPorId(modelo.id);
-                          if (modeloCompleto) {
-                            setModeloId(modelo.id);
-                            setNomeModelo(modeloCompleto.nome);
-                            setComponentes(modeloCompleto.componentes);
+              <tbody className="divide-y divide-gray-100">
+                {modelosSalvos.map((modelo) => (
+                  <tr key={modelo.id}>
+                    <td className="px-4 py-2">
+                      {modelo.nome} {modelo.padrao && <span className="text-sm text-primary font-semibold ml-2">(Padrão)</span>}
+                    </td>
+                    <td className="px-4 py-2 text-right space-x-2">
+                      <button
+                        title="Definir como padrão"
+                        onClick={async () => {
+                          try {
+                            const atualizados = await Promise.all(
+                              modelosSalvos.map(async (m) => {
+                                const isAlvo = m.id === modelo.id;
+                                if (m.padrao !== isAlvo) {
+                                  await atualizarModeloCracha(m.id, { padrao: isAlvo });
+                                }
+                              })
+                            );
+                            const modelosAtualizados = await listarModelosCrachaPorEvento(eventoId!);
+                            setModelosSalvos(modelosAtualizados);
+                            setMensagem({ tipo: 'success', texto: 'Modelo definido como padrão.' });
+                          } catch (err) {
+                            console.error('Erro ao definir modelo padrão:', err);
+                            setMensagem({ tipo: 'error', texto: 'Erro ao definir modelo padrão.' });
                           }
-                        } catch (err) {
-                          console.error('Erro ao carregar modelo para edição:', err);
-                          setMensagem({ tipo: 'error', texto: 'Erro ao carregar modelo para edição.' });
-                        }
-                      }}
-                      className="text-blue-600 hover:text-blue-800"
-                    >
-                      <Upload size={18} />
-                    </button>
-                    <button
-                      title="Excluir modelo"
-                      onClick={async () => {
-                        if (!window.confirm(`Deseja excluir o modelo "${modelo.nome}"?`)) return;
-                        try {
-                          await deleteDoc(doc(db, 'modelosCracha', modelo.id));
-                          setModelosSalvos((prev) => prev.filter((m) => m.id !== modelo.id));
-                          if (modeloId === modelo.id) {
-                            setModeloId(null);
-                            setNomeModelo('Novo Modelo de Crachá');
-                            setComponentes([]);
+                        }}
+                        className="btn btn-outline text-xs"
+                      >
+                        Definir como Padrão
+                      </button>
+                      <button
+                        title="Usar modelo"
+                        onClick={async () => {
+                          try {
+                            const modeloCompleto = await obterModeloCrachaPorId(modelo.id);
+                            if (modeloCompleto) {
+                              setModeloId(modelo.id);
+                              setNomeModelo(modeloCompleto.nome);
+                              setComponentes(modeloCompleto.componentes);
+                            }
+                          } catch (err) {
+                            console.error('Erro ao carregar modelo para edição:', err);
+                            setMensagem({ tipo: 'error', texto: 'Erro ao carregar modelo para edição.' });
                           }
-                          setMensagem({ tipo: 'success', texto: 'Modelo excluído com sucesso.' });
-                        } catch (err) {
-                          console.error('Erro ao excluir modelo:', err);
-                          setMensagem({ tipo: 'error', texto: 'Erro ao excluir modelo.' });
-                        }
-                      }}
-                      className="text-red-600 hover:text-red-800"
-                    >
-                      <Trash2 size={18} />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
+                        }}
+                        className="text-blue-600 hover:text-blue-800"
+                      >
+                        <Upload size={18} />
+                      </button>
+                      <button
+                        title="Excluir modelo"
+                        onClick={async () => {
+                          if (!window.confirm(`Deseja excluir o modelo "${modelo.nome}"?`)) return;
+                          try {
+                            await deleteDoc(doc(db, 'modelosCracha', modelo.id));
+                            setModelosSalvos((prev) => prev.filter((m) => m.id !== modelo.id));
+                            if (modeloId === modelo.id) {
+                              setModeloId(null);
+                              setNomeModelo('Novo Modelo de Crachá');
+                              setComponentes([]);
+                            }
+                            setMensagem({ tipo: 'success', texto: 'Modelo excluído com sucesso.' });
+                          } catch (err) {
+                            console.error('Erro ao excluir modelo:', err);
+                            setMensagem({ tipo: 'error', texto: 'Erro ao excluir modelo.' });
+                          }
+                        }}
+                        className="text-red-600 hover:text-red-800"
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
           </table>
         </div>
       </div>      

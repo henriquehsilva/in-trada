@@ -52,6 +52,7 @@ export interface ModeloCracha {
   criadoPorId: string;
   criadoEm: string;
   atualizadoEm: string;
+  padrao?: boolean;
 }
 
 export interface ModeloPainel {

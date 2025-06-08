@@ -17,6 +17,9 @@ import { useAuth } from '../../contexts/AuthContext';
 import { Evento, Participante } from '../../models/types';
 import { Dialog } from '@headlessui/react';
 import qz from 'qz-tray';
+import { obterModelosCrachaPorEvento } from '../../services/modeloService';
+import { ModeloCracha } from '../../models/types';
+
 
 const PainelRecepcao: React.FC = () => {
   const { eventoId } = useParams<{ eventoId: string }>();
@@ -40,6 +43,11 @@ const PainelRecepcao: React.FC = () => {
   
   // Campos personalizados para o formulário
   const [camposPersonalizadosValues, setCamposPersonalizadosValues] = useState<Record<string, any>>({});
+
+  const obterModeloPadrao = async (eventoId: string): Promise<ModeloCracha | null> => {
+  const modelos = await obterModelosCrachaPorEvento(eventoId);
+    return modelos.find(m => m.padrao) || null;
+  };
 
   useEffect(() => {
     const carregarDados = async () => {
@@ -200,21 +208,45 @@ const PainelRecepcao: React.FC = () => {
     if (!participanteSelecionado || !evento) return;
 
     try {
-      // Garante que o QZ esteja autenticado
       if (!qz.websocket.isActive()) {
         await qz.websocket.connect();
       }
 
-      const conteudo = [
-        '\x1B\x40', // Reset
-        '\x1B\x61\x01', // Alinhar centro
-        '\x1B\x21\x20', // Fonte dupla altura
-        `${evento.nome}\n`,
-        '\x1B\x21\x00', // Fonte normal
-        `${participanteSelecionado.nome}\n`,
-        `${participanteSelecionado.empresa || ''}\n\n`,
-        '\x1D\x56\x41', // Corte parcial (se suportado)
-      ];
+      // Busca o modelo padrão
+      const modelos = await obterModelosCrachaPorEvento(evento.id);
+      const modeloPadrao = modelos.find((m) => m.padrao);
+      
+      if (!modeloPadrao) {
+        setMensagem({
+          tipo: 'error',
+          texto: 'Nenhum modelo de crachá padrão definido para este evento.',
+        });
+        return;
+      }
+
+      const conteudo = ['\x1B\x40', '\x1B\x61\x01']; // Reset e alinhamento central
+
+      for (const comp of modeloPadrao.componentes) {
+        const props = comp.propriedades;
+
+        if (comp.tipo === 'campo') {
+          const valor = participanteSelecionado[props.campoVinculado as keyof typeof participanteSelecionado] || '';
+          conteudo.push(valor + '\n');
+        }
+
+        if (comp.tipo === 'texto') {
+          conteudo.push(props.texto + '\n');
+        }
+
+        // ESC/POS não suporta QRCode nativamente em todas as impressoras
+        // Você pode imprimir como texto ou imagem, aqui estamos simplificando
+        if (comp.tipo === 'qrcode') {
+          conteudo.push(`ID: ${participanteSelecionado.id}\n`);
+        }
+      }
+
+      conteudo.push('\n\n', '\x1D\x56\x41'); // Espaço extra + corte
+
       const printer = await qz.printers.getDefault();
       const config = await qz.configs.create(printer);
 
@@ -222,14 +254,14 @@ const PainelRecepcao: React.FC = () => {
 
       setMensagem({
         tipo: 'success',
-        texto: 'Etiqueta enviada para impressão com sucesso!'
+        texto: 'Etiqueta enviada para impressão com sucesso!',
       });
 
     } catch (err) {
       console.error('Erro ao imprimir:', err);
       setMensagem({
         tipo: 'error',
-        texto: 'Falha ao imprimir a etiqueta. Verifique a impressora e tente novamente.'
+        texto: 'Falha ao imprimir a etiqueta. Verifique a impressora e tente novamente.',
       });
     }
   };
