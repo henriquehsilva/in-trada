@@ -20,6 +20,7 @@
     "lucide-react": "^0.344.0",
     "nanoid": "^5.0.5",
     "qrcode.react": "^3.1.0",
+    "qz-tray": "^2.2.4",
     "react": "^18.3.1",
     "react-barcode": "^1.6.1",
     "react-beautiful-dnd": "^13.1.1",
@@ -35,6 +36,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.9.1",
+    "@types/qz-tray": "^2.2.2",
     "@types/react": "^18.3.5",
     "@types/react-beautiful-dnd": "^13.1.8",
     "@types/react-dom": "^18.3.0",
