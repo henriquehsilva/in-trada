@@ -31,6 +31,7 @@ import CriarRecepcionista from './pages/operador/recepcionistas/CriarRecepcionis
 import EditarRecepcionista from './pages/operador/recepcionistas/EditarRecepcionista'; 
 import CriarParticipante from './pages/operador/participantes/CriarParticipante';
 import EditarParticipante from './pages/operador/participantes/EditarParticipante'; 
+import ImportarParticipantes from './pages/operador/participantes/ImportarParticipantes';
 
 // Páginas de Recepcionista
 import RecepcionistaDashboard from './pages/recepcionista/Dashboard';
@@ -165,6 +166,13 @@ function App() {
               <EditarParticipante />
             </ProtectedRoute>
           }
+        />
+        <Route path="/operador/participantes/:eventoId/importar" 
+          element={
+            <ProtectedRoute requiredRole="operador">
+              <ImportarParticipantes />
+            </ProtectedRoute>
+          } 
         />
         <Route 
           path="/operador/editor-crachas/:eventoId" 
