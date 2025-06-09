@@ -72,10 +72,16 @@ const ImportarParticipantes: React.FC = () => {
       backUrl={`/operador/participantes?eventoId=${eventoId}`}
     >
       <div className="bg-white p-6 rounded-lg shadow-sm space-y-4">
+        <a
+          href="/MODELO_IMPORTE_PARTICIPANTES.xlsx"
+          download
+          className="inline-block bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition"
+        >
+          Baixar Modelo (.xlsx)
+        </a>
         <p className="text-sm text-gray-600">
-          Selecione um arquivo <strong>.csv</strong> com colunas: <code>nome</code>, <code>empresa</code>, <code>nomeCracha</code>, <code>empresaCracha</code>, <code>cargo</code>, <code>email1</code>, <code>email2</code>, <code>celular</code>, <code>telefone</code>, <code>categoria</code>, <code>observacao</code>, <code>cpf</code>, <code>rg</code>, <code>cnpj</code>, <code>codigoCliente</code>, <code>opcao1</code>, <code>opcao2</code>, <code>opcao3</code>, <code>opcao4</code>, <code>opcao5</code>, <code>opcao6</code>, <code>opcao7</code>, <code>opcao8</code>, <code>opcao9</code>, <code>opcao10</code>.
+          Selecione um arquivo <strong>.csv</strong>
         </p>
-
         <input type="file" accept=".csv" onChange={handleArquivo} className="input-field" />
 
         {erro && <div className="text-error bg-error-light p-3 rounded">{erro}</div>}
