@@ -265,12 +265,19 @@ const PainelRecepcao: React.FC = () => {
           <head>
             <title>Imprimir Crachá</title>
             <style>
-              @page { size: ${largura}px ${altura}px; margin: 0; }
-              body { margin: 0; padding: 0; }
+              @media print {
+                body, html {
+                  margin: 0;
+                  padding: 0;
+                  width: ${largura}px;
+                  height: ${altura}px;
+                  overflow: hidden;
+                }
+              }
             </style>
           </head>
           <body>
-            <div style="position:relative; width:${largura}px; height:${altura}px;">
+            <div style="position:relative; width:${largura}px; height:${altura}px; overflow:hidden;">
               ${htmlComponente}
             </div>
             <script>
