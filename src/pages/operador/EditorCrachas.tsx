@@ -76,12 +76,13 @@ const EditorCrachas: React.FC = () => {
 
   const cmToZplPx = (cm: number) => Math.round((cm / 2.54) * 203);
 
-  const [dimensoesCm, setDimensoesCm] = useState({ largura: 8, altura: 3 });
+  const tamanhoCracha = modelo?.larguraCm && modelo?.alturaCm
+    ? {
+      largura: cmToZplPx(modelo.larguraCm),
+      altura: cmToZplPx(modelo.alturaCm)
+    }
+    : { largura: 400, altura: 250 };
 
-  const tamanhoCracha = {
-    largura: cmToZplPx(dimensoesCm.largura),
-    altura: cmToZplPx(dimensoesCm.altura)
-  };
 
   useEffect(() => {
     const carregarModelos = async () => {
@@ -196,6 +197,8 @@ const EditorCrachas: React.FC = () => {
                 }
               }
             ],
+            larguraCm: 8,
+            alturaCm: 3,
             criadoPorId: currentUser?.uid || '',
             criadoEm: '',
             atualizadoEm: ''
@@ -236,7 +239,9 @@ const EditorCrachas: React.FC = () => {
           componentes,
           criadoPorId: currentUser.uid,
           criadoEm: new Date().toISOString(),
-          atualizadoEm: new Date().toISOString()
+          atualizadoEm: new Date().toISOString(),
+          larguraCm: 8,
+          alturaCm: 3,
         });
 
         const novoId = await criarModeloCracha(novoModelo);
@@ -441,7 +446,12 @@ const EditorCrachas: React.FC = () => {
             onSave={setComponentes}
             tamanhoCracha={tamanhoCracha}
             camposDisponiveis={camposDisponiveis}
-            fontesDisponiveis={fontesDisponiveis}            
+            fontesDisponiveis={fontesDisponiveis} 
+            onChangeTamanhoCracha={({ larguraCm, alturaCm }) => {
+              if (!modelo) return;
+                setModelo({ ...modelo, larguraCm, alturaCm });
+              }
+            }          
           />
         </div>
         <div className="bg-white p-4 rounded-lg shadow-sm">

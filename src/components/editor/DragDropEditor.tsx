@@ -171,8 +171,8 @@ const DragDropEditor: React.FC<DragDropEditorProps> = ({
               if (!novoModelo) return;
               setModeloSelecionado(novoModelo);
               onChangeTamanhoCracha?.({
-                larguraCm: novoModelo.largura,
-                alturaCm: novoModelo.altura
+                larguraCm: novoModelo.larguraCm,
+                alturaCm: novoModelo.alturaCm
                 });
               }
             }

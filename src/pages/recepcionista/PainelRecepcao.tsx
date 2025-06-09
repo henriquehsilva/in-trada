@@ -220,10 +220,12 @@ const PainelRecepcao: React.FC = () => {
         return;
       }
 
-      // Gera o QR code como imagem base64
       const qrCodeDataUrl = await QRCode.toDataURL(JSON.stringify(participanteSelecionado));
+      const cmToZplPx = (cm: number) => Math.round((cm / 2.54) * 203);
+      const largura = cmToZplPx(modeloPadrao.larguraCm || 8);
+      const altura = cmToZplPx(modeloPadrao.alturaCm || 3);
 
-      const htmlComponente = modeloPadrao.componentes.map(comp => {
+      const htmlComponente = modeloPadrao.componentes.map((comp) => {
         const props = comp.propriedades;
         const valor = props.campoVinculado
           ? participanteSelecionado[props.campoVinculado as keyof typeof participanteSelecionado] || ''
@@ -256,18 +258,6 @@ const PainelRecepcao: React.FC = () => {
           </div>
         `;
       }).join('');
-
-      const cmToZplPx = (cm: number) => Math.round((cm / 2.54) * 203);
-
-      const [dimensoesCm, setDimensoesCm] = useState({ largura: 8, altura: 3 });
-
-      const tamanhoCracha = {
-        largura: cmToZplPx(dimensoesCm.largura),
-        altura: cmToZplPx(dimensoesCm.altura)
-      };
-
-      const largura = tamanhoCracha.largura;
-      const altura = tamanhoCracha.altura;
 
       const html = `
         <html>
