@@ -161,10 +161,8 @@ function App() {
         />
         <Route
           path="/operador/participantes/:eventoId/:id/editar" 
-          element={
-            <ProtectedRoute requiredRole="operador">
-              <EditarParticipante />
-            </ProtectedRoute>
+          element={            
+            <EditarParticipante />            
           }
         />
         <Route path="/operador/participantes/:eventoId/importar" 

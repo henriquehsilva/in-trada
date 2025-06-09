@@ -163,6 +163,7 @@ const GerenciarParticipantes: React.FC = () => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Categoria</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cadastrado em</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ações</th>
                 <th className="relative px-6 py-3"><span className="sr-only">Ações</span></th>
               </tr>
             </thead>
@@ -170,7 +171,7 @@ const GerenciarParticipantes: React.FC = () => {
               {participantes.map((p) => (
                 <tr key={p.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{p.nome}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{p.email}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{p.email1}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{p.empresa}</td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-primary-100 text-primary">{p.categoria}</span>

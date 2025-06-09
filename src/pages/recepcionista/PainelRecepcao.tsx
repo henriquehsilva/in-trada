@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { useParams } from 'react-router-dom';
-import { QrCode, Search, UserPlus, CheckCircle, Printer } from 'lucide-react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { QrCode, Search, UserPlus, CheckCircle, Printer, Edit } from 'lucide-react';
 import LayoutDefault from '../../components/layout/LayoutDefault';
 import QrCodeScanner from '../../components/qrcode/QrCodeScanner';
 import { 
@@ -21,8 +21,8 @@ import { obterModelosCrachaPorEvento } from '../../services/modeloService';
 import { ModeloCracha } from '../../models/types';
 import QRCode from 'qrcode';
 
-
 const PainelRecepcao: React.FC = () => {
+  const navigate = useNavigate();
   const { eventoId } = useParams<{ eventoId: string }>();
   const { currentUser } = useAuth();
   
@@ -761,6 +761,14 @@ const PainelRecepcao: React.FC = () => {
               )}
               
               <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => navigate(`/operador/participantes/${eventoId}/${participanteSelecionado.id}/editar`)}
+                  className="btn btn-outline flex items-center"
+                  title="Editar participante"
+                >
+                  <Edit className="w-5 h-5 mr-2" /> Editar Participante
+                </button>
+
                 {participanteSelecionado.status !== 'credenciado' && (
                   <button
                     onClick={handleCheckinComConfirmacao}
