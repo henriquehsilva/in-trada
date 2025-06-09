@@ -1,7 +1,7 @@
 // src/pages/operador/participantes/EditarParticipante.tsx
 
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import LayoutDefault from '../../../components/layout/LayoutDefault';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../../../firebase/config';
@@ -10,7 +10,10 @@ import toast from 'react-hot-toast';
 const EditarParticipante: React.FC = () => {
   const { eventoId, id } = useParams<{ eventoId: string; id: string }>();
   const navigate = useNavigate();
-
+  
+  const location = useLocation();
+  const from = location.state?.from;
+  
   const [form, setForm] = useState({
     nome: '',
     email: '',
@@ -82,7 +85,15 @@ const EditarParticipante: React.FC = () => {
       });
 
       toast.success(`Participante atualizado com sucesso!`);
-      setTimeout(() => navigate(`/operador/participantes?eventoId=${eventoId}`), 2000);
+      setTimeout(() => {
+      if (from === 'painel-recepcao') {
+        navigate(`/recepcionista/painel/${eventoId}`, {
+          state: { participanteId: id }
+        });
+      } else {
+        navigate(`/operador/participantes?eventoId=${eventoId}`);
+      }
+    }, 2000);
     } catch (err) {
       console.error(err);
       setErro('Erro ao atualizar participante.');

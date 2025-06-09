@@ -761,7 +761,9 @@ const PainelRecepcao: React.FC = () => {
               
               <div className="flex flex-wrap gap-2">
                 <button
-                  onClick={() => navigate(`/operador/participantes/${eventoId}/${participanteSelecionado.id}/editar`)}
+                  onClick={() => navigate(`/operador/participantes/${eventoId}/${participanteSelecionado.id}/editar`, {
+                      state: { from: 'painel-recepcao' }
+                  })}
                   className="btn btn-outline flex items-center"
                   title="Editar participante"
                 >
