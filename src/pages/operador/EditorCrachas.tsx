@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Save, Printer, Download, Copy, Pencil, Trash2, Upload } from 'lucide-react';
+import { Save, Printer, Download, Copy, Edit, Trash2, Upload } from 'lucide-react';
 import LayoutDefault from '../../components/layout/LayoutDefault';
 import DragDropEditor from '../../components/editor/DragDropEditor';
 import QRCode from 'qrcode.react';
@@ -219,7 +219,64 @@ const EditorCrachas: React.FC = () => {
     carregarDados();
   }, [eventoId, currentUser]);
 
- const handleSalvarModelo = async () => {
+  const salvarComoNovoModelo = async () => {
+    if (!eventoId || !currentUser?.uid) return;
+    setSalvando(true);
+    setErro('');
+    setMensagem(null);
+
+    try {
+      const novoModelo: Omit<ModeloCracha, 'id'> = sanitizeObjeto({
+        nome: nomeModelo + ' (Cópia)',
+        eventoId,
+        componentes,
+        criadoPorId: currentUser.uid,
+        criadoEm: new Date().toISOString(),
+        atualizadoEm: new Date().toISOString(),
+        larguraCm: modelo?.larguraCm || 8,
+        alturaCm: modelo?.alturaCm || 3,
+      });
+
+      const novoId = await criarModeloCracha(novoModelo);
+      setModeloId(novoId); // agora esse passa a ser o modelo carregado
+      const modelosAtualizados = await listarModelosCrachaPorEvento(eventoId);
+      setModelosSalvos(modelosAtualizados);
+      setMensagem({ tipo: 'success', texto: 'Novo modelo criado com sucesso!' });
+    } catch (err) {
+      console.error('Erro ao criar novo modelo:', err);
+      setMensagem({ tipo: 'error', texto: 'Erro ao criar novo modelo.' });
+    } finally {
+      setSalvando(false);
+      setTimeout(() => setMensagem(null), 3000);
+    }
+  };
+
+  const salvarAlteracoesModelo = async () => {
+    if (!eventoId || !currentUser?.uid || !modeloId) return;
+    setSalvando(true);
+    setErro('');
+    setMensagem(null);
+
+    try {
+      await atualizarModeloCracha(modeloId, sanitizeObjeto({
+        nome: nomeModelo,
+        componentes,
+        eventoId,
+        atualizadoEm: new Date().toISOString()
+      }));
+      const modelosAtualizados = await listarModelosCrachaPorEvento(eventoId);
+      setModelosSalvos(modelosAtualizados);
+      setMensagem({ tipo: 'success', texto: 'Alterações salvas com sucesso!' });
+    } catch (err) {
+      console.error('Erro ao atualizar modelo:', err);
+      setMensagem({ tipo: 'error', texto: 'Erro ao salvar alterações.' });
+    } finally {
+      setSalvando(false);
+      setTimeout(() => setMensagem(null), 3000);
+    }
+  };
+
+  const handleSalvarModelo = async () => {
     if (!eventoId || !currentUser?.uid) return;
     setSalvando(true);
     setErro('');
@@ -422,9 +479,22 @@ const EditorCrachas: React.FC = () => {
             />
           </div>
           <div className="flex space-x-2">
-            <button onClick={handleSalvarModelo} disabled={salvando} className="btn btn-primary flex items-center">
-              <Save className="w-5 h-5 mr-2" /> {salvando ? 'Salvando...' : 'Salvar Modelo'}
+            <button
+              onClick={salvarAlteracoesModelo}
+              disabled={!modeloId || salvando}
+              className="btn btn-outline flex items-center"
+            >
+              <Edit className="w-5 h-5 mr-2" /> {salvando ? 'Salvando...' : 'Salvar Alterações'}
             </button>
+
+            <button
+              onClick={salvarComoNovoModelo}
+              disabled={salvando}
+              className="btn btn-outline flex items-center"
+            >
+              <Save className="w-5 h-5 mr-2" /> {salvando ? 'Salvando...' : 'Salvar como Novo'}
+            </button>
+
             <button onClick={handlePrint} className="btn btn-outline flex items-center">
               <Printer className="w-5 h-5 mr-2" /> Imprimir
             </button>          
