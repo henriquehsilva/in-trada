@@ -5,6 +5,8 @@ import { ComponenteEditor } from '../../models/types';
 import ComponentePreview from './ComponentePreview';
 import ToolboxItem from './ToolboxItem';
 import PropriedadesComponente from './PropriedadesComponente';
+import { RefreshCcw, RefreshCw } from 'lucide-react';
+
 import {
   Type,
   PanelTop,
@@ -49,6 +51,14 @@ const DragDropEditor: React.FC<DragDropEditorProps> = ({
   ];
 
   const cmToPx = (cm: number) => Math.round((cm / 2.54) * 96);
+
+  const modelosEtiqueta = [
+    { id: '8x3', nome: 'Etiqueta 8x3cm', largura: 303, altura: 113 }, // 96dpi
+    { id: '6x4', nome: 'Etiqueta 6x4cm', largura: 227, altura: 151 },
+    { id: '10x5', nome: 'Etiqueta 10x5cm', largura: 378, altura: 189 }
+  ];
+
+  const [modeloSelecionado, setModeloSelecionado] = useState(modelosEtiqueta[0]);
 
   const adicionarComponente = (tipo: string) => {
     const largura = tipo === 'qrcode' || tipo === 'barcode' ? cmToPx(5) : 100;
@@ -127,17 +137,51 @@ const DragDropEditor: React.FC<DragDropEditorProps> = ({
               </div>              
             </button>
           ))}
+            <button
+              onClick={() => {      
+                  setComponentesAtuais([]);
+                  onSave([]);
+                  setComponenteSelecionado(null);
+                }
+              }
+              className="w-full text-left px-3 py-2 border border-red-500 text-red-600 rounded hover:bg-red-50 mt-4"
+            >
+            <div className="flex items-center">
+              <RefreshCcw size={18} className="mr-2" />
+              Resetar Componentes
+            </div>
+          </button>
         </div>
       </div>
 
       {/* Editor */}
       <div className="flex-grow">
         <div className="bg-white p-4 rounded-lg shadow-sm mb-4">
+          <label className="block text-sm font-medium text-gray-700 mb-1">Modelo da Etiqueta</label>
+<select
+  value={modeloSelecionado.id}
+  onChange={(e) => {
+    const novoModelo = modelosEtiqueta.find(m => m.id === e.target.value);
+    if (novoModelo) setModeloSelecionado(novoModelo);
+  }}
+  className="input-field mb-4"
+>
+  {modelosEtiqueta.map(m => (
+    <option key={m.id} value={m.id}>{m.nome}</option>
+  ))}
+</select>
           <h3 className="text-lg font-semibold mb-4">Editor</h3>
           <div
             className="relative border border-gray-300 rounded-lg mx-auto"
-            style={{ width: '100%', height: tamanhoCracha.altura, background: '#fff', overflow: 'hidden' }}
-          >
+            style={{
+              width: modeloSelecionado.largura,
+              height: modeloSelecionado.altura,
+              position: 'relative',
+              background: '#fff',
+              overflow: 'hidden',
+              border: '1px solid #ccc'
+            }}
+            >
             {componentesAtuais.map(comp => (
               <Draggable
                 key={comp.id}
