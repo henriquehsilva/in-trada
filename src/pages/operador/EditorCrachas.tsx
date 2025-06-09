@@ -69,12 +69,19 @@ const EditorCrachas: React.FC = () => {
   const [mensagem, setMensagem] = useState<{ tipo: 'success' | 'error', texto: string } | null>(null);
   const [erro, setErro] = useState('');
 
-  const tamanhoCracha = { largura: 400, altura: 250 };
   const [modelosSalvos, setModelosSalvos] = useState<ModeloCracha[]>([]);
   
-
   const [fonteCustomizada, setFonteCustomizada] = useState<string | null>(null);
   const [fontesDisponiveis, setFontesDisponiveis] = useState<string[]>(fontesDisponiveisPadrao);
+
+  const cmToZplPx = (cm: number) => Math.round((cm / 2.54) * 203);
+
+  const [dimensoesCm, setDimensoesCm] = useState({ largura: 8, altura: 3 });
+
+  const tamanhoCracha = {
+    largura: cmToZplPx(dimensoesCm.largura),
+    altura: cmToZplPx(dimensoesCm.altura)
+  };
 
   useEffect(() => {
     const carregarModelos = async () => {

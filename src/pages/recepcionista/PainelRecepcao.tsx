@@ -257,8 +257,17 @@ const PainelRecepcao: React.FC = () => {
         `;
       }).join('');
 
-      const largura = 400;
-      const altura = 200;
+      const cmToZplPx = (cm: number) => Math.round((cm / 2.54) * 203);
+
+      const [dimensoesCm, setDimensoesCm] = useState({ largura: 8, altura: 3 });
+
+      const tamanhoCracha = {
+        largura: cmToZplPx(dimensoesCm.largura),
+        altura: cmToZplPx(dimensoesCm.altura)
+      };
+
+      const largura = tamanhoCracha.largura;
+      const altura = tamanhoCracha.altura;
 
       const html = `
         <html>

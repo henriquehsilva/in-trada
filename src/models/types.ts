@@ -73,6 +73,8 @@ export interface ModeloCracha {
   criadoEm: string;
   atualizadoEm: string;
   padrao?: boolean;
+  larguraCm?: number;
+  alturaCm?: number; 
 }
 
 export interface ModeloPainel {

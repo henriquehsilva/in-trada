@@ -21,16 +21,17 @@ interface DragDropEditorProps {
   componentes: ComponenteEditor[];
   onSave: (componentes: ComponenteEditor[]) => void;
   tamanhoCracha?: { largura: number; altura: number };
+  onChangeTamanhoCracha?: (dimensoes: { larguraCm: number; alturaCm: number }) => void;
   camposDisponiveis?: string[];
   fontesDisponiveis?: string[];
 }
 
 const DragDropEditor: React.FC<DragDropEditorProps> = ({
   componentes,
-  onSave,
-  tamanhoCracha = { largura: 400, altura: 250 },
+  onSave,  
   camposDisponiveis = [],
-  fontesDisponiveis = []
+  fontesDisponiveis = [],
+  onChangeTamanhoCracha
 }) => {
   const [componentesAtuais, setComponentesAtuais] = useState<ComponenteEditor[]>([]);
   
@@ -54,10 +55,14 @@ const DragDropEditor: React.FC<DragDropEditorProps> = ({
   const cmToPx = (cm: number) => Math.round((cm / 2.54) * 203); // para ZPL (203 DPI)
 
   const modelosEtiqueta = [
-    { id: '8x3', nome: 'Etiqueta 8x3cm', largura: cmToPx(8), altura: cmToPx(3) },
-    { id: '6x4', nome: 'Etiqueta 6x4cm', largura: cmToPx(6), altura: cmToPx(4) },
-    { id: '10x5', nome: 'Etiqueta 10x5cm', largura: cmToPx(10), altura: cmToPx(5) }
-  ];
+    { id: '8x3', nome: 'Etiqueta 8x3cm', larguraCm: 8, alturaCm: 3 },
+    { id: '6x4', nome: 'Etiqueta 6x4cm', larguraCm: 6, alturaCm: 4 },
+    { id: '10x5', nome: 'Etiqueta 10x5cm', larguraCm: 10, alturaCm: 5 }
+  ].map(m => ({
+    ...m,
+    largura: cmToPx(m.larguraCm),
+    altura: cmToPx(m.alturaCm)
+  }));
 
   const [modeloSelecionado, setModeloSelecionado] = useState(modelosEtiqueta[0]);
 
@@ -163,8 +168,14 @@ const DragDropEditor: React.FC<DragDropEditorProps> = ({
             value={modeloSelecionado.id}
             onChange={(e) => {
               const novoModelo = modelosEtiqueta.find(m => m.id === e.target.value);
-              if (novoModelo) setModeloSelecionado(novoModelo);
-            }}
+              if (!novoModelo) return;
+              setModeloSelecionado(novoModelo);
+              onChangeTamanhoCracha?.({
+                larguraCm: novoModelo.largura,
+                alturaCm: novoModelo.altura
+                });
+              }
+            }
             className="input-field mb-4"
           >
             {modelosEtiqueta.map(m => (
