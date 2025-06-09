@@ -50,12 +50,13 @@ const DragDropEditor: React.FC<DragDropEditorProps> = ({
     { tipo: 'divisao', label: 'Divisão', icon: <Minus className="w-4 h-4" /> },
   ];
 
-  const cmToPx = (cm: number) => Math.round((cm / 2.54) * 96);
+  // const cmToPx = (cm: number) => Math.round((cm / 2.54) * 96);
+  const cmToPx = (cm: number) => Math.round((cm / 2.54) * 203); // para ZPL (203 DPI)
 
   const modelosEtiqueta = [
-    { id: '8x3', nome: 'Etiqueta 8x3cm', largura: 303, altura: 113 }, // 96dpi
-    { id: '6x4', nome: 'Etiqueta 6x4cm', largura: 227, altura: 151 },
-    { id: '10x5', nome: 'Etiqueta 10x5cm', largura: 378, altura: 189 }
+    { id: '8x3', nome: 'Etiqueta 8x3cm', largura: cmToPx(8), altura: cmToPx(3) },
+    { id: '6x4', nome: 'Etiqueta 6x4cm', largura: cmToPx(6), altura: cmToPx(4) },
+    { id: '10x5', nome: 'Etiqueta 10x5cm', largura: cmToPx(10), altura: cmToPx(5) }
   ];
 
   const [modeloSelecionado, setModeloSelecionado] = useState(modelosEtiqueta[0]);
@@ -158,18 +159,18 @@ const DragDropEditor: React.FC<DragDropEditorProps> = ({
       <div className="flex-grow">
         <div className="bg-white p-4 rounded-lg shadow-sm mb-4">
           <label className="block text-sm font-medium text-gray-700 mb-1">Modelo da Etiqueta</label>
-<select
-  value={modeloSelecionado.id}
-  onChange={(e) => {
-    const novoModelo = modelosEtiqueta.find(m => m.id === e.target.value);
-    if (novoModelo) setModeloSelecionado(novoModelo);
-  }}
-  className="input-field mb-4"
->
-  {modelosEtiqueta.map(m => (
-    <option key={m.id} value={m.id}>{m.nome}</option>
-  ))}
-</select>
+          <select
+            value={modeloSelecionado.id}
+            onChange={(e) => {
+              const novoModelo = modelosEtiqueta.find(m => m.id === e.target.value);
+              if (novoModelo) setModeloSelecionado(novoModelo);
+            }}
+            className="input-field mb-4"
+          >
+            {modelosEtiqueta.map(m => (
+              <option key={m.id} value={m.id}>{m.nome}</option>
+            ))}
+          </select>
           <h3 className="text-lg font-semibold mb-4">Editor</h3>
           <div
             className="relative border border-gray-300 rounded-lg mx-auto"
