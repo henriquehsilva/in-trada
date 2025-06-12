@@ -14,87 +14,129 @@ const QrCodeScanner: React.FC<QrCodeScannerProps> = ({
   const [isScanning, setIsScanning] = useState(autoStart);
   const [error, setError] = useState<string | null>(null);
   const [permissionsGranted, setPermissionsGranted] = useState(false);
-  
+
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const scannerContainerId = 'qr-scanner-container';
 
   useEffect(() => {
-    // Inicializa o scanner
-    scannerRef.current = new Html5Qrcode(scannerContainerId);
-    
-    // Verifica permissões da câmera
+    console.debug('[QrScanner] Solicitando permissão de câmera...');
     if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
       navigator.mediaDevices.getUserMedia({ video: true })
         .then(() => {
+          console.debug('[QrScanner] Permissão concedida.');
           setPermissionsGranted(true);
-          if (autoStart) {
-            startScanner();
-          }
         })
         .catch(err => {
-          console.error('Erro ao acessar câmera:', err);
+          console.error('[QrScanner] Erro ao acessar câmera:', err);
           setError('Não foi possível acessar a câmera. Verifique as permissões do navegador.');
         });
     } else {
+      console.warn('[QrScanner] Navegador não suporta getUserMedia.');
       setError('Seu navegador não suporta acesso à câmera.');
     }
-    
-    // Cleanup na desmontagem
-    return () => {
-      if (scannerRef.current && scannerRef.current.isScanning) {
-        scannerRef.current.stop().catch(err => console.error(err));
+  }, []);
+
+  useEffect(() => {
+    const initializeScanner = async () => {
+      const container = document.getElementById(scannerContainerId);
+      if (!container) {
+        console.warn('[QrScanner] Container ainda não disponível. Tentando novamente em breve...');
+        setTimeout(initializeScanner, 200); // tenta novamente depois que o DOM montar
+        return;
+      }
+
+      if (permissionsGranted && !scannerRef.current) {
+        try {
+          scannerRef.current = new Html5Qrcode(scannerContainerId);
+          console.debug('[QrScanner] Scanner instanciado.');
+
+          if (autoStart) {
+            console.debug('[QrScanner] autoStart ativado, chamando startScanner...');
+            startScanner();
+          }
+        } catch (err) {
+          console.error('[QrScanner] Erro ao instanciar Html5Qrcode:', err);
+          setError('Erro ao iniciar o scanner: ' + (err as Error).message);
+        }
       }
     };
-  }, [autoStart]);
+
+    initializeScanner();
+
+    return () => {
+      if (scannerRef.current?.isScanning) {
+        scannerRef.current.stop().then(() => {
+          console.debug('[QrScanner] Scanner parado no unmount.');
+        }).catch(err => {
+          console.error('[QrScanner] Falha ao parar scanner no unmount:', err);
+        });
+      }
+    };
+  }, [permissionsGranted, autoStart]);
 
   const startScanner = () => {
-    if (!scannerRef.current || !permissionsGranted) return;
-    
+    if (!scannerRef.current || !permissionsGranted) {
+      console.warn('[QrScanner] startScanner chamado sem permissões ou scanner nulo.');
+      return;
+    }
+
     const config = {
       fps: 10,
       qrbox: { width: 250, height: 250 },
       aspectRatio: 1.0,
     };
-    
-    scannerRef.current.start(
-      { facingMode: 'environment' },
-      config,
-      onQrCodeSuccess,
-      onQrCodeError
-    )
-    .then(() => {
-      setIsScanning(true);
-      setError(null);
-    })
-    .catch(err => {
-      console.error('Erro ao iniciar scanner:', err);
-      setError('Erro ao iniciar o scanner: ' + err.toString());
-    });
+
+    console.debug('[QrScanner] Iniciando scanner com config:', config);
+
+    scannerRef.current
+      .start(
+        { facingMode: 'environment' },
+        config,
+        onQrCodeSuccess,
+        onQrCodeError
+      )
+      .then(() => {
+        console.debug('[QrScanner] Scanner iniciado com sucesso.');
+        const video = document.querySelector(`#${scannerContainerId} video`) as HTMLVideoElement;
+        if (video) {
+          video.style.width = '100%';
+          video.style.height = '100%';
+        }
+        setIsScanning(true);
+        setError(null);
+      })
+      .catch(err => {
+        console.error('[QrScanner] Erro ao iniciar scanner:', err);
+        setError('Erro ao iniciar o scanner: ' + err.toString());
+      });
   };
 
   const stopScanner = () => {
-    if (scannerRef.current && scannerRef.current.isScanning) {
-      scannerRef.current.stop()
+    if (scannerRef.current?.isScanning) {
+      console.debug('[QrScanner] Parando scanner...');
+      scannerRef.current
+        .stop()
         .then(() => {
+          console.debug('[QrScanner] Scanner parado.');
           setIsScanning(false);
         })
         .catch(err => {
-          console.error('Erro ao parar scanner:', err);
+          console.error('[QrScanner] Erro ao parar scanner:', err);
         });
+    } else {
+      console.debug('[QrScanner] Scanner já está parado.');
     }
   };
 
   const onQrCodeSuccess = (decodedText: string) => {
-    // Envia o valor decodificado para o callback
+    console.debug('[QrScanner] QR code lido com sucesso:', decodedText);
     onScan(decodedText);
-    
-    // Opcional: parar o scanner após uma leitura bem-sucedida
-    // stopScanner();
+    // stopScanner(); // opcional
   };
 
   const onQrCodeError = (errorMessage: string) => {
-    // Erros de decodificação podem ser ignorados, pois são comuns durante o escaneamento
-    // console.log('QR code error:', errorMessage);
+    // Silencie erros de leitura, são esperados
+    console.debug('[QrScanner] Falha na leitura:', errorMessage);
   };
 
   const toggleScanner = () => {
@@ -113,7 +155,7 @@ const QrCodeScanner: React.FC<QrCodeScannerProps> = ({
           <span>{error}</span>
         </div>
       )}
-      
+
       <div className="flex justify-center mb-4">
         <button
           onClick={toggleScanner}
@@ -133,13 +175,13 @@ const QrCodeScanner: React.FC<QrCodeScannerProps> = ({
           )}
         </button>
       </div>
-      
-      <div 
+
+      <div
         id={scannerContainerId}
         className={`overflow-hidden bg-black rounded-lg ${isScanning ? 'block' : 'hidden'}`}
         style={{ width: '100%', maxWidth: '400px', height: '300px', margin: '0 auto' }}
       />
-      
+
       {isScanning && (
         <div className="text-center mt-4 text-sm text-gray-600">
           Posicione o QR code no centro da câmera para escaneá-lo.
