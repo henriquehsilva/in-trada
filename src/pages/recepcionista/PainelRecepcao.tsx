@@ -484,7 +484,12 @@ const PainelRecepcao: React.FC = () => {
 
           <div className="bg-white p-4 rounded-lg shadow-sm">
             <h3 className="font-semibold mb-3">Participantes</h3>
-            
+            <button
+              onClick={() => exportToXLSX(participantes)}
+              className="btn btn-outline mt-2"
+            >
+              Exportar XLSX
+            </button>
             {participantes.length === 0 ? (
               <p className="text-gray-500 text-sm">
                 Nenhum participante encontrado.
