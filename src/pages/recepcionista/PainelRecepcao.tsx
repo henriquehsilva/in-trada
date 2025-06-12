@@ -20,6 +20,8 @@ import qz from 'qz-tray';
 import { obterModelosCrachaPorEvento } from '../../services/modeloService';
 import { ModeloCracha } from '../../models/types';
 import QRCode from 'qrcode';
+import DonutChart  from '../../components/DonutChart';
+import { exportToXLSX } from '../../utils/exportUtils';
 
 const PainelRecepcao: React.FC = () => {
   const navigate = useNavigate();
@@ -49,6 +51,16 @@ const PainelRecepcao: React.FC = () => {
   const modelos = await obterModelosCrachaPorEvento(eventoId);
     return modelos.find(m => m.padrao) || null;
   };
+
+  const statusCounts = participantes.reduce((acc, p) => {
+    acc[p.status] = (acc[p.status] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+
+  const chartData = Object.entries(statusCounts).map(([status, count]) => ({
+    name: status.charAt(0).toUpperCase() + status.slice(1),
+    value: count
+  }));
 
   useEffect(() => {
     const carregarDados = async () => {
@@ -468,7 +480,8 @@ const PainelRecepcao: React.FC = () => {
               {mensagem.texto}
             </div>
           )}
-          
+          <DonutChart data={chartData} title="Distribuição de Status" />
+
           <div className="bg-white p-4 rounded-lg shadow-sm">
             <h3 className="font-semibold mb-3">Participantes</h3>
             
