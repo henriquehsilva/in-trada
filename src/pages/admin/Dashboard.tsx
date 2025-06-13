@@ -68,28 +68,6 @@ const AdminDashboard: React.FC = () => {
         <div className="space-y-6">
           {/* Cards de resumo */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="card bg-white p-6 shadow-sm rounded-lg border border-gray-100 flex flex-col items-center">
-              <div className="w-28 h-28 mb-2">
-                <DonutChart
-                  value={eventos.length}
-                  total={eventos.length}
-                  color="rgb(6 58 128)"
-                  label="Total"
-                />
-              </div>
-            </div>
-
-            <div className="card bg-white p-6 shadow-sm rounded-lg border border-gray-100 flex flex-col items-center">
-              <div className="w-20 h-20 mb-2">
-                <DonutChart
-                  value={eventosAtivos.length}
-                  total={eventos.length}
-                  color="rgb(6 58 128)"
-                  label="Ativos"
-                />
-              </div>
-            </div>
-
             {/* <div className="card bg-white p-6 shadow-sm rounded-lg border border-gray-100">
               <div className="flex items-center">
                 <div className="p-3 rounded-full bg-success-light text-success">
@@ -105,17 +83,6 @@ const AdminDashboard: React.FC = () => {
                 </div>
               </div>
             </div> */}
-
-            <div className="card bg-white p-6 shadow-sm rounded-lg border border-gray-100 flex flex-col items-center">
-              <div className="w-20 h-20 mb-2">
-                <DonutChart
-                  value={eventosPassados.length}
-                  total={eventos.length}
-                  color="rgb(6 58 128)"
-                  label="Encerrados"
-                />
-              </div>
-            </div>
           </div>
 
           {/* Ações rápidas */}
