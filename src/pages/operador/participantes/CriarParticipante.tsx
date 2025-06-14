@@ -1,23 +1,43 @@
-// src/pages/operador/participantes/CriarParticipante.tsx
-
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import LayoutDefault from '../../../components/layout/LayoutDefault';
 import { collection, addDoc } from 'firebase/firestore';
 import { db } from '../../../firebase/config';
 import toast from 'react-hot-toast';
+import { useAuth } from '../../../contexts/AuthContext';
 
 const CriarParticipante: React.FC = () => {
   const { eventoId } = useParams<{ eventoId: string }>();
+  const { currentUser } = useAuth();
   const navigate = useNavigate();
 
   const [form, setForm] = useState({
     nome: '',
-    email: '',
-		telefone: '',
     empresa: '',
+    nomeCracha: '',
+    empresaCracha: '',
+    cargo: '',
+    email1: '',
+    email2: '',
+    celular: '',
+    telefone: '',
     categoria: '',
-    status: 'participante',
+    observacao: '',
+    cpf: '',
+    rg: '',
+    cnpj: '',
+    codigoCliente: '',
+    opcao1: '',
+    opcao2: '',
+    opcao3: '',
+    opcao4: '',
+    opcao5: '',
+    opcao6: '',
+    opcao7: '',
+    opcao8: '',
+    opcao9: '',
+    opcao10: '',
+    status: 'pendente',
   });
 
   const [loading, setLoading] = useState(false);
@@ -48,6 +68,9 @@ const CriarParticipante: React.FC = () => {
         ...form,
         eventoId,
         criadoEm: new Date().toISOString(),
+        atualizadoEm: new Date().toISOString(),
+        criadoPorId: currentUser?.uid || '',
+        camposPersonalizados: {},
       };
 
       await addDoc(collection(db, 'participantes'), novoParticipante);
@@ -71,68 +94,44 @@ const CriarParticipante: React.FC = () => {
         {sucesso && <div className="text-green-600 mb-4">{sucesso}</div>}
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <input
-            type="text"
-            name="nome"
-            placeholder="Nome completo"
-            value={form.nome}
-            onChange={handleChange}
-            required
-            className="w-full border px-4 py-2 rounded"
-          />
-
-          <input
-            type="email"
-            name="email"
-            placeholder="E-mail"
-            value={form.email}
-            onChange={handleChange}
-            required
-            className="w-full border px-4 py-2 rounded"
-          />
-					
-					<input
-						type="text"
-						name="telefone"
-						placeholder="Telefone"
-						value={form.telefone}
-						onChange={handleChange}
-						className="w-full border px-4 py-2 rounded"
-					/>					
-
-          <input
-            type="text"
-            name="empresa"
-            placeholder="Empresa"
-            value={form.empresa}
-            onChange={handleChange}
-            className="w-full border px-4 py-2 rounded"
-          />
-
-          <select
-            name="categoria"
-            value={form.categoria}
-            onChange={handleChange}
-            className="w-full border px-4 py-2 rounded"
-          >
-            <option value="participante">Participante</option>
-            <option value="palestrante">Palestrante</option>
-            <option value="staff">Staff</option>
-            <option value="vip">VIP</option>
-            <option value="imprensa">Imprensa</option>
-          </select>
-
-          <select
-            name="status"
-            value={form.status}
-            onChange={handleChange}
-            className="w-full border px-4 py-2 rounded"
-          >
-            <option value="pendente">Pendente</option>
-            <option value="confirmado">Confirmado</option>
-            <option value="credenciado">Credenciado</option>
-            <option value="cancelado">Cancelado</option>            
-          </select>
+          {Object.entries(form).map(([key, value]) => (
+            key === 'status' || key === 'categoria' ? (
+              <select
+                key={key}
+                name={key}
+                value={value}
+                onChange={handleChange}
+                className="w-full border px-4 py-2 rounded"
+              >
+                {key === 'status' ? (
+                  <>
+                    <option value="pendente">Pendente</option>
+                    <option value="confirmado">Confirmado</option>
+                    <option value="credenciado">Credenciado</option>
+                    <option value="cancelado">Cancelado</option>
+                  </>
+                ) : (
+                  <>
+                    <option value="participante">Participante</option>
+                    <option value="palestrante">Palestrante</option>
+                    <option value="staff">Staff</option>
+                    <option value="vip">VIP</option>
+                    <option value="imprensa">Imprensa</option>
+                  </>
+                )}
+              </select>
+            ) : (
+              <input
+                key={key}
+                type="text"
+                name={key}
+                placeholder={key.charAt(0).toUpperCase() + key.slice(1)}
+                value={value}
+                onChange={handleChange}
+                className="w-full border px-4 py-2 rounded"
+              />
+            )
+          ))}
 
           <button
             type="submit"

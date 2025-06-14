@@ -1,5 +1,3 @@
-// src/pages/operador/participantes/EditarParticipante.tsx
-
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import LayoutDefault from '../../../components/layout/LayoutDefault';
@@ -10,17 +8,37 @@ import toast from 'react-hot-toast';
 const EditarParticipante: React.FC = () => {
   const { eventoId, id } = useParams<{ eventoId: string; id: string }>();
   const navigate = useNavigate();
-  
+
   const location = useLocation();
   const from = location.state?.from;
-  
+
   const [form, setForm] = useState({
     nome: '',
-    email: '',
-    telefone: '',
     empresa: '',
+    nomeCracha: '',
+    empresaCracha: '',
+    cargo: '',
+    email1: '',
+    email2: '',
+    celular: '',
+    telefone: '',
     categoria: '',
-    status: 'participante',
+    observacao: '',
+    cpf: '',
+    rg: '',
+    cnpj: '',
+    codigoCliente: '',
+    opcao1: '',
+    opcao2: '',
+    opcao3: '',
+    opcao4: '',
+    opcao5: '',
+    opcao6: '',
+    opcao7: '',
+    opcao8: '',
+    opcao9: '',
+    opcao10: '',
+    status: 'pendente',
   });
 
   const [loading, setLoading] = useState(true);
@@ -36,14 +54,7 @@ const EditarParticipante: React.FC = () => {
         const snap = await getDoc(ref);
         if (snap.exists()) {
           const data = snap.data();
-          setForm({
-            nome: data.nome || '',
-            email: data.email || '',
-            telefone: data.telefone || '',
-            empresa: data.empresa || '',
-            categoria: data.categoria || '',
-            status: data.status || 'credenciado',
-          });
+          setForm(prev => ({ ...prev, ...data }));
         } else {
           setErro('Participante não encontrado.');
         }
@@ -86,14 +97,14 @@ const EditarParticipante: React.FC = () => {
 
       toast.success(`Participante atualizado com sucesso!`);
       setTimeout(() => {
-      if (from === 'painel-recepcao') {
-        navigate(`/recepcionista/painel/${eventoId}`, {
-          state: { participanteId: id }
-        });
-      } else {
-        navigate(`/operador/participantes?eventoId=${eventoId}`);
-      }
-    }, 2000);
+        if (from === 'painel-recepcao') {
+          navigate(`/recepcionista/painel/${eventoId}`, {
+            state: { participanteId: id }
+          });
+        } else {
+          navigate(`/operador/participantes?eventoId=${eventoId}`);
+        }
+      }, 2000);
     } catch (err) {
       console.error(err);
       setErro('Erro ao atualizar participante.');
@@ -114,68 +125,44 @@ const EditarParticipante: React.FC = () => {
           <p>Carregando...</p>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
-            <input
-              type="text"
-              name="nome"
-              placeholder="Nome completo"
-              value={form.nome}
-              onChange={handleChange}
-              required
-              className="w-full border px-4 py-2 rounded"
-            />
-
-            <input
-              type="email"
-              name="email"
-              placeholder="E-mail"
-              value={form.email}
-              onChange={handleChange}
-              required
-              className="w-full border px-4 py-2 rounded"
-            />
-
-            <input
-              type="text"
-              name="telefone"
-              placeholder="Telefone"
-              value={form.telefone}
-              onChange={handleChange}
-              className="w-full border px-4 py-2 rounded"
-            />
-
-            <input
-              type="text"
-              name="empresa"
-              placeholder="Empresa"
-              value={form.empresa}
-              onChange={handleChange}
-              className="w-full border px-4 py-2 rounded"
-            />
-
-						<select
-							name="categoria"
-							value={form.categoria}
-							onChange={handleChange}
-							className="w-full border px-4 py-2 rounded"
-						>
-							<option value="participante">Participante</option>
-							<option value="palestrante">Palestrante</option>
-							<option value="staff">Staff</option>
-							<option value="vip">VIP</option>
-							<option value="imprensa">Imprensa</option>
-						</select>
-
-						<select
-							name="status"
-							value={form.status}
-							onChange={handleChange}
-							className="w-full border px-4 py-2 rounded"
-						>
-							<option value="pendente">Pendente</option>
-							<option value="confirmado">Confirmado</option>
-							<option value="credenciado">Credenciado</option>
-							<option value="cancelado">Cancelado</option>            
-						</select>
+            {Object.entries(form).map(([key, value]) => (
+              key === 'status' || key === 'categoria' ? (
+                <select
+                  key={key}
+                  name={key}
+                  value={value}
+                  onChange={handleChange}
+                  className="w-full border px-4 py-2 rounded"
+                >
+                  {key === 'status' ? (
+                    <>
+                      <option value="pendente">Pendente</option>
+                      <option value="confirmado">Confirmado</option>
+                      <option value="credenciado">Credenciado</option>
+                      <option value="cancelado">Cancelado</option>
+                    </>
+                  ) : (
+                    <>
+                      <option value="participante">Participante</option>
+                      <option value="palestrante">Palestrante</option>
+                      <option value="staff">Staff</option>
+                      <option value="vip">VIP</option>
+                      <option value="imprensa">Imprensa</option>
+                    </>
+                  )}
+                </select>
+              ) : (
+                <input
+                  key={key}
+                  type="text"
+                  name={key}
+                  placeholder={key.charAt(0).toUpperCase() + key.slice(1)}
+                  value={value}
+                  onChange={handleChange}
+                  className="w-full border px-4 py-2 rounded"
+                />
+              )
+            ))}
 
             <button
               type="submit"
