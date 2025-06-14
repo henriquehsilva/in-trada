@@ -46,6 +46,7 @@ const Navbar: React.FC<NavbarProps> = ({ role }) => {
   } else if (role === 'recepcionista') {
     navItems = [
       { label: 'Dashboard', href: '/recepcionista' },
+      { label: 'Participantes', href: '/recepcionista/participantes' },
     ];
   }
 

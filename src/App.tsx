@@ -214,6 +214,14 @@ function App() {
             </ProtectedRoute>
           } 
         />
+        <Route 
+          path="/recepcionista/participantes" 
+          element={
+            <ProtectedRoute requiredRole="recepcionista">
+              <GerenciarParticipantes />
+            </ProtectedRoute>
+          } 
+        />
 
         {/* Redirect */}
         <Route path="/" element={<Navigate to="/login" replace />} />

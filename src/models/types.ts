@@ -1,3 +1,4 @@
+import type { User } from 'firebase/auth';
 export interface Usuario {
   id: string;
   nome: string;
@@ -5,9 +6,11 @@ export interface Usuario {
   role: 'admin' | 'operador' | 'recepcionista';
   eventoId?: string; // Para recepcionistas
   criadoEm: string;
-  atualizadoEm: string;
+  atualizadoEm: string;  
 }
-
+export interface Usuario extends User {
+  eventosPermitidos?: string[];
+}
 export interface Evento {
   id: string;
   nome: string;

@@ -15,7 +15,7 @@ import { ptBR } from 'date-fns/locale';
 import { PieChart, Pie, Cell, Tooltip, Label } from 'recharts';
 
 const GerenciarParticipantes: React.FC = () => {
-  const { currentUser } = useAuth();
+  const { currentUser, userData } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedEventoId = searchParams.get('eventoId') || '';
@@ -38,10 +38,18 @@ const GerenciarParticipantes: React.FC = () => {
   useEffect(() => {
     const carregarEventos = async () => {
       try {
-        const lista = await obterEventos();
-        setEventos(lista);
-        if (!eventoSelecionado && lista.length > 0) {
-          const primeiro = lista[0].id;
+        const listaTodos = await obterEventos();
+
+        const isRecepcionista = userData?.role === 'recepcionista' || window.location.pathname.includes('/recepcionista');
+
+        const listaFiltrada = isRecepcionista && userData?.eventoId
+          ? listaTodos.filter(e => e.id === userData.eventoId)
+          : listaTodos;
+
+        setEventos(listaFiltrada);
+
+        if (!eventoSelecionado && listaFiltrada.length > 0) {
+          const primeiro = listaFiltrada[0].id;
           setEventoSelecionado(primeiro);
           setSearchParams({ eventoId: primeiro });
         }
@@ -51,7 +59,7 @@ const GerenciarParticipantes: React.FC = () => {
       }
     };
     carregarEventos();
-  }, []);
+  }, [userData]);
 
   useEffect(() => {
     const carregarParticipantes = async () => {
@@ -221,9 +229,6 @@ const GerenciarParticipantes: React.FC = () => {
           />
           <button onClick={handleSearch} className="btn btn-primary flex items-center">
             <Search className="w-5 h-5" />
-          </button>
-          <button className="btn btn-outline flex items-center" title="Filtros avançados">
-            <Filter className="w-5 h-5" />
           </button>
         </div>
       </div>
