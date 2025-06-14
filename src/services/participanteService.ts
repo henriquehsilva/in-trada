@@ -89,7 +89,7 @@ export const buscarParticipantes = async (
     const termoLowerCase = termo.toLowerCase();
     return participantes.filter(p => 
       p.nome.toLowerCase().includes(termoLowerCase) ||
-      p.email.toLowerCase().includes(termoLowerCase) ||
+      p.email1.toLowerCase().includes(termoLowerCase) ||
       p.empresa.toLowerCase().includes(termoLowerCase)
     );
   } catch (error) {
