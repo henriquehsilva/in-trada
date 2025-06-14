@@ -35,6 +35,16 @@ export const listarModelosCrachaPorEvento = async (eventoId: string): Promise<Mo
   }));
 };
 
+export const listarTodosModelosCracha = async (): Promise<ModeloCracha[]> => {
+  const modelosRef = collection(db, 'modelosCracha');
+  const querySnapshot = await getDocs(modelosRef);
+
+  return querySnapshot.docs.map((doc) => ({
+    id: doc.id,
+    ...(doc.data() as Omit<ModeloCracha, 'id'>),
+  }));
+};
+
 const fontesDisponiveisPadrao = [
   'Arial', 'Verdana', 'Times New Roman', 'Courier New', 'Georgia', 'Tahoma', 'Trebuchet MS'
 ];
@@ -88,7 +98,7 @@ const EditorCrachas: React.FC = () => {
     const carregarModelos = async () => {
       if (!eventoId) return;
       try {
-        const modelos = await listarModelosCrachaPorEvento(eventoId);
+        const modelos = await listarTodosModelosCracha();
         setModelosSalvos(modelos);
       } catch (err) {
         console.error('Erro ao carregar modelos:', err);
