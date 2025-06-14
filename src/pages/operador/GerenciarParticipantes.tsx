@@ -12,6 +12,8 @@ import {
 } from '../../services/participanteService';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { PieChart, Pie, Cell, Tooltip, Legend } from 'recharts';
+import { Label } from 'recharts';
 
 const GerenciarParticipantes: React.FC = () => {
   const { currentUser } = useAuth();
@@ -25,6 +27,13 @@ const GerenciarParticipantes: React.FC = () => {
   const [termoBusca, setTermoBusca] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const coresStatus = {
+    credenciado: '#22c55e',
+    confirmado: '#3b82f6',
+    pendente: '#a1a1aa',
+    cancelado: '#ef4444'
+  };
 
   useEffect(() => {
     const carregarEventos = async () => {
@@ -100,6 +109,52 @@ const GerenciarParticipantes: React.FC = () => {
     }
   };
 
+  // const total = participantes.length;
+  const statusCounts = {
+    credenciado: participantes.filter(p => p.status === 'credenciado').length,
+    confirmado: participantes.filter(p => p.status === 'confirmado').length,
+    pendente: participantes.filter(p => p.status === 'pendente').length,
+    cancelado: participantes.filter(p => p.status === 'cancelado').length,
+  };
+
+  const total = Object.values(statusCounts).reduce((sum, val) => sum + val, 0);
+
+  const gerarDadosDonut = (status: keyof typeof coresStatus) => [
+    { name: status, value: statusCounts[status] },
+    { name: 'outros', value: total - statusCounts[status] }
+  ];
+
+  const renderDonut = (dados: any[], titulo: string, cor: string) => {
+    const total = dados[0].value;
+    return (
+      <div className="flex flex-col items-center">
+        <PieChart width={180} height={180}>
+          <Pie
+            data={dados}
+            cx="50%"
+            cy="50%"
+            innerRadius={40}
+            outerRadius={70}
+            dataKey="value"
+          >
+            {dados.map((entry, index) => (
+              <Cell key={`cell-${index}`} fill={index === 0 ? cor : '#e5e7eb'} />
+            ))}
+            <Label
+              value={total}
+              position="center"
+              fontSize={16}
+              fontWeight="bold"
+              fill="#000"
+            />
+          </Pie>
+          <Tooltip />
+        </PieChart>
+        <span className="text-sm font-medium mt-2">{titulo}</span>
+      </div>
+    );
+  };
+
   return (
     <LayoutDefault title="Gerenciar Participantes" backUrl="/operador">
       {error && <div className="bg-error-light text-error p-4 rounded-md mb-4">{error}</div>}
@@ -134,6 +189,13 @@ const GerenciarParticipantes: React.FC = () => {
           </div>
         </div>
 
+        <div className="flex flex-wrap gap-8 justify-center md:justify-start">
+          {renderDonut(gerarDadosDonut('credenciado'), 'Credenciados', coresStatus.credenciado)}
+          {renderDonut(gerarDadosDonut('confirmado'), 'Confirmados', coresStatus.confirmado)}
+          {renderDonut(gerarDadosDonut('pendente'), 'Pendentes', coresStatus.pendente)}
+          {renderDonut(gerarDadosDonut('cancelado'), 'Cancelados', coresStatus.cancelado)}
+        </div>
+
         <div className="flex gap-2">
           <input
             type="text"
@@ -151,7 +213,6 @@ const GerenciarParticipantes: React.FC = () => {
           </button>
         </div>
       </div>
-
       <div className="bg-white rounded-lg shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
