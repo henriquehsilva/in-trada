@@ -12,8 +12,7 @@ import {
 } from '../../services/participanteService';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { PieChart, Pie, Cell, Tooltip, Legend } from 'recharts';
-import { Label } from 'recharts';
+import { PieChart, Pie, Cell, Tooltip, Label } from 'recharts';
 
 const GerenciarParticipantes: React.FC = () => {
   const { currentUser } = useAuth();
@@ -25,6 +24,7 @@ const GerenciarParticipantes: React.FC = () => {
   const [eventoSelecionado, setEventoSelecionado] = useState<string>(selectedEventoId);
   const [participantes, setParticipantes] = useState<Participante[]>([]);
   const [termoBusca, setTermoBusca] = useState('');
+  const [statusFiltro, setStatusFiltro] = useState('todos');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -109,7 +109,6 @@ const GerenciarParticipantes: React.FC = () => {
     }
   };
 
-  // const total = participantes.length;
   const statusCounts = {
     credenciado: participantes.filter(p => p.status === 'credenciado').length,
     confirmado: participantes.filter(p => p.status === 'confirmado').length,
@@ -150,10 +149,17 @@ const GerenciarParticipantes: React.FC = () => {
           </Pie>
           <Tooltip />
         </PieChart>
-        <span className="text-sm font-medium mt-2">{titulo}</span>
+        <span
+          className="text-sm font-medium mt-2 cursor-pointer"
+          onClick={() => setStatusFiltro(titulo.toLowerCase() as keyof typeof coresStatus)}
+        >
+          {titulo}
+        </span>        
       </div>
     );
   };
+
+  const participantesFiltrados = statusFiltro === 'todos' ? participantes : participantes.filter(p => p.status === statusFiltro);
 
   return (
     <LayoutDefault title="Gerenciar Participantes" backUrl="/operador">
@@ -173,6 +179,14 @@ const GerenciarParticipantes: React.FC = () => {
               <option key={evento.id} value={evento.id}>{evento.nome}</option>
             ))}
           </select>
+          {statusFiltro !== 'todos' && (
+            <button
+              onClick={() => setStatusFiltro('todos')}
+              className="btn btn-sm btn-outline"
+            >
+              Limpar Filtro
+            </button>
+          )}
           <div className="flex gap-2">
             <button
               onClick={() => navigate(`/operador/participantes/${eventoSelecionado}/importar`)}
@@ -190,10 +204,10 @@ const GerenciarParticipantes: React.FC = () => {
         </div>
 
         <div className="flex flex-wrap gap-8 justify-center md:justify-start">
-          {renderDonut(gerarDadosDonut('credenciado'), 'Credenciados', coresStatus.credenciado)}
-          {renderDonut(gerarDadosDonut('confirmado'), 'Confirmados', coresStatus.confirmado)}
-          {renderDonut(gerarDadosDonut('pendente'), 'Pendentes', coresStatus.pendente)}
-          {renderDonut(gerarDadosDonut('cancelado'), 'Cancelados', coresStatus.cancelado)}
+          {renderDonut(gerarDadosDonut('credenciado'), 'Credenciado', coresStatus.credenciado)}
+          {renderDonut(gerarDadosDonut('confirmado'), 'Confirmado', coresStatus.confirmado)}
+          {renderDonut(gerarDadosDonut('pendente'), 'Pendente', coresStatus.pendente)}
+          {renderDonut(gerarDadosDonut('cancelado'), 'Cancelado', coresStatus.cancelado)}
         </div>
 
         <div className="flex gap-2">
@@ -229,7 +243,8 @@ const GerenciarParticipantes: React.FC = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {participantes.map((p) => (
+              {participantes.filter(p => statusFiltro === 'todos' || p.status === statusFiltro)
+                .map((p) => (
                 <tr key={p.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{p.nome}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{p.email1}</td>

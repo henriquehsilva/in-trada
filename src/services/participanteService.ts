@@ -88,9 +88,9 @@ export const buscarParticipantes = async (
     // Realizar busca local nos resultados
     const termoLowerCase = termo.toLowerCase();
     return participantes.filter(p => 
-      p.nome.toLowerCase().includes(termoLowerCase) ||
-      p.email1.toLowerCase().includes(termoLowerCase) ||
-      p.empresa.toLowerCase().includes(termoLowerCase)
+      (p.nome?.toLowerCase() || '').includes(termoLowerCase) ||
+      (p.email1?.toLowerCase() || '').includes(termoLowerCase) ||
+      (p.empresa?.toLowerCase() || '').includes(termoLowerCase)
     );
   } catch (error) {
     console.error('Erro ao buscar participantes:', error);
