@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import Papa from 'papaparse';
+import Papa, { parse, ParseError, ParseResult } from 'papaparse';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../../firebase/config';
 import LayoutDefault from '../../../components/layout/LayoutDefault';
 import { Participante } from '../../../models/types';
+
 
 type ParticipanteCSV = Omit<Participante, 'id' | 'criadoEm'>;
 
@@ -17,25 +18,44 @@ const ImportarParticipantes: React.FC = () => {
   const [mensagem, setMensagem] = useState<string | null>(null);
   const [importando, setImportando] = useState(false);
 
-  const handleArquivo = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+const handleArquivo = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
 
-    Papa.parse(file, {
+  const reader = new FileReader();
+
+  reader.onload = (event) => {
+    const result = event.target?.result;
+    if (!(result instanceof ArrayBuffer)) {
+      setErro('Erro ao ler arquivo.');
+      return;
+    }
+
+    // Detecta charset padrão, tenta UTF-8 e Latin1
+    const utf8Text = new TextDecoder('utf-8').decode(result);
+    const hasInvalidUtf8 = utf8Text.includes('�'); // símbolo comum de erro de decodificação
+
+    const text = hasInvalidUtf8
+      ? new TextDecoder('iso-8859-1').decode(result)
+      : utf8Text;
+
+    parse<ParticipanteCSV>(text, {
       header: true,
       skipEmptyLines: true,
-      complete: (results) => {
-        const dados = results.data as ParticipanteCSV[];
-        const dadosValidos = dados.filter(d => d.nome && d.email1);
+      complete: (results: ParseResult<ParticipanteCSV>) => {
+        const dadosValidos = results.data.filter(d => d.nome && d.email1);
         setPreview(dadosValidos);
         setErro(null);
       },
-      error: (err) => {
-        console.error('Erro ao ler CSV:', err);
+      error: (error: any) => {
+        console.error('Erro ao ler CSV:', error);
         setErro('Erro ao processar o arquivo. Verifique o formato.');
       }
     });
   };
+
+  reader.readAsArrayBuffer(file); // importante: usa array buffer para poder decodificar corretamente
+};
 
   const handleImportar = async () => {
     if (!eventoId || preview.length === 0) return;
