@@ -131,7 +131,7 @@ const OperadorDashboard: React.FC = () => {
                   </p>
                   <p className="flex items-center">
                     <Users className="w-4 h-4 mr-2" />
-                    0 participantes
+                    {evento.quantidadeParticipantes ?? 0} participantes
                   </p>
                 </div>
               </div>

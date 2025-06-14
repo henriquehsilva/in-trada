@@ -19,6 +19,7 @@ export interface Evento {
   criadoEm: string;
   atualizadoEm: string;
   camposPersonalizados: CampoPersonalizado[];
+  quantidadeParticipantes?: number;
 }
 
 export interface CampoPersonalizado {

@@ -37,21 +37,33 @@ export const obterEventos = async (): Promise<Evento[]> => {
   try {
     const eventosRef = collection(db, 'eventos');
     const snapshot = await getDocs(eventosRef);
-    
-    return snapshot.docs.map(doc => {
-      const data = doc.data();
+
+    const eventos = await Promise.all(snapshot.docs.map(async docSnap => {
+      const data = docSnap.data();
+
+      const participantesQuery = query(
+        collection(db, 'participantes'),
+        where('eventoId', '==', docSnap.id)
+      );
+      const participantesSnap = await getDocs(participantesQuery);
+      const quantidadeParticipantes = participantesSnap.size;
+
       return {
-        id: doc.id,
+        id: docSnap.id,
         ...data,
+        quantidadeParticipantes,
         criadoEm: data.criadoEm instanceof Timestamp ? data.criadoEm.toDate().toISOString() : data.criadoEm,
         atualizadoEm: data.atualizadoEm instanceof Timestamp ? data.atualizadoEm.toDate().toISOString() : data.atualizadoEm,
       } as Evento;
-    });
+    }));
+
+    return eventos;
   } catch (error) {
     console.error('Erro ao obter eventos:', error);
     throw error;
   }
 };
+
 
 // Obter evento por ID
 export const obterEventoPorId = async (id: string): Promise<Evento | null> => {
