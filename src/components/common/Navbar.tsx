@@ -56,7 +56,7 @@ const Navbar: React.FC<NavbarProps> = ({ role }) => {
           <div className="flex items-center">
             <div className="flex-shrink-0 flex items-center">
               <Link to="/" className="text-white text-xl font-bold">
-                IN-TRADA
+                <img src="/logo_reduzida.png" alt="Logo" className="h-40 w-30" />
               </Link>
             </div>
             
