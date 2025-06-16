@@ -16,12 +16,32 @@ import { db } from '../../firebase/config';
 
 
 const camposParticipantePadrao = [
+  'id',
   'nome', 
   'empresa', 
-  'email', 
+  'nomeCracha',
+  'empresaCracha',
+  'cargo',
+  'email1',
+  'email2',
+  'celular',
   'telefone', 
-  'categoria', 
-  'id'
+  'categoria',
+  'cpf',
+  'rg',
+  'cnpj',
+  'codigoCliente',
+  'opcao1',
+  'opcao2',
+  'opcao3',
+  'opcao4',
+  'opcao5',
+  'opcao6',
+  'opcao7',
+  'opcao8',
+  'opcao9',
+  'opcao10',
+  'observacao'
 ];
 
 export const listarModelosCrachaPorEvento = async (eventoId: string): Promise<ModeloCracha[]> => {
