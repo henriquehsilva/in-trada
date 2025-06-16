@@ -31,19 +31,32 @@ const handleArquivo = (e: React.ChangeEvent<HTMLInputElement>) => {
       return;
     }
 
-    // Detecta charset padrão, tenta UTF-8 e Latin1
+    // Detecta charset e decodifica
     const utf8Text = new TextDecoder('utf-8').decode(result);
-    const hasInvalidUtf8 = utf8Text.includes('�'); // símbolo comum de erro de decodificação
-
+    const hasInvalidUtf8 = utf8Text.includes('�');
     const text = hasInvalidUtf8
       ? new TextDecoder('iso-8859-1').decode(result)
       : utf8Text;
 
+    // Detecta delimitador automaticamente
+    const detectarDelimitador = (texto: string): string => {
+      const delimitadores = [",", ";", "\t"];
+      const contagens = delimitadores.map(d => ({
+        d,
+        count: texto.split("\n")[0].split(d).length
+      }));
+      contagens.sort((a, b) => b.count - a.count);
+      return contagens[0].d;
+    };
+
+    const delimitador = detectarDelimitador(text);
+
     parse<ParticipanteCSV>(text, {
       header: true,
       skipEmptyLines: true,
+      delimiter: delimitador,
       complete: (results: ParseResult<ParticipanteCSV>) => {
-        const dadosValidos = results.data.filter(d => d.nome && d.email1);
+        const dadosValidos = results.data.filter(d => d.nome);
         setPreview(dadosValidos);
         setErro(null);
       },
@@ -54,7 +67,7 @@ const handleArquivo = (e: React.ChangeEvent<HTMLInputElement>) => {
     });
   };
 
-  reader.readAsArrayBuffer(file); // importante: usa array buffer para poder decodificar corretamente
+  reader.readAsArrayBuffer(file);
 };
 
   const handleImportar = async () => {
