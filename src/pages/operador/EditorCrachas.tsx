@@ -349,8 +349,32 @@ const EditorCrachas: React.FC = () => {
   };
   
   const participanteExemplo = {
-    id: 'P12345', nome: 'João Silva', empresa: 'Empresa Exemplo Ltda',
-    email: 'joao@exemplo.com', telefone: '(11) 98765-4321', categoria: 'VIP'
+    id: 'P12345',
+    nome: 'João Silva',
+    empresa: 'Empresa Exemplo Ltda',
+    nomeCracha: 'J. Silva',
+    empresaCracha: 'Exemplo Ltda',
+    cargo: 'Gerente de Projetos',
+    email1: 'joao@exemplo.com',
+    email2: 'joaosilva@gmail.com',
+    celular: '(11) 99999-1234',
+    telefone: '(11) 98765-4321',
+    categoria: 'VIP',
+    cpf: '123.456.789-00',
+    rg: '12.345.678-9',
+    cnpj: '12.345.678/0001-90',
+    codigoCliente: 'C123456',
+    opcao1: 'Sim',
+    opcao2: 'Não',
+    opcao3: 'Sim',
+    opcao4: 'opcao4',
+    opcao5: 'opcao5',
+    opcao6: 'opcao6',
+    opcao7: 'opcao7',
+    opcao8: 'opcao8',
+    opcao9: 'opcao9',
+    opcao10: 'opcao10',
+    observacao: 'Participante confirmado com credencial VIP'
   };
 
   const handlePrint = () => {
