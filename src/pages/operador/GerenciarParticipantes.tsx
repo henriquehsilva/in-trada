@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Plus, Search, Download, Filter, Trash2, Edit } from 'lucide-react';
+import { Plus, Search, Download, Filter, Trash2, Edit, FileSpreadsheet } from 'lucide-react';
 import LayoutDefault from '../../components/layout/LayoutDefault';
 import { useAuth } from '../../contexts/AuthContext';
 import { Evento, Participante } from '../../models/types';
@@ -13,6 +13,7 @@ import {
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { PieChart, Pie, Cell, Tooltip, Label } from 'recharts';
+import { exportToXLSX } from '../../utils/exportUtils';
 
 const GerenciarParticipantes: React.FC = () => {
   const { currentUser, userData } = useAuth();
@@ -196,6 +197,12 @@ const GerenciarParticipantes: React.FC = () => {
             </button>
           )}
           <div className="flex gap-2">
+                              <button
+              onClick={() => exportToXLSX(participantes)}
+              className="btn btn-outline flex items-center"
+            >
+              <FileSpreadsheet className="w-5 h-5 mr-2" /> Exportar XLSX
+            </button>
             <button
               onClick={() => navigate(`/operador/participantes/${eventoSelecionado}/importar`)}
               className="btn btn-outline flex items-center"

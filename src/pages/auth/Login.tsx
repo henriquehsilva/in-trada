@@ -43,7 +43,7 @@ const Login: React.FC = () => {
       {/* Coluna da identidade visual */}
       <div className="hidden lg:flex flex-col justify-center items-center bg-primary text-white w-1/2 px-10">
         <h1 className="text-4xl font-extrabold mb-6">IN-TRADA</h1>
-        <img src="/IN-TRADA_completa_fonte branca.png" alt="Logo" className="w-64 mb-4" />
+        <img src="/logo_completa_grande.png" alt="Logo" className="w-64 mb-4" />
         <p className="text-lg max-w-md text-center">
           Plataforma moderna e flexível para o credenciamento inteligente de participantes em eventos.
         </p>

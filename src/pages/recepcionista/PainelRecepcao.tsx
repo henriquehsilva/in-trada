@@ -21,7 +21,6 @@ import { obterModelosCrachaPorEvento } from '../../services/modeloService';
 import { ModeloCracha } from '../../models/types';
 import QRCode from 'qrcode';
 import DonutChart  from '../../components/DonutChart';
-import { exportToXLSX } from '../../utils/exportUtils';
 
 const PainelRecepcao: React.FC = () => {
   const navigate = useNavigate();
@@ -480,16 +479,9 @@ const PainelRecepcao: React.FC = () => {
               {mensagem.texto}
             </div>
           )}
-          <DonutChart data={chartData} title="Distribuição de Status" />
 
           <div className="bg-white p-4 rounded-lg shadow-sm">
             <h3 className="font-semibold mb-3">Participantes</h3>
-            <button
-              onClick={() => exportToXLSX(participantes)}
-              className="btn btn-outline mt-2"
-            >
-              Exportar XLSX
-            </button>
             {participantes.length === 0 ? (
               <p className="text-gray-500 text-sm">
                 Nenhum participante encontrado.
