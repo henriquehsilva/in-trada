@@ -165,6 +165,13 @@ const PainelRecepcao: React.FC = () => {
   const handleSelectParticipante = (participante: Participante) => {
     setParticipanteSelecionado(participante);
     setMensagem(null);
+
+    if (participante.observacao?.trim()) {
+      setMensagem({
+        tipo: 'info',
+        texto: `Observação: ${participante.observacao}`
+      });
+    }
   };
 
   const handleCheckin = async () => {
