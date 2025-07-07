@@ -66,6 +66,7 @@ export interface Participante {
   atualizadoEm: string;
   criadoPorId: string;
   camposPersonalizados: { [key: string]: any };
+  corCategoria?: string; // Cor da categoria para destaque visual
 }
 
 export interface ModeloCracha {

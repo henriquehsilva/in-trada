@@ -112,6 +112,7 @@ const CriarParticipante: React.FC = () => {
                   </>
                 ) : (
                   <>
+                    <option value="participante"></option>
                     <option value="participante">Participante</option>
                     <option value="palestrante">Palestrante</option>
                     <option value="staff">Staff</option>

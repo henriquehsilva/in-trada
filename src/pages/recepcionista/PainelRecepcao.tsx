@@ -21,6 +21,9 @@ import { obterModelosCrachaPorEvento } from '../../services/modeloService';
 import { ModeloCracha } from '../../models/types';
 import QRCode from 'qrcode';
 import DonutChart  from '../../components/DonutChart';
+import { ChromePicker } from 'react-color';
+import { doc, updateDoc } from 'firebase/firestore';
+import { db } from '../../firebase/config';
 
 const PainelRecepcao: React.FC = () => {
   const navigate = useNavigate();
@@ -42,6 +45,12 @@ const PainelRecepcao: React.FC = () => {
   const emailRef = useRef<HTMLInputElement>(null);
   const telefoneRef = useRef<HTMLInputElement>(null);
   const categoriaRef = useRef<HTMLSelectElement>(null);
+  const [categoriaCor, setCategoriaCor] = useState<string>('');
+  const [editandoCor, setEditandoCor] = useState(false);
+  const [editandoCorId, setEditandoCorId] = useState<string | null>(null);
+  const [coresEdicao, setCoresEdicao] = useState<Record<string, string>>({});
+
+
   
   // Campos personalizados para o formulário
   const [camposPersonalizadosValues, setCamposPersonalizadosValues] = useState<Record<string, any>>({});
@@ -223,6 +232,21 @@ const PainelRecepcao: React.FC = () => {
     }
   };
 
+  const atualizarParticipante = async (id: string, dados: Partial<Participante>) => {
+    const ref = doc(db, 'participantes', id);
+
+    const updatePayload: any = {
+      ...dados,
+      atualizadoEm: new Date().toISOString(),
+    };
+
+    if (!('corCategoria' in dados)) {
+      updatePayload.corCategoria = '#cccccc';
+    }
+
+    await updateDoc(ref, updatePayload);
+  };
+
   const handlePrintCredencial = async () => {
     if (!participanteSelecionado || !evento) return;
 
@@ -358,7 +382,8 @@ const PainelRecepcao: React.FC = () => {
         categoria: categoriaRef.current?.value || '',
         status: 'pendente',
         criadoPorId: currentUser.uid,
-        camposPersonalizados: camposPersonalizadosValues
+        camposPersonalizados: camposPersonalizadosValues,
+        corCategoria: categoriaCor
       };
       
       // Cria participante no banco de dados
@@ -489,13 +514,16 @@ const PainelRecepcao: React.FC = () => {
 
           <div className="bg-white p-4 rounded-lg shadow-sm">
             <h3 className="font-semibold mb-3">Participantes</h3>
+            
             {participantes.length === 0 ? (
               <p className="text-gray-500 text-sm">
                 Nenhum participante encontrado.
               </p>
             ) : (
-              <div className="divide-y divide-gray-100 max-h-80 overflow-y-auto">
+              
+              <div className="divide-y divide-gray-100 max-h-80 overflow-y-auto">                
                 {participantes.map((participante) => (
+                  
                   <div
                     key={participante.id}
                     className={`py-3 cursor-pointer hover:bg-gray-50 ${
@@ -503,6 +531,49 @@ const PainelRecepcao: React.FC = () => {
                     }`}
                     onClick={() => handleSelectParticipante(participante)}
                   >
+    <div>
+  <label className="text-sm text-gray-500 block mb-1">{participante.categoria}</label>
+ <div className="flex items-center gap-3">
+    <div
+      className="w-6 h-6 rounded-full border cursor-pointer"
+      style={{ backgroundColor: participante.corCategoria || '#ccc' }}
+      onClick={() => setEditandoCorId(participante.id)}
+      title="Clique para editar a cor"
+    ></div>
+    {editandoCorId === participante.id && (
+      <div className="z-50 relative">
+        <ChromePicker
+          color={coresEdicao[participante.id] || participante.corCategoria || '#cccccc'}
+          onChangeComplete={(color) => {
+            setCoresEdicao((prev) => ({
+              ...prev,
+              [participante.id]: color.hex,
+            }));
+          }}
+        />
+        <button
+          className="mt-2 btn btn-primary"
+          onClick={async () => {
+            setEditandoCorId(null);
+            await atualizarParticipante(participante.id, {
+              corCategoria: coresEdicao[participante.id] || participante.corCategoria || '#cccccc',
+            });
+            setParticipantes((prev) =>
+              prev.map((p) =>
+                p.id === participante.id
+                  ? { ...p, corCategoria: coresEdicao[participante.id] || participante.corCategoria }
+                  : p
+              )
+            );
+            setMensagem({ tipo: 'success', texto: 'Cor atualizada com sucesso!' });
+          }}
+        >
+          Salvar cor
+        </button>
+      </div>
+    )}
+  </div>
+</div>
                     <div className="flex justify-between items-start">
                       <div>
                         <h4 className="font-medium">{participante.nome}</h4>
@@ -596,6 +667,7 @@ const PainelRecepcao: React.FC = () => {
                       className="input-field"
                     >
                       <option value="">Selecione uma categoria</option>
+                      <option value="Participante"></option>
                       <option value="Participante">Participante</option>
                       <option value="Palestrante">Palestrante</option>
                       <option value="Staff">Staff</option>
@@ -603,7 +675,19 @@ const PainelRecepcao: React.FC = () => {
                       <option value="Imprensa">Imprensa</option>
                     </select>
                   </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Categoria
+                    </label>
+                    <input
+                      type="color"
+                      value={categoriaCor}
+                      onChange={(e) => setCategoriaCor(e.target.value)}
+                      className="h-10 w-full rounded border-gray-300 shadow-sm"
+                    />
+                  </div>
                 </div>
+
                 
                 {/* Campos personalizados do evento */}
                 {evento.camposPersonalizados && evento.camposPersonalizados.length > 0 && (
@@ -743,7 +827,7 @@ const PainelRecepcao: React.FC = () => {
                 
                 <div>
                   <p className="text-sm text-gray-500">Categoria</p>
-                  <p className="font-medium">{participanteSelecionado.categoria}</p>
+                  <p className="font-medium"><div className="w-5 h-5 rounded-full border" style={{ backgroundColor: participanteSelecionado.corCategoria || '#ccc' }}></div>{participanteSelecionado.categoria}</p>
                 </div>
                 
                 <div>
