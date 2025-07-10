@@ -22,7 +22,7 @@ import { ModeloCracha } from '../../models/types';
 import QRCode from 'qrcode';
 import DonutChart  from '../../components/DonutChart';
 import { ChromePicker } from 'react-color';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, getDoc } from 'firebase/firestore';
 import { db } from '../../firebase/config';
 
 const PainelRecepcao: React.FC = () => {
@@ -51,10 +51,25 @@ const PainelRecepcao: React.FC = () => {
   const [coresEdicao, setCoresEdicao] = useState<Record<string, string>>({});
 
 
+    const [usuario, setUsuario] = useState<Usuario | null>(null);
+
+    useEffect(() => {
+      const carregarUsuario = async () => {
+        if (!currentUser?.uid) return;
+        const docRef = doc(db, 'usuarios', currentUser.uid);
+        const snap = await getDoc(docRef);
+        if (snap.exists()) {
+          setUsuario(snap.data() as Usuario);
+        }
+      };
+
+      carregarUsuario();
+    }, [currentUser]);
   
   // Campos personalizados para o formulário
   const [camposPersonalizadosValues, setCamposPersonalizadosValues] = useState<Record<string, any>>({});
 
+  const isOperador = usuario?.role === 'operador';
   const obterModeloPadrao = async (eventoId: string): Promise<ModeloCracha | null> => {
   const modelos = await obterModelosCrachaPorEvento(eventoId);
     return modelos.find(m => m.padrao) || null;
@@ -551,6 +566,7 @@ const PainelRecepcao: React.FC = () => {
             }));
           }}
         />
+        {isOperador && (
         <button
           className="mt-2 btn btn-primary"
           onClick={async () => {
@@ -584,8 +600,9 @@ const PainelRecepcao: React.FC = () => {
               setMensagem({ tipo: 'success', texto: 'Cor atualizada para todos os participantes da mesma categoria!' });            setMensagem({ tipo: 'success', texto: 'Cor atualizada com sucesso!' });
                         }}
                       >
-                              Salvar cor
-                            </button>
+              Salvar cor
+            </button>
+          )}
                           </div>
                         )}
                       </div>
