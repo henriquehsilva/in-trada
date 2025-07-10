@@ -133,13 +133,14 @@ const OperadorDashboard: React.FC = () => {
                     <Users className="w-4 h-4 mr-2" />
                     {evento.quantidadeParticipantes ?? 0} participantes
                   </p>
-                  <FileArchive
+                </div>
+                                  <FileArchive
                     to={`/operador/painel/${evento.id}`}
                     className="text-sm text-primary hover:underline"
                   >
                     Painel de Recepção
                   </FileArchive>
-                </div>
+
               </div>
             ))}
 
