@@ -548,6 +548,7 @@ const PainelRecepcao: React.FC = () => {
                   >
     <div>
   <label className="text-sm text-gray-500 block mb-1">{participante.categoria}</label>
+  {isOperador && (
  <div className="flex items-center gap-3">
     <div
       className="w-6 h-6 rounded-full border cursor-pointer"
@@ -566,7 +567,7 @@ const PainelRecepcao: React.FC = () => {
             }));
           }}
         />
-        {isOperador && (
+        
         <button
           className="mt-2 btn btn-primary"
           onClick={async () => {
@@ -602,11 +603,13 @@ const PainelRecepcao: React.FC = () => {
                       >
               Salvar cor
             </button>
-          )}
+            
                           </div>
                         )}
                       </div>
+  )}
                     </div>
+                      
                     <div className="flex justify-between items-start">
                       <div>
                         <h4 className="font-medium">{participante.nome}</h4>
