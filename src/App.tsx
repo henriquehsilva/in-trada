@@ -196,6 +196,14 @@ function App() {
             </ProtectedRoute>
           } 
         />
+        <Route 
+          path="/operador/painel/:eventoId" 
+          element={
+            <ProtectedRoute requiredRole="operador">
+              <PainelRecepcao />
+            </ProtectedRoute>
+          } 
+        />
 
         {/* Rotas de Recepcionista */}
         <Route 
