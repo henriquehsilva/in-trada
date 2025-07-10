@@ -41,8 +41,7 @@ const Navbar: React.FC<NavbarProps> = ({ role }) => {
     navItems = [
       { label: 'Dashboard', href: '/operador' },
       { label: 'Recepcionistas', href: '/operador/recepcionistas' },
-      { label: 'Participantes', href: '/operador/participantes' }, // Este será um dropdown
-      { label: 'Painel de Recepção', href: '/operador/painel/{eventoId}' }, // Este será um dropdown
+      { label: 'Participantes', href: '/operador/participantes' }, // Este será um dropdown      
     ];
   } else if (role === 'recepcionista') {
     navItems = [

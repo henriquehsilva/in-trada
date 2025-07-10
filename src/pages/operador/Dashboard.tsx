@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, QrCode, Layout, Calendar } from 'lucide-react';
+import { Users, QrCode, Layout, Calendar, FileArchive } from 'lucide-react';
 import LayoutDefault from '../../components/layout/LayoutDefault';
 import { useAuth } from '../../contexts/AuthContext';
 import { Evento } from '../../models/types';
@@ -133,6 +133,12 @@ const OperadorDashboard: React.FC = () => {
                     <Users className="w-4 h-4 mr-2" />
                     {evento.quantidadeParticipantes ?? 0} participantes
                   </p>
+                  <FileArchive
+                    to={`/operador/painel/${evento.id}`}
+                    className="text-sm text-primary hover:underline"
+                  >
+                    Painel de Recepção
+                  </FileArchive>
                 </div>
               </div>
             ))}
