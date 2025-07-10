@@ -555,25 +555,41 @@ const PainelRecepcao: React.FC = () => {
           className="mt-2 btn btn-primary"
           onClick={async () => {
             setEditandoCorId(null);
-            await atualizarParticipante(participante.id, {
-              corCategoria: coresEdicao[participante.id] || participante.corCategoria || '#cccccc',
-            });
-            setParticipantes((prev) =>
-              prev.map((p) =>
-                p.id === participante.id
-                  ? { ...p, corCategoria: coresEdicao[participante.id] || participante.corCategoria }
-                  : p
-              )
-            );
-            setMensagem({ tipo: 'success', texto: 'Cor atualizada com sucesso!' });
-          }}
-        >
-          Salvar cor
-        </button>
-      </div>
-    )}
-  </div>
-</div>
+              const novaCor = coresEdicao[participante.id] || participante.corCategoria || '#cccccc';
+              const categoriaAlvo = participante.categoria;
+              const eventoAlvo = participante.eventoId;
+
+              // Filtra participantes que devem ser atualizados
+              const participantesMesmoGrupo = participantes.filter(p => 
+                p.categoria === categoriaAlvo && p.eventoId === eventoAlvo
+              );
+
+              // Atualiza todos no Firestore
+              await Promise.all(
+                participantesMesmoGrupo.map(p =>
+                  atualizarParticipante(p.id, { corCategoria: novaCor })
+                )
+              );
+
+              // Atualiza estado local
+              setParticipantes(prev =>
+                prev.map(p =>
+                  p.categoria === categoriaAlvo && p.eventoId === eventoAlvo
+                    ? { ...p, corCategoria: novaCor }
+                    : p
+                )
+              );
+
+              setEditandoCorId(null);
+              setMensagem({ tipo: 'success', texto: 'Cor atualizada para todos os participantes da mesma categoria!' });            setMensagem({ tipo: 'success', texto: 'Cor atualizada com sucesso!' });
+                        }}
+                      >
+                              Salvar cor
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                     <div className="flex justify-between items-start">
                       <div>
                         <h4 className="font-medium">{participante.nome}</h4>
