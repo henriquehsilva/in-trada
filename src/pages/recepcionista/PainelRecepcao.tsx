@@ -719,7 +719,7 @@ const PainelRecepcao: React.FC = () => {
                       type="color"
                       value={categoriaCor}
                       onChange={(e) => setCategoriaCor(e.target.value)}
-                      className="h-10 w-full rounded border-gray-300 shadow-sm"
+                      className="h-14 w-14 rounded-full border border-gray-300 shadow-sm cursor-pointer p-0 appearance-none"
                     />
                   </div>
                 </div>
