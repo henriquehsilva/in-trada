@@ -8,12 +8,11 @@ import { obterEventos } from '../../services/eventoService';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
-
 const OperadorDashboard: React.FC = () => {
   const [eventos, setEventos] = useState<Evento[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
+  const navigate = useNavigate();
   const {} = useAuth();
 
   useEffect(() => {
@@ -50,15 +49,6 @@ const OperadorDashboard: React.FC = () => {
       </LayoutDefault>
     );
   }
-
-  const [eventoSelecionado, setEventoSelecionado] = useState('');
-  const navigate = useNavigate();
-
-  const handleNavigate = () => {
-    if (eventoSelecionado) {
-      navigate('/operador/painel/' + eventoSelecionado);
-    }
-  };
 
   return (
     <LayoutDefault title="Dashboard do Operador">
@@ -126,7 +116,7 @@ const OperadorDashboard: React.FC = () => {
               <div
                 key={evento.id}
                 className="border border-gray-100 rounded-lg p-4 hover:bg-gray-50 transition-colors cursor-pointer"
-                onClick={() => navigate(`/operador/editor-crachas/${evento.id}`)}
+                onClick={() => navigate(`/operador/painel/${evento.id}`)}
               >
                 <div className="flex justify-between items-start mb-2">
                   <h3 className="font-medium text-primary">{evento.nome}</h3>
@@ -144,6 +134,7 @@ const OperadorDashboard: React.FC = () => {
                     {evento.quantidadeParticipantes ?? 0} participantes
                   </p>
                 </div>
+
               </div>
             ))}
 
@@ -192,32 +183,7 @@ const OperadorDashboard: React.FC = () => {
                 Configure painéis de recepção
               </p>
             </button>
-            <div className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-              <Layout className="w-8 h-8 text-success mb-2" />
-              <h3 className="font-medium mb-1">Editor de Painéis</h3>
-              <p className="text-sm text-gray-500 mb-2">Painel de recepção</p>
 
-              <select
-                value={eventoSelecionado}
-                onChange={(e) => setEventoSelecionado(e.target.value)}
-                className="mb-2 p-2 border border-gray-300 rounded w-full"
-              >
-                <option value="">Selecione um evento</option>
-                {eventos.map((evento) => (
-                  <option key={evento.id} value={evento.id}>
-                    {evento.nome || `Evento ${evento.id}`}
-                  </option>
-                ))}
-              </select>
-
-              <button
-                onClick={handleNavigate}
-                disabled={!eventoSelecionado}
-                className="w-full p-2 bg-green-600 text-white rounded disabled:opacity-50"
-              >
-                Acessar Painel
-              </button>
-            </div>            
             <button
               onClick={() => navigate('/operador/participantes')}
               className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-left"
