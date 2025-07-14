@@ -5,6 +5,7 @@ import { collection, addDoc } from 'firebase/firestore';
 import { db } from '../../../firebase/config';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../../contexts/AuthContext';
+import { query, where, getDocs } from 'firebase/firestore';
 
 const CriarParticipante: React.FC = () => {
   const { eventoId } = useParams<{ eventoId: string }>();
@@ -22,6 +23,7 @@ const CriarParticipante: React.FC = () => {
     celular: '',
     telefone: '',
     categoria: '',
+    corCategoria: '',
     observacao: '',
     cpf: '',
     rg: '',
@@ -51,6 +53,15 @@ const CriarParticipante: React.FC = () => {
     setForm(prev => ({ ...prev, [name]: value }));
   };
 
+  const gerarCorAleatoria = () => {
+    const letras = '0123456789ABCDEF';
+    let cor = '#';
+    for (let i = 0; i < 6; i++) {
+      cor += letras[Math.floor(Math.random() * 16)];
+    }
+    return cor;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -64,8 +75,28 @@ const CriarParticipante: React.FC = () => {
     }
 
     try {
+      let corCategoria = '';
+
+      // 1. Buscar se já existe cor definida para a categoria
+      const participantesRef = collection(db, 'participantes');
+      const q = query(participantesRef,
+        where('eventoId', '==', eventoId),
+        where('categoria', '==', form.categoria)
+      );
+
+      const snapshot = await getDocs(q);
+      if (!snapshot.empty) {
+        // Se já existe participante com essa categoria, usar a cor dele
+        const participanteExistente = snapshot.docs[0].data();
+        corCategoria = participanteExistente.corCategoria || '';
+      } else {
+        // Caso contrário, gerar uma nova cor aleatória
+        corCategoria = gerarCorAleatoria();
+      }
+
       const novoParticipante = {
         ...form,
+        corCategoria,
         eventoId,
         criadoEm: new Date().toISOString(),
         atualizadoEm: new Date().toISOString(),

@@ -711,17 +711,6 @@ const PainelRecepcao: React.FC = () => {
                       <option value="Imprensa">Imprensa</option>
                     </select>
                   </div>
-                  {/* <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Categoria
-                    </label>
-                    { <input
-                      type="color"
-                      value={categoriaCor}
-                      onChange={(e) => setCategoriaCor(e.target.value)}
-                      className="h-14 w-14 rounded-full border border-gray-300 shadow-sm cursor-pointer p-0 appearance-none"
-                    /> }
-                  </div> */}
                 </div>
 
                 
