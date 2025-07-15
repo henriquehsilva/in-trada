@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Papa, { parse, ParseError, ParseResult } from 'papaparse';
-import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { addDoc, collection, serverTimestamp, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../../../firebase/config';
 import LayoutDefault from '../../../components/layout/LayoutDefault';
 import { Participante } from '../../../models/types';
+
+
 
 
 type ParticipanteCSV = Omit<Participante, 'id' | 'criadoEm'>;
@@ -18,57 +20,57 @@ const ImportarParticipantes: React.FC = () => {
   const [mensagem, setMensagem] = useState<string | null>(null);
   const [importando, setImportando] = useState(false);
 
-const handleArquivo = (e: React.ChangeEvent<HTMLInputElement>) => {
-  const file = e.target.files?.[0];
-  if (!file) return;
+  const handleArquivo = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-  const reader = new FileReader();
+    const reader = new FileReader();
 
-  reader.onload = (event) => {
-    const result = event.target?.result;
-    if (!(result instanceof ArrayBuffer)) {
-      setErro('Erro ao ler arquivo.');
-      return;
-    }
+    reader.onload = (event) => {
+      const result = event.target?.result;
+      if (!(result instanceof ArrayBuffer)) {
+        setErro('Erro ao ler arquivo.');
+        return;
+      }
 
-    // Detecta charset e decodifica
-    const utf8Text = new TextDecoder('utf-8').decode(result);
-    const hasInvalidUtf8 = utf8Text.includes('�');
-    const text = hasInvalidUtf8
-      ? new TextDecoder('iso-8859-1').decode(result)
-      : utf8Text;
+      // Detecta charset e decodifica
+      const utf8Text = new TextDecoder('utf-8').decode(result);
+      const hasInvalidUtf8 = utf8Text.includes('�');
+      const text = hasInvalidUtf8
+        ? new TextDecoder('iso-8859-1').decode(result)
+        : utf8Text;
 
-    // Detecta delimitador automaticamente
-    const detectarDelimitador = (texto: string): string => {
-      const delimitadores = [",", ";", "\t"];
-      const contagens = delimitadores.map(d => ({
-        d,
-        count: texto.split("\n")[0].split(d).length
-      }));
-      contagens.sort((a, b) => b.count - a.count);
-      return contagens[0].d;
+      // Detecta delimitador automaticamente
+      const detectarDelimitador = (texto: string): string => {
+        const delimitadores = [",", ";", "\t"];
+        const contagens = delimitadores.map(d => ({
+          d,
+          count: texto.split("\n")[0].split(d).length
+        }));
+        contagens.sort((a, b) => b.count - a.count);
+        return contagens[0].d;
+      };
+
+      const delimitador = detectarDelimitador(text);
+
+      parse<ParticipanteCSV>(text, {
+        header: true,
+        skipEmptyLines: true,
+        delimiter: delimitador,
+        complete: (results: ParseResult<ParticipanteCSV>) => {
+          const dadosValidos = results.data.filter(d => d.nome);
+          setPreview(dadosValidos);
+          setErro(null);
+        },
+        error: (error: any) => {
+          console.error('Erro ao ler CSV:', error);
+          setErro('Erro ao processar o arquivo. Verifique o formato.');
+        }
+      });
     };
 
-    const delimitador = detectarDelimitador(text);
-
-    parse<ParticipanteCSV>(text, {
-      header: true,
-      skipEmptyLines: true,
-      delimiter: delimitador,
-      complete: (results: ParseResult<ParticipanteCSV>) => {
-        const dadosValidos = results.data.filter(d => d.nome);
-        setPreview(dadosValidos);
-        setErro(null);
-      },
-      error: (error: any) => {
-        console.error('Erro ao ler CSV:', error);
-        setErro('Erro ao processar o arquivo. Verifique o formato.');
-      }
-    });
+    reader.readAsArrayBuffer(file);
   };
-
-  reader.readAsArrayBuffer(file);
-};
 
   const handleImportar = async () => {
     if (!eventoId || preview.length === 0) return;
@@ -78,16 +80,35 @@ const handleArquivo = (e: React.ChangeEvent<HTMLInputElement>) => {
     setMensagem(null);
 
     try {
-      const ref = collection(db, 'participantes');
+      const participantesRef = collection(db, 'participantes');
 
-      await Promise.all(preview.map(p =>
-        addDoc(ref, {
+      // Busca todas as categorias e cores já cadastradas para o evento
+      const snapshot = await getDocs(query(participantesRef, where('eventoId', '==', eventoId)));
+      const mapaCategoriaCor = new Map<string, string>();
+
+      snapshot.forEach(doc => {
+        const data = doc.data() as Participante;
+        if (data.categoria && data.corCategoria) {
+          const key = data.categoria.toUpperCase();
+          if (!mapaCategoriaCor.has(key)) {
+            mapaCategoriaCor.set(key, data.corCategoria);
+          }
+        }
+      });
+
+      // Insere os participantes com cor, se já definida para a categoria
+      await Promise.all(preview.map(p => {
+        const categoriaUpper = p.categoria?.toUpperCase() || '';
+        const corAssociada = mapaCategoriaCor.get(categoriaUpper);
+
+        return addDoc(participantesRef, {
           ...p,
           eventoId,
           status: 'pendente',
-          criadoEm: serverTimestamp()
-        })
-      ));
+          criadoEm: serverTimestamp(),
+          cor: corAssociada || null // cor já associada ou null
+        });
+      }));
 
       setMensagem(`${preview.length} participantes importados com sucesso.`);
       setPreview([]);
