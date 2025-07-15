@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import LayoutDefault from '../../../components/layout/LayoutDefault';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../../firebase/config';
 import toast from 'react-hot-toast';
 
@@ -23,6 +23,7 @@ const EditarParticipante: React.FC = () => {
     celular: '',
     telefone: '',
     categoria: '',
+    corCategoria: '',
     observacao: '',
     cpf: '',
     rg: '',
@@ -44,6 +45,15 @@ const EditarParticipante: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState('');
   const [sucesso, setSucesso] = useState('');
+
+  const gerarCorAleatoria = () => {
+    const letras = '0123456789ABCDEF';
+    let cor = '#';
+    for (let i = 0; i < 6; i++) {
+      cor += letras[Math.floor(Math.random() * 16)];
+    }
+    return cor;
+  };
 
   useEffect(() => {
     const carregarParticipante = async () => {
@@ -89,9 +99,29 @@ const EditarParticipante: React.FC = () => {
     }
 
     try {
+      let corCategoria = form.corCategoria?.trim();
+      const categoriaUpper = form.categoria.trim().toUpperCase();
+
+      // Se não foi definida, tenta herdar de outro participante
+      if (!corCategoria) {
+        const participantesRef = collection(db, 'participantes');
+        const snapshot = await getDocs(query(
+          participantesRef,
+          where('eventoId', '==', eventoId)
+        ));
+
+        const corExistente = snapshot.docs
+          .map(doc => doc.data())
+          .find(p => (p.categoria?.toUpperCase() || '') === categoriaUpper)?.corCategoria;
+
+        corCategoria = corExistente || gerarCorAleatoria();
+      }
+
       const ref = doc(db, 'participantes', id);
       await updateDoc(ref, {
         ...form,
+        categoria: categoriaUpper,
+        corCategoria,
         atualizadoEm: new Date().toISOString(),
       });
 
@@ -112,7 +142,6 @@ const EditarParticipante: React.FC = () => {
       setLoading(false);
     }
   };
-
   return (
     <LayoutDefault title="Editar Participante">
       <div className="mx-auto bg-white border p-6 rounded-md shadow-sm">

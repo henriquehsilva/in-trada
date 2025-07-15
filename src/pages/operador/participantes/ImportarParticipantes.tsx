@@ -72,6 +72,15 @@ const ImportarParticipantes: React.FC = () => {
     reader.readAsArrayBuffer(file);
   };
 
+  const gerarCorAleatoria = () => {
+    const letras = '0123456789ABCDEF';
+    let cor = '#';
+    for (let i = 0; i < 6; i++) {
+      cor += letras[Math.floor(Math.random() * 16)];
+    }
+    return cor;
+  };
+
   const handleImportar = async () => {
     if (!eventoId || preview.length === 0) return;
 
@@ -82,7 +91,7 @@ const ImportarParticipantes: React.FC = () => {
     try {
       const participantesRef = collection(db, 'participantes');
 
-      // Busca todas as categorias e cores já cadastradas para o evento
+      // Busca categorias já cadastradas para o evento
       const snapshot = await getDocs(query(participantesRef, where('eventoId', '==', eventoId)));
       const mapaCategoriaCor = new Map<string, string>();
 
@@ -96,17 +105,26 @@ const ImportarParticipantes: React.FC = () => {
         }
       });
 
-      // Insere os participantes com cor, se já definida para a categoria
-      await Promise.all(preview.map(p => {
+      await Promise.all(preview.map(async p => {
         const categoriaUpper = p.categoria?.toUpperCase() || '';
-        const corAssociada = mapaCategoriaCor.get(categoriaUpper);
+        let corCategoria = p.corCategoria?.trim();
+
+        if (!corCategoria) {
+          corCategoria = mapaCategoriaCor.get(categoriaUpper) || gerarCorAleatoria();
+        }
+
+        // Atualiza o mapa para reaproveitar essa cor nas próximas repetições
+        if (!mapaCategoriaCor.has(categoriaUpper)) {
+          mapaCategoriaCor.set(categoriaUpper, corCategoria);
+        }
 
         return addDoc(participantesRef, {
           ...p,
+          categoria: categoriaUpper,
+          corCategoria,
           eventoId,
           status: 'pendente',
           criadoEm: serverTimestamp(),
-          cor: corAssociada || null // cor já associada ou null
         });
       }));
 
@@ -119,7 +137,6 @@ const ImportarParticipantes: React.FC = () => {
       setImportando(false);
     }
   };
-
   return (
     <LayoutDefault
       title="Importar Participantes"

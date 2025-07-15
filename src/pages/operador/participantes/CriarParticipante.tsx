@@ -75,27 +75,28 @@ const CriarParticipante: React.FC = () => {
     }
 
     try {
-      let corCategoria = '';
+      let corCategoria = form.corCategoria?.trim(); // usa cor informada, se tiver
 
-      // 1. Buscar se já existe cor definida para a categoria
       const participantesRef = collection(db, 'participantes');
-      const q = query(participantesRef,
-        where('eventoId', '==', eventoId),
-        where('categoria', '==', form.categoria)
-      );
+      const categoriaUpper = form.categoria.trim().toUpperCase();
 
-      const snapshot = await getDocs(q);
-      if (!snapshot.empty) {
-        // Se já existe participante com essa categoria, usar a cor dele
-        const participanteExistente = snapshot.docs[0].data();
-        corCategoria = participanteExistente.corCategoria || '';
-      } else {
-        // Caso contrário, gerar uma nova cor aleatória
-        corCategoria = gerarCorAleatoria();
+      // Buscar participantes com a mesma categoria (case-insensitive simulado)
+      const snapshot = await getDocs(query(
+        participantesRef,
+        where('eventoId', '==', eventoId)
+      ));
+
+      if (!corCategoria) {
+        const corExistente = snapshot.docs
+          .map(doc => doc.data())
+          .find(p => (p.categoria?.toUpperCase() || '') === categoriaUpper)?.corCategoria;
+
+        corCategoria = corExistente || gerarCorAleatoria();
       }
 
       const novoParticipante = {
         ...form,
+        categoria: categoriaUpper,
         corCategoria,
         eventoId,
         criadoEm: new Date().toISOString(),
@@ -104,7 +105,7 @@ const CriarParticipante: React.FC = () => {
         camposPersonalizados: {},
       };
 
-      await addDoc(collection(db, 'participantes'), novoParticipante);
+      await addDoc(participantesRef, novoParticipante);
 
       toast.success(`Participante ${form.nome} criado com sucesso!`);
       setTimeout(() => navigate(`/operador/participantes?eventoId=${eventoId}`), 2000);
