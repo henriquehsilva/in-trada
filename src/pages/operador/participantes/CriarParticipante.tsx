@@ -96,8 +96,8 @@ const CriarParticipante: React.FC = () => {
 
       const novoParticipante = {
         ...form,
-        categoria: categoriaUpper,
-        corCategoria,
+        categoria: form.categoria ? form.categoria.trim().toUpperCase() : '',
+        corCategoria: form.categoria ? corCategoria : '',
         eventoId,
         criadoEm: new Date().toISOString(),
         atualizadoEm: new Date().toISOString(),
