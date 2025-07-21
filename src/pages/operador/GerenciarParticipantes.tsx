@@ -88,7 +88,7 @@ const GerenciarParticipantes: React.FC = () => {
     }
     try {
       setLoading(true);
-      const resultados = await buscarParticipantes(eventoSelecionado, termoBusca);
+      const resultados = await buscarParticipantes(eventoSelecionado, termoBusca.toLowerCase());
       setParticipantes(resultados);
     } catch (err) {
       console.error('Erro ao buscar participantes:', err);
@@ -231,7 +231,7 @@ const GerenciarParticipantes: React.FC = () => {
             value={termoBusca}
             onChange={(e) => setTermoBusca(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-            placeholder="Buscar por nome, email ou empresa..."
+            placeholder="Buscar por nome, email, empresa ou categoria..."
             className="input-field w-full"
           />
           <button onClick={handleSearch} className="btn btn-primary flex items-center">

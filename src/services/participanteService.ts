@@ -90,7 +90,8 @@ export const buscarParticipantes = async (
     return participantes.filter(p => 
       (p.nome?.toLowerCase() || '').includes(termoLowerCase) ||
       (p.email1?.toLowerCase() || '').includes(termoLowerCase) ||
-      (p.empresa?.toLowerCase() || '').includes(termoLowerCase)
+      (p.empresa?.toLowerCase() || '').includes(termoLowerCase) ||
+      (p.categoria?.toLowerCase() || '').includes(termoLowerCase)
     );
   } catch (error) {
     console.error('Erro ao buscar participantes:', error);
