@@ -7,7 +7,7 @@ import LayoutDefault from '../../../components/layout/LayoutDefault';
 import toast from 'react-hot-toast';
 
 const CriarEvento: React.FC = () => {
-  const { userData } = useAuth();
+  const { userData, currentUser } = useAuth();
   const navigate = useNavigate();
 
   const [form, setForm] = useState<Omit<Evento, 'id' | 'criadoEm' | 'atualizadoEm'>>({
@@ -34,7 +34,11 @@ const CriarEvento: React.FC = () => {
     setLoading(true);
   
     try {
-      await criarEvento(form);
+      if (!currentUser?.uid) {
+        setErro('Usuário não autenticado');
+        return;
+      }
+      await criarEvento(currentUser.uid,form);
       toast.success(`Evento "${form.nome}" criado com sucesso!`);
       navigate('/admin');
     } catch (err) {

@@ -6,13 +6,14 @@ import DragDropEditor from '../../components/editor/DragDropEditor';
 import QRCode from 'qrcode.react';
 import Barcode from 'react-barcode';
 import { nanoid } from 'nanoid';
-import { obterEventoPorId } from '../../services/eventoService';
+import { obterEventoPorId, listarEventosPorAdmin } from '../../services/eventoService';
 import { obterModeloCrachaPorId, criarModeloCracha, atualizarModeloCracha } from '../../services/modeloService';
 import { useAuth } from '../../contexts/AuthContext';
 import { ComponenteEditor, Evento, ModeloCracha } from '../../models/types';
 import CrachaPreviewToPrint from './CrachaPreviewToPrint';
 import { getDocs, collection, query, where, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '../../firebase/config';
+
 
 
 const camposParticipantePadrao = [
@@ -84,7 +85,6 @@ function sanitizeObjeto(obj: any): any {
 }
 
 const EditorCrachas: React.FC = () => {
-  const { eventoId } = useParams<{ eventoId: string }>();
   const { currentUser } = useAuth();
   const navigate = useNavigate();
 
@@ -114,25 +114,23 @@ const EditorCrachas: React.FC = () => {
     : { largura: 400, altura: 250 };
 
 
+  const [eventosDisponiveis, setEventosDisponiveis] = useState<Evento[]>([]);
+  const [eventoSelecionadoId, setEventoSelecionadoId] = useState<string | null>(null);
+
   useEffect(() => {
-    const carregarModelos = async () => {
-      if (!eventoId) return;
-      try {
-        const modelos = await listarTodosModelosCracha();
-        setModelosSalvos(modelos);
-      } catch (err) {
-        console.error('Erro ao carregar modelos:', err);
-        setMensagem({ tipo: 'error', texto: 'Erro ao carregar os modelos salvos.' });
-      }
-    };
+  const carregarModelos = async () => {
+    if (!eventoSelecionadoId) return;
+    const modelos = await listarModelosCrachaPorEvento(eventoSelecionadoId);
+    setModelosSalvos(modelos);
+  };
     carregarModelos();
-  }, [eventoId]);
+  }, [eventoSelecionadoId]);
 
   useEffect(() => {
     const carregarDados = async () => {
-      if (!eventoId) return;
+      if (!eventoSelecionadoId) return;
       try {
-        const eventoDados = await obterEventoPorId(eventoId);
+        const eventoDados = await obterEventoPorId(eventoSelecionadoId);
         if (eventoDados) {
           setEvento(eventoDados);
 
@@ -141,7 +139,7 @@ const EditorCrachas: React.FC = () => {
 
           const modeloTemporario: ModeloCracha = {
             id: '',
-            eventoId,
+            eventoId: eventoSelecionadoId,
             nome: 'Modelo Padrão',
             componentes: [
               {
@@ -247,10 +245,26 @@ const EditorCrachas: React.FC = () => {
       }
     };
     carregarDados();
-  }, [eventoId, currentUser]);
+  }, [eventoSelecionadoId, currentUser]);
+
+  useEffect(() => {
+    const carregarEventos = async () => {
+      if (!currentUser?.uid) return;
+      const adminId = import.meta.env.VITE_ADMIN_USER_ID;
+      const eventos = await listarEventosPorAdmin(adminId);
+      console.log('Eventos carregados:', eventos);
+      setEventosDisponiveis(eventos);
+
+      // Define o primeiro evento como padrão, se nenhum estiver selecionado
+      if (!eventoSelecionadoId && eventos.length > 0) {
+        setEventoSelecionadoId(eventos[0].id);
+      }
+    };
+    carregarEventos();
+  }, [currentUser?.uid]);
 
   const salvarComoNovoModelo = async () => {
-    if (!eventoId || !currentUser?.uid) return;
+    if (!eventoSelecionadoId || !currentUser?.uid) return;
     setSalvando(true);
     setErro('');
     setMensagem(null);
@@ -258,7 +272,7 @@ const EditorCrachas: React.FC = () => {
     try {
       const novoModelo: Omit<ModeloCracha, 'id'> = sanitizeObjeto({
         nome: nomeModelo + ' (Cópia)',
-        eventoId,
+        eventoId: eventoSelecionadoId,
         componentes,
         criadoPorId: currentUser.uid,
         criadoEm: new Date().toISOString(),
@@ -269,7 +283,7 @@ const EditorCrachas: React.FC = () => {
 
       const novoId = await criarModeloCracha(novoModelo);
       setModeloId(novoId); // agora esse passa a ser o modelo carregado
-      const modelosAtualizados = await listarModelosCrachaPorEvento(eventoId);
+      const modelosAtualizados = await listarModelosCrachaPorEvento(eventoSelecionadoId);
       setModelosSalvos(modelosAtualizados);
       setMensagem({ tipo: 'success', texto: 'Novo modelo criado com sucesso!' });
     } catch (err) {
@@ -282,7 +296,7 @@ const EditorCrachas: React.FC = () => {
   };
 
   const salvarAlteracoesModelo = async () => {
-    if (!eventoId || !currentUser?.uid || !modeloId) return;
+    if (!eventoSelecionadoId || !currentUser?.uid || !modeloId) return;
     setSalvando(true);
     setErro('');
     setMensagem(null);
@@ -291,10 +305,10 @@ const EditorCrachas: React.FC = () => {
       await atualizarModeloCracha(modeloId, sanitizeObjeto({
         nome: nomeModelo,
         componentes,
-        eventoId,
+        eventoId: eventoSelecionadoId,
         atualizadoEm: new Date().toISOString()
       }));
-      const modelosAtualizados = await listarModelosCrachaPorEvento(eventoId);
+      const modelosAtualizados = await listarModelosCrachaPorEvento(eventoSelecionadoId);
       setModelosSalvos(modelosAtualizados);
       setMensagem({ tipo: 'success', texto: 'Alterações salvas com sucesso!' });
     } catch (err) {
@@ -307,7 +321,7 @@ const EditorCrachas: React.FC = () => {
   };
 
   const handleSalvarModelo = async () => {
-    if (!eventoId || !currentUser?.uid) return;
+    if (!eventoSelecionadoId || !currentUser?.uid) return;
     setSalvando(true);
     setErro('');
     setMensagem(null);
@@ -317,12 +331,12 @@ const EditorCrachas: React.FC = () => {
         await atualizarModeloCracha(modeloId, sanitizeObjeto({
           nome: nomeModelo,
           componentes,
-          eventoId
+          eventoId: eventoSelecionadoId,
         }));
       } else {
         const novoModelo: Omit<ModeloCracha, 'id'> = sanitizeObjeto({
           nome: nomeModelo,
-          eventoId,
+          eventoId: eventoSelecionadoId,
           componentes,
           criadoPorId: currentUser.uid,
           criadoEm: new Date().toISOString(),
@@ -334,7 +348,7 @@ const EditorCrachas: React.FC = () => {
         const novoId = await criarModeloCracha(novoModelo);
         setModeloId(novoId);
 
-        const modelosAtualizados = await listarModelosCrachaPorEvento(eventoId);
+        const modelosAtualizados = await listarModelosCrachaPorEvento(eventoSelecionadoId);
         setModelosSalvos(modelosAtualizados);
       }
 
@@ -554,7 +568,21 @@ const EditorCrachas: React.FC = () => {
             </button>          
           </div>
         </div>
-        <div className="text-sm text-gray-600 mb-4">Evento: <span className="font-medium">{evento?.nome}</span></div>
+        <div className="text-sm text-gray-600 mb-4">Evento: <span className="font-medium">
+<select
+  value={eventoSelecionadoId || ''}
+  onChange={(e) => setEventoSelecionadoId(e.target.value)}
+  className="input-field"
+>
+  <option value="" disabled>Selecione um evento</option>
+  {eventosDisponiveis.map((ev) => (
+    <option key={ev.id} value={ev.id}>
+      {ev.nome}
+    </option>
+  ))}
+</select>
+
+          </span></div>
       </div>
       <div className="bg-white p-4 rounded-lg shadow-sm mb-6">
         <label className="block text-sm font-medium text-gray-700 mb-1">Fonte personalizada (.ttf)</label>
@@ -688,7 +716,7 @@ const EditorCrachas: React.FC = () => {
                                 }
                               })
                             );
-                            const modelosAtualizados = await listarModelosCrachaPorEvento(eventoId!);
+                            const modelosAtualizados = await listarModelosCrachaPorEvento(eventoSelecionadoId!);
                             setModelosSalvos(modelosAtualizados);
                             setMensagem({ tipo: 'success', texto: 'Modelo definido como padrão.' });
                           } catch (err) {

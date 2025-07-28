@@ -16,11 +16,13 @@ import { Evento, CampoPersonalizado } from '../models/types';
 
 // Criar novo evento
 export const criarEvento = async (
-  evento: Omit<Evento, 'id' | 'criadoEm' | 'atualizadoEm'>
+  usuarioId: string,
+  evento: Omit<Evento, 'id' | 'criadoEm' | 'atualizadoEm' | 'criadoPorId'>
 ): Promise<string> => {
   try {
     const eventoRef = await addDoc(collection(db, 'eventos'), {
       ...evento,
+      criadoPorId: usuarioId,
       criadoEm: serverTimestamp(),
       atualizadoEm: serverTimestamp(),
     });
@@ -140,6 +142,17 @@ export const adicionarCampoPersonalizado = async (
     console.error('Erro ao adicionar campo personalizado:', error);
     throw error;
   }
+};
+
+export const listarEventosPorAdmin = async (adminId: string): Promise<Evento[]> => {
+  const eventosRef = collection(db, 'eventos');
+  const q = query(eventosRef, where('criadoPorId', '==', adminId));
+  const snapshot = await getDocs(q);
+
+  return snapshot.docs.map(doc => ({
+    id: doc.id,
+    ...(doc.data() as Omit<Evento, 'id'>),
+  }));
 };
 
 // Remover campo personalizado do evento

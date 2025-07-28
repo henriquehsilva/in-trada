@@ -1,10 +1,13 @@
+// vite.config.ts
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
-// https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
   optimizeDeps: {
-    exclude: ['lucide-react', 'chunk-REFQX4J5'],
+    exclude: ['lucide-react']
   },
+  define: {
+    'crypto.hash': 'undefined' // <- patch sujo para evitar crash
+  }
 });
