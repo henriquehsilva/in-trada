@@ -24,6 +24,7 @@ import DonutChart  from '../../components/DonutChart';
 import { ChromePicker } from 'react-color';
 import { doc, updateDoc, getDoc } from 'firebase/firestore';
 import { db } from '../../firebase/config';
+import JsBarcode from 'jsbarcode';
 
 const PainelRecepcao: React.FC = () => {
   const navigate = useNavigate();
@@ -283,61 +284,81 @@ const PainelRecepcao: React.FC = () => {
       const altura = cmToZplPx(modeloPadrao.alturaCm || 3);
 
       const htmlComponente = modeloPadrao.componentes.map((comp) => {
-        const props = comp.propriedades;
-        const valor = props.campoVinculado
-          ? participanteSelecionado[props.campoVinculado as keyof typeof participanteSelecionado] || ''
-          : props.texto || '';
+  const props = comp.propriedades;
+  const valor = props.campoVinculado
+    ? participanteSelecionado[props.campoVinculado as keyof typeof participanteSelecionado] || ''
+    : props.texto || '';
 
-        if (comp.tipo === 'qrcode') {
-          return `
-            <div style="position:absolute; top:${props.y}px; left:${props.x}px; width:${props.largura}px; height:${props.altura}px;">
-              <img src="${qrCodeDataUrl}" width="${props.largura}" height="${props.altura}" />
-            </div>
-          `;
-        }
+  if (comp.tipo === 'qrcode') {
+    return `
+      <div style="position:absolute; top:${props.y}px; left:${props.x}px; width:${props.largura}px; height:${props.altura}px;">
+        <img src="${qrCodeDataUrl}" width="${props.largura}" height="${props.altura}" />
+      </div>
+    `;
+  }
 
-        return `
-          <div style="
-            position:absolute;
-            top:${props.y}px; left:${props.x}px;
-            width:${props.largura}px; height:${props.altura}px;
-            font-size:${props.estilos?.tamanhoFonte || 14}px;
-            font-weight:${props.estilos?.negrito ? 'bold' : 'normal'};
-            font-family:${props.estilos?.fonte || 'Arial'};
-            text-align:${props.estilos?.alinhamento || 'left'};
-            color:${props.estilos?.corFonte || '#000'};
-            background-color:${props.estilos?.corFundo || 'transparent'};
-            border-radius:${props.estilos?.raio || 0}px;
-            display:flex; align-items:center; justify-content:center;
-            overflow:hidden;
-          ">
-            ${valor}
-          </div>
-        `;
-      }).join('');
+  if (comp.tipo === 'barcode') {
+    return `
+      <div style="position:absolute; top:${props.y}px; left:${props.x}px;">
+        <svg id="barcode-${props.campoVinculado}" 
+             jsbarcode-value="${valor}" 
+             jsbarcode-format="CODE128" 
+             jsbarcode-width="2"
+             jsbarcode-height="${props.altura}"
+             jsbarcode-displayvalue="false">
+        </svg>
+      </div>
+    `;
+  }
 
-      const html = `
-        <html>
-          <head>
-            <title>Imprimir Crachá</title>
-            <style>
-              @page { size: ${largura}px ${altura}px; margin: 0; }
-              body { margin: 0; padding: 0; }
-            </style>
-          </head>
-          <body>
-            <div style="position:relative; width:${largura}px; height:${altura}px;">
-              ${htmlComponente}
-            </div>
-            <script>
-              window.onload = function () {
-                window.print();
-                setTimeout(() => window.close(), 300);
-              };
-            </script>
-          </body>
-        </html>
-      `;
+  return `
+    <div style="
+      position:absolute;
+      top:${props.y}px; left:${props.x}px;
+      width:${props.largura}px; height:${props.altura}px;
+      font-size:${props.estilos?.tamanhoFonte || 14}px;
+      font-weight:${props.estilos?.negrito ? 'bold' : 'normal'};
+      font-family:${props.estilos?.fonte || 'Arial'};
+      text-align:${props.estilos?.alinhamento || 'left'};
+      color:${props.estilos?.corFonte || '#000'};
+      background-color:${props.estilos?.corFundo || 'transparent'};
+      border-radius:${props.estilos?.raio || 0}px;
+      display:flex; align-items:center; justify-content:center;
+      overflow:hidden;
+    ">
+      ${valor}
+    </div>
+  `;
+  }).join('');
+  const html = `
+    <html>
+      <head>
+        <title>Imprimir Crachá</title>
+        <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+        <style>
+          @page { size: ${largura}px ${altura}px; margin: 0; }
+          body { margin: 0; padding: 0; }
+        </style>
+      </head>
+      <body>
+        <div style="position:relative; width:${largura}px; height:${altura}px;">
+          ${htmlComponente}
+        </div>
+        <script>
+          window.onload = function () {
+            // Espera até que JsBarcode esteja carregado
+            if (typeof JsBarcode !== 'undefined') {
+              JsBarcode("svg[id^='barcode-']").init();
+            } else {
+              console.error("JsBarcode não carregado!");
+            }
+            window.print();
+            setTimeout(() => window.close(), 300);
+          };
+        </script>
+      </body>
+    </html>
+  `;
 
       const printWindow = window.open('', '_blank', 'width=600,height=400');
       if (!printWindow) return;
