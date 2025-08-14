@@ -1,22 +1,22 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Search, QrCode, Printer, CheckCircle2, BadgeCheck, Loader2, X, AlertTriangle } from 'lucide-react';
 import QrCodeScanner from '../../components/qrcode/QrCodeScanner';
 import { useAuth } from '../../contexts/AuthContext';
 import { Evento, Participante } from '../../models/types';
 import { obterEventoPorId } from '../../services/eventoService';
-import { buscarParticipantes, criarParticipante, fazerCheckin, obterParticipantePorId, obterParticipantesPorEvento } from '../../services/participanteService';
+import { buscarParticipantes, fazerCheckin, obterParticipantePorId, obterParticipantesPorEvento } from '../../services/participanteService';
 import { obterModelosCrachaPorEvento } from '../../services/modeloService';
 import QRCode from 'qrcode';
 import { db } from '../../firebase/config';
-import { doc, getDoc, runTransaction, serverTimestamp } from 'firebase/firestore';
+import { doc, runTransaction, serverTimestamp } from 'firebase/firestore';
 
 /**
- * Tela de Autoatendimento
- * - Header com nome do evento e um campo de busca grande (sticky)
- * - Lista ampla de participantes com ações grandes (Check-in e Imprimir Etiqueta)
- * - Impressão de etiqueta apenas 1 vez com transação no Firestore
- * - Leitor de QR Code acessível por FAB (botão flutuante)
+ * Tela de Autoatendimento (Kiosk)
+ * - Busca só é disparada quando o usuário pressiona Enter ou Tab
+ * - Lista ampla com ações grandes (Check-in e Imprimir Etiqueta)
+ * - Etiqueta: impressão apenas 1x (transação Firestore)
+ * - FAB de QR Code
  */
 
 const STATUS_LABEL: Record<string, string> = {
@@ -43,7 +43,8 @@ const AutoAtendimento: React.FC = () => {
   const [showScanner, setShowScanner] = useState(false);
   const [confirmando, setConfirmando] = useState<Participante | null>(null);
 
-  const debounceRef = useRef<number | null>(null);
+  // ref para manter o foco no search
+  const searchRef = useRef<HTMLInputElement>(null);
 
   // ===== Carregar evento + lista inicial =====
   useEffect(() => {
@@ -70,39 +71,32 @@ const AutoAtendimento: React.FC = () => {
     run();
   }, [eventId]);
 
-  // ===== Busca debounced =====
-  useEffect(() => {
+  // ===== Dispara busca apenas em Enter/Tab =====
+  const executarBusca = async () => {
     if (!eventId) return;
-    if (debounceRef.current) window.clearTimeout(debounceRef.current);
-
-    debounceRef.current = window.setTimeout(async () => {
-      const q = termo.trim().toLowerCase();
-      if (!q) {
-        setParticipantes(baseParticipantes);
-        return;
-      }
-      try {
-        setBuscando(true);
-        const remotos = await buscarParticipantes(eventId, q);
-        const fallback = baseParticipantes.filter((p) => {
-          const arr = [p.nome, p.empresa, (p as any).email1, (p as any).email2, p.id].map((v) => (v || '').toString().toLowerCase());
-          return arr.some((v) => v.includes(q));
-        });
-        const res = remotos?.length ? remotos : fallback;
-        setParticipantes(res);
-        setMsg(res.length ? null : { tipo: 'info', texto: 'Nenhum participante encontrado.' });
-      } catch (e) {
-        console.error(e);
-        setMsg({ tipo: 'error', texto: 'Falha na busca. Tente novamente.' });
-      } finally {
-        setBuscando(false);
-      }
-    }, 300);
-
-    return () => {
-      if (debounceRef.current) window.clearTimeout(debounceRef.current);
-    };
-  }, [termo, eventId, baseParticipantes]);
+    const q = termo.trim().toLowerCase();
+    if (!q) {
+      setParticipantes(baseParticipantes);
+      setMsg(null);
+      return;
+    }
+    try {
+      setBuscando(true);
+      const remotos = await buscarParticipantes(eventId, q);
+      const fallback = baseParticipantes.filter((p) => {
+        const arr = [p.nome, p.empresa, (p as any).email1, (p as any).email2, p.id].map((v) => (v || '').toString().toLowerCase());
+        return arr.some((v) => v.includes(q));
+      });
+      const res = remotos?.length ? remotos : fallback;
+      setParticipantes(res);
+      setMsg(res.length ? null : { tipo: 'info', texto: 'Nenhum participante encontrado.' });
+    } catch (e) {
+      console.error(e);
+      setMsg({ tipo: 'error', texto: 'Falha na busca. Tente novamente.' });
+    } finally {
+      setBuscando(false);
+    }
+  };
 
   // ===== Ações =====
   const podeImprimir = (p: Participante) => !(p as any).etiquetaImpressaEm;
@@ -194,7 +188,7 @@ const AutoAtendimento: React.FC = () => {
     w.document.close();
   };
 
-  // ===== Renders auxiliares =====
+  // ===== Header / Input =====
   const Header = () => (
     <div className="sticky top-0 z-20 bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60 border-b border-gray-100">
       <div className="max-w-6xl mx-auto px-4 py-4">
@@ -215,18 +209,47 @@ const AutoAtendimento: React.FC = () => {
           <div className="relative">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-6 h-6 text-gray-400"/>
             <input
+              ref={searchRef}
+              autoFocus
               value={termo}
-              onChange={(e) => setTermo(e.target.value)}
-              placeholder="Busque por nome, empresa, e-mail ou ID do participante..."
+              onChange={(e) => {
+                setTermo(e.target.value);
+                // garante que o foco permaneça mesmo após re-render
+                requestAnimationFrame(() => searchRef.current?.focus({ preventScroll: true }));
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === 'Tab') {
+                  e.preventDefault();
+                  executarBusca().finally(() => {
+                    const el = searchRef.current;
+                    if (el) {
+                      el.focus({ preventScroll: true });
+                      const end = el.value.length;
+                      try { el.setSelectionRange(end, end); } catch {}
+                    }
+                  });
+                }
+              }}
+              placeholder="Digite e pressione Enter ou Tab para buscar..."
               className="w-full pl-14 pr-12 py-4 rounded-2xl border border-gray-200 shadow-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-400 text-lg"
             />
             {!!termo && (
-              <button onClick={() => setTermo('')} className="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-full hover:bg-gray-100" title="Limpar">
-                <X className="w-5 h-5 text-gray-500"/>
-              </button>
+              <button
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                setTermo('');
+                setParticipantes(baseParticipantes);
+                setMsg(null);
+                searchRef.current?.focus({ preventScroll: true });
+              }}
+              className="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-full hover:bg-gray-100"
+              title="Limpar"
+            >
+              <X className="w-5 h-5 text-gray-500"/>
+            </button>
             )}
           </div>
-          <div className="mt-2 text-sm text-gray-500 flex items-center gap-2">
+          <div className="mt-2 text-sm text-gray-500 flex items-center gap-2 min-h-[1.25rem]">
             {buscando && (<><Loader2 className="w-4 h-4 animate-spin"/> <span>Buscando...</span></>)}
             {!buscando && participantes.length > 0 && (<span>{participantes.length} resultado(s)</span>)}
           </div>
@@ -318,7 +341,7 @@ const AutoAtendimento: React.FC = () => {
 
         {participantes.length === 0 ? (
           <div className="rounded-2xl border border-dashed text-center p-14 text-gray-500 bg-white">
-            Nenhum participante para exibir. Tente buscar pelo nome, empresa, e-mail ou ID.
+            Nenhum participante para exibir. Digite e pressione Enter/Tab para buscar.
           </div>
         ) : (
           <div className="grid gap-3 md:gap-4">
