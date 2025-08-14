@@ -116,7 +116,7 @@ const OperadorDashboard: React.FC = () => {
               <div
                 key={evento.id}
                 className="border border-gray-100 rounded-lg p-4 hover:bg-gray-50 transition-colors cursor-pointer"
-                onClick={() => navigate(`/operador/painel/${evento.id}`)}
+                onClick={() => navigate(`/AutoAtendimento/${evento.id}`)}
               >
                 <div className="flex justify-between items-start mb-2">
                   <h3 className="font-medium text-primary">{evento.nome}</h3>
@@ -172,8 +172,7 @@ const OperadorDashboard: React.FC = () => {
               </p>
             </button>
 
-            <button
-              disabled
+            <button              
               onClick={() => navigate('/operador/editor-painel/' + (eventos[0]?.id || ''))}
               className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-left"
             >

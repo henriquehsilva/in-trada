@@ -36,6 +36,7 @@ import ImportarParticipantes from './pages/operador/participantes/ImportarPartic
 // Páginas de Recepcionista
 import RecepcionistaDashboard from './pages/recepcionista/Dashboard';
 import PainelRecepcao from './pages/recepcionista/PainelRecepcao';
+import AutoAtendimento from './pages/atendimento/index';
 
 function App() {
   const [loading, setLoading] = useState(true);
@@ -56,6 +57,7 @@ function App() {
     <AuthProvider>
       <Toaster position="top-right" />
       <Routes>
+        <Route path="/autoatendimento/:eventoId" element={<AutoAtendimento />} />
         {/* Rotas públicas */}
         <Route path="/login" element={<Login />} />
         <Route path="/cadastro" element={<Cadastro />} />

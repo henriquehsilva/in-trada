@@ -131,3 +131,12 @@ export interface Acao {
   metadados: any;
   dataHora: string;
 }
+
+export interface ModeloRecepcionista {
+  id?: string;
+  eventoId: string;
+  criadoPorId: string;
+  criadoEm?: string;
+  atualizadoEm?: string;
+  componentes: ComponenteEditor[];
+}
