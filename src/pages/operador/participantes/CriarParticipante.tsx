@@ -75,18 +75,18 @@ const CriarParticipante: React.FC = () => {
     }
 
     try {
-      let corCategoria = form.corCategoria?.trim(); // usa cor informada, se tiver
-
-      const participantesRef = collection(db, 'participantes');
+      const participantesRef = collection(db, 'participantes'); 
+      let corCategoria = form.corCategoria?.trim();
       const categoriaUpper = form.categoria.trim().toUpperCase();
 
-      // Buscar participantes com a mesma categoria (case-insensitive simulado)
-      const snapshot = await getDocs(query(
-        participantesRef,
-        where('eventoId', '==', eventoId)
-      ));
-
+      // Se não foi definida, tenta herdar de outro participante
       if (!corCategoria) {
+        const participantesRef = collection(db, 'participantes');
+        const snapshot = await getDocs(query(
+          participantesRef,
+          where('eventoId', '==', eventoId)
+        ));
+
         const corExistente = snapshot.docs
           .map(doc => doc.data())
           .find(p => (p.categoria?.toUpperCase() || '') === categoriaUpper)?.corCategoria;
@@ -96,8 +96,8 @@ const CriarParticipante: React.FC = () => {
 
       const novoParticipante = {
         ...form,
-        categoria: form.categoria ? form.categoria.trim().toUpperCase() : '',
-        corCategoria: form.categoria ? corCategoria : '',
+        categoria: categoriaUpper,
+        corCategoria,
         eventoId,
         criadoEm: new Date().toISOString(),
         atualizadoEm: new Date().toISOString(),
