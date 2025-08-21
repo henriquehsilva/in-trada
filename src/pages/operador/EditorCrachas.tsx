@@ -118,13 +118,12 @@ const EditorCrachas: React.FC = () => {
   const [eventoSelecionadoId, setEventoSelecionadoId] = useState<string | null>(null);
 
   useEffect(() => {
-  const carregarModelos = async () => {
-    if (!eventoSelecionadoId) return;
-    const modelos = await listarModelosCrachaPorEvento(eventoSelecionadoId);
-    setModelosSalvos(modelos);
-  };
+    const carregarModelos = async () => {
+      const modelos = await listarTodosModelosCracha();
+      setModelosSalvos(modelos);
+    };
     carregarModelos();
-  }, [eventoSelecionadoId]);
+  }, []);
 
   useEffect(() => {
     const carregarDados = async () => {
@@ -283,7 +282,7 @@ const EditorCrachas: React.FC = () => {
 
       const novoId = await criarModeloCracha(novoModelo);
       setModeloId(novoId); // agora esse passa a ser o modelo carregado
-      const modelosAtualizados = await listarModelosCrachaPorEvento(eventoSelecionadoId);
+      const modelosAtualizados = await listarTodosModelosCracha();
       setModelosSalvos(modelosAtualizados);
       setMensagem({ tipo: 'success', texto: 'Novo modelo criado com sucesso!' });
     } catch (err) {
@@ -308,7 +307,7 @@ const EditorCrachas: React.FC = () => {
         eventoId: eventoSelecionadoId,
         atualizadoEm: new Date().toISOString()
       }));
-      const modelosAtualizados = await listarModelosCrachaPorEvento(eventoSelecionadoId);
+      const modelosAtualizados = await listarTodosModelosCracha();
       setModelosSalvos(modelosAtualizados);
       setMensagem({ tipo: 'success', texto: 'Alterações salvas com sucesso!' });
     } catch (err) {
@@ -348,7 +347,7 @@ const EditorCrachas: React.FC = () => {
         const novoId = await criarModeloCracha(novoModelo);
         setModeloId(novoId);
 
-        const modelosAtualizados = await listarModelosCrachaPorEvento(eventoSelecionadoId);
+        const modelosAtualizados = await listarTodosModelosCracha();
         setModelosSalvos(modelosAtualizados);
       }
 
@@ -716,7 +715,7 @@ const EditorCrachas: React.FC = () => {
                                 }
                               })
                             );
-                            const modelosAtualizados = await listarModelosCrachaPorEvento(eventoSelecionadoId!);
+                            const modelosAtualizados = await listarTodosModelosCracha();
                             setModelosSalvos(modelosAtualizados);
                             setMensagem({ tipo: 'success', texto: 'Modelo definido como padrão.' });
                           } catch (err) {
