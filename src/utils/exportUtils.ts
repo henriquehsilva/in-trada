@@ -1,14 +1,23 @@
 import * as XLSX from 'xlsx';
 import { Participante } from '../models/types';
 
-export const exportToXLSX = (participantes: Participante[]) => {
+const sanitizeFileBase = (name: string) =>
+  (name || 'participantes')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // remove acentos
+    .replace(/\s+/g, '_')                             // espaços -> _
+    .replace(/[^a-zA-Z0-9_-]/g, '');                  // remove especiais
+
+const buildTimestamp = () =>
+  new Date().toISOString().replace(/[-:]/g, '').replace('T', '_').split('.')[0];
+// exemplo: 20250823_104522
+
+export const exportToXLSX = (participantes: Participante[], nomeEvento?: string) => {
   const data = participantes.map(p => {
     let criadoData = '';
     let criadoHorario = '';
     let atualizadoData = '';
     let atualizadoHorario = '';
 
-    // se não for "pendente", preenchemos as partes de data/hora
     if (p.status !== 'pendente') {
       if (p.criadoEm) {
         const dCriado = new Date(p.criadoEm);
@@ -67,5 +76,10 @@ export const exportToXLSX = (participantes: Participante[]) => {
   const worksheet = XLSX.utils.json_to_sheet(data);
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Participantes');
-  XLSX.writeFile(workbook, 'participantes.xlsx');
+
+  const base = sanitizeFileBase(nomeEvento || 'participantes');
+  const timestamp = buildTimestamp();
+  const filename = `${base}_${timestamp}.xlsx`;
+
+  XLSX.writeFile(workbook, filename);
 };

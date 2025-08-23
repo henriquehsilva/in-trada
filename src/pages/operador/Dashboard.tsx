@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, QrCode, Layout, Calendar, FileArchive } from 'lucide-react';
+import { Users, QrCode, Layout, Calendar, FileArchive} from 'lucide-react';
 import LayoutDefault from '../../components/layout/LayoutDefault';
 import { useAuth } from '../../contexts/AuthContext';
 import { Evento } from '../../models/types';
