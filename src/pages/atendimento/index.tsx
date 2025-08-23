@@ -60,7 +60,7 @@ const AutoAtendimento: React.FC = () => {
         setEvento(ev);
         const lista = await obterParticipantesPorEvento(eventId);
         setBaseParticipantes(lista);
-        setParticipantes(lista);
+        setParticipantes([]);
       } catch (e) {
         console.error(e);
         setMsg({ tipo: 'error', texto: 'Erro ao carregar dados do evento.' });
@@ -76,7 +76,7 @@ const AutoAtendimento: React.FC = () => {
     if (!eventId) return;
     const q = termo.trim().toLowerCase();
     if (!q) {
-      setParticipantes(baseParticipantes);
+      setParticipantes([]);
       setMsg(null);
       return;
     }
@@ -238,7 +238,7 @@ const AutoAtendimento: React.FC = () => {
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => {
                 setTermo('');
-                setParticipantes(baseParticipantes);
+                setParticipantes([]);
                 setMsg(null);
                 searchRef.current?.focus({ preventScroll: true });
               }}
@@ -251,7 +251,7 @@ const AutoAtendimento: React.FC = () => {
           </div>
           <div className="mt-2 text-sm text-gray-500 flex items-center gap-2 min-h-[1.25rem]">
             {buscando && (<><Loader2 className="w-4 h-4 animate-spin"/> <span>Buscando...</span></>)}
-            {!buscando && participantes.length > 0 && (<span>{participantes.length} resultado(s)</span>)}
+            {!buscando && termo.trim() && participantes.length > 0 && (<span>{participantes.length} resultado(s)</span>)}
           </div>
         </div>
       </div>
