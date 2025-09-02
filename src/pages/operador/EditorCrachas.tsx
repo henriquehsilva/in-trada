@@ -159,28 +159,109 @@ const EditorCrachas: React.FC = () => {
           {mensagem.texto}
         </div>
       )}
+
+      {/* 🔹 Novo: Seleção de Evento (acima dos campos) */}
+      <div className="bg-white p-4 rounded-lg shadow-sm mb-6">
+        <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+          <div className="w-full md:w-2/3">
+            <label htmlFor="eventoSelect" className="block text-sm font-medium text-gray-700 mb-1">
+              Evento do Crachá
+            </label>
+            <select
+              id="eventoSelect"
+              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              value={eventoSelecionadoId ?? ''}
+              onChange={(e) => setEventoSelecionadoId(e.target.value || null)}
+              disabled={loading || eventosDisponiveis.length === 0}
+            >
+              {loading && <option value="">Carregando eventos…</option>}
+              {!loading && eventosDisponiveis.length === 0 && (
+                <option value="">Nenhum evento disponível</option>
+              )}
+              {!loading && eventosDisponiveis.length > 0 && (
+                <>
+                  {eventosDisponiveis.map((ev) => (
+                    <option key={ev.id} value={ev.id}>
+                      {ev.nome}
+                    </option>
+                  ))}
+                </>
+              )}
+            </select>
+            <p className="text-xs text-gray-500 mt-1">
+              Selecione o evento ao qual este modelo de crachá ficará associado.
+            </p>
+          </div>
+
+          {/* Resumo rápido do evento selecionado (opcional) */}
+          <div className="w-full md:w-1/3 bg-gray-50 border border-gray-200 rounded-md p-3">
+            <p className="text-xs uppercase tracking-wide text-gray-500">Resumo do Evento</p>
+            {evento ? (
+              <div className="mt-1 text-sm text-gray-700">
+                <p className="font-semibold">{evento.nome}</p>
+                {evento?.dataInicio && evento?.dataFim ? (
+                  <p>
+                    {new Date(evento.dataInicio).toLocaleDateString()} – {new Date(evento.dataFim).toLocaleDateString()}
+                  </p>
+                ) : (
+                  <p>Datas não informadas</p>
+                )}
+                {evento?.local && <p className="truncate">Local: {evento.local}</p>}
+              </div>
+            ) : (
+              <p className="mt-1 text-gray-500 text-sm">Nenhum evento selecionado.</p>
+            )}
+          </div>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 xl:grid-cols-1 gap-6 mb-6">
         <div className="w-full">
-          <DragDropEditor componentes={componentes} onSave={setComponentes} tamanhoCracha={tamanhoCracha}
-            camposDisponiveis={camposDisponiveis} fontesDisponiveis={fontesDisponiveis}/>
+          <DragDropEditor
+            componentes={componentes}
+            onSave={setComponentes}
+            tamanhoCracha={tamanhoCracha}
+            camposDisponiveis={camposDisponiveis}
+            fontesDisponiveis={fontesDisponiveis}
+          />
         </div>
         <div className="bg-white p-4 rounded-lg shadow-sm">
           <h3 className="text-lg font-semibold mb-4">Pré-visualização</h3>
           <div className="border border-gray-300 rounded-lg p-2 overflow-auto">
-            <div style={{width:`${tamanhoCracha.largura}px`,height:`${tamanhoCracha.altura}px`,position:'relative',
-              transform:'scale(0.6)',transformOrigin:'top left',margin:'0 auto',background:'#fff'}}>
+            <div
+              style={{
+                width:`${tamanhoCracha.largura}px`,
+                height:`${tamanhoCracha.altura}px`,
+                position:'relative',
+                transform:'scale(0.6)',
+                transformOrigin:'top left',
+                margin:'0 auto',
+                background:'#fff'
+              }}
+            >
               {componentes.map((comp) => {
-                const props = comp.propriedades;
+                const props = comp.propriedades as any;
                 const cpfPrefix = getCpfPrefix(participanteExemplo);
                 return (
-                  <div key={comp.id} style={{position:'absolute',top:props.y,left:props.x,width:props.largura,height:props.altura,
-                    display:'flex',alignItems:'center',justifyContent:'center'}}>
+                  <div
+                    key={comp.id}
+                    style={{
+                      position:'absolute',
+                      top:props.y,
+                      left:props.x,
+                      width:props.largura,
+                      height:props.altura,
+                      display:'flex',
+                      alignItems:'center',
+                      justifyContent:'center'
+                    }}
+                  >
                     {comp.tipo==='qrcode' ? (
                       <QRCode value={cpfPrefix} size={props.altura}/>
                     ) : comp.tipo==='barcode' ? (
                       <Barcode value={cpfPrefix} width={1} height={props.altura||40} displayValue={false} background="transparent"/>
                     ) : (
-                      props.campoVinculado ? participanteExemplo[props.campoVinculado as keyof typeof participanteExemplo] || '' : props.texto || ''
+                      props.campoVinculado ? (participanteExemplo as any)[props.campoVinculado] || '' : props.texto || ''
                     )}
                   </div>
                 );
@@ -208,25 +289,39 @@ const EditorCrachas: React.FC = () => {
                     {modelo.nome} {modelo.padrao && <span className="text-sm text-primary font-semibold ml-2">(Padrão)</span>}
                   </td>
                   <td className="px-4 py-2 text-right space-x-2">
-                    <button onClick={async()=>{ try{
-                      await atualizarModeloCracha(modelo.id,{padrao:true});
-                      const atualizados=await listarTodosModelosCracha();
-                      setModelosSalvos(atualizados);
-                      setMensagem({tipo:'success',texto:'Modelo definido como padrão.'});
-                    }catch(err){console.error(err);setMensagem({tipo:'error',texto:'Erro ao definir modelo padrão.'});}}}
-                      className="btn btn-outline text-xs">Definir como Padrão</button>
-                    <button onClick={async()=>{ try{
-                      const modeloCompleto=await obterModeloCrachaPorId(modelo.id);
-                      if(modeloCompleto){ setModeloId(modelo.id); setNomeModelo(modeloCompleto.nome); setComponentes(modeloCompleto.componentes);}
-                    }catch(err){console.error(err);setMensagem({tipo:'error',texto:'Erro ao carregar modelo.'});}}}
-                      className="text-blue-600 hover:text-blue-800"><Upload size={18}/></button>
-                    <button onClick={async()=>{ if(!window.confirm(`Excluir modelo "${modelo.nome}"?`))return;
-                      try{ await deleteDoc(doc(db,'modelosCracha',modelo.id));
-                        setModelosSalvos(prev=>prev.filter(m=>m.id!==modelo.id));
-                        if(modeloId===modelo.id){ setModeloId(null); setNomeModelo('Novo Modelo de Crachá'); setComponentes([]);}
-                        setMensagem({tipo:'success',texto:'Modelo excluído com sucesso.'});
-                      }catch(err){console.error(err);setMensagem({tipo:'error',texto:'Erro ao excluir modelo.'});}}}
-                      className="text-red-600 hover:text-red-800"><Trash2 size={18}/></button>
+                    <button
+                      onClick={async()=>{ try{
+                        await atualizarModeloCracha(modelo.id,{padrao:true});
+                        const atualizados=await listarTodosModelosCracha();
+                        setModelosSalvos(atualizados);
+                        setMensagem({tipo:'success',texto:'Modelo definido como padrão.'});
+                      }catch(err){console.error(err);setMensagem({tipo:'error',texto:'Erro ao definir modelo padrão.'});}}}
+                      className="btn btn-outline text-xs"
+                    >
+                      Definir como Padrão
+                    </button>
+                    <button
+                      onClick={async()=>{ try{
+                        const modeloCompleto=await obterModeloCrachaPorId(modelo.id);
+                        if(modeloCompleto){ setModeloId(modelo.id); setNomeModelo(modeloCompleto.nome); setComponentes(modeloCompleto.componentes);}
+                      }catch(err){console.error(err);setMensagem({tipo:'error',texto:'Erro ao carregar modelo.'});}}}
+                      className="text-blue-600 hover:text-blue-800"
+                      title="Carregar modelo"
+                    >
+                      <Upload size={18}/>
+                    </button>
+                    <button
+                      onClick={async()=>{ if(!window.confirm(`Excluir modelo "${modelo.nome}"?`))return;
+                        try{ await deleteDoc(doc(db,'modelosCracha',modelo.id));
+                          setModelosSalvos(prev=>prev.filter(m=>m.id!==modelo.id));
+                          if(modeloId===modelo.id){ setModeloId(null); setNomeModelo('Novo Modelo de Crachá'); setComponentes([]);}
+                          setMensagem({tipo:'success',texto:'Modelo excluído com sucesso.'});
+                        }catch(err){console.error(err);setMensagem({tipo:'error',texto:'Erro ao excluir modelo.'});}}}
+                      className="text-red-600 hover:text-red-800"
+                      title="Excluir modelo"
+                    >
+                      <Trash2 size={18}/>
+                    </button>
                   </td>
                 </tr>
               ))}
