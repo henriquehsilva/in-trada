@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Save, Printer, Download, Copy, Edit, Trash2, Upload } from 'lucide-react';
+import { Save, Edit, Trash2, Upload } from 'lucide-react';
 import LayoutDefault from '../../components/layout/LayoutDefault';
 import DragDropEditor from '../../components/editor/DragDropEditor';
 import QRCode from 'qrcode.react';
@@ -28,20 +28,20 @@ function getCpfPrefix(participante: any): string {
 
 export const listarModelosCrachaPorEvento = async (eventoId: string): Promise<ModeloCracha[]> => {
   const modelosRef = collection(db, 'modelosCracha');
-  const q = query(modelosRef, where('eventoId', '==', eventoId));
-  const querySnapshot = await getDocs(q);
-  return querySnapshot.docs.map((doc) => ({
-    id: doc.id,
-    ...(doc.data() as Omit<ModeloCracha, 'id'>),
+  const qy = query(modelosRef, where('eventoId', '==', eventoId));
+  const qs = await getDocs(qy);
+  return qs.docs.map((d) => ({
+    id: d.id,
+    ...(d.data() as Omit<ModeloCracha, 'id'>),
   }));
 };
 
 export const listarTodosModelosCracha = async (): Promise<ModeloCracha[]> => {
   const modelosRef = collection(db, 'modelosCracha');
-  const querySnapshot = await getDocs(modelosRef);
-  return querySnapshot.docs.map((doc) => ({
-    id: doc.id,
-    ...(doc.data() as Omit<ModeloCracha, 'id'>),
+  const qs = await getDocs(modelosRef);
+  return qs.docs.map((d) => ({
+    id: d.id,
+    ...(d.data() as Omit<ModeloCracha, 'id'>),
   }));
 };
 
@@ -58,6 +58,14 @@ function sanitizeObjeto(obj: any): any {
   }
   return obj;
 }
+
+// ✅ Tipo correto para criação
+type ModeloCrachaCreate = Omit<ModeloCracha, 'id' | 'criadoEm' | 'atualizadoEm'>;
+
+// ✅ Tipo de retorno possível do criarModeloCracha (sem alterar o service)
+type CreateReturn = string | { id: string } | null | undefined;
+const hasId = (x: unknown): x is { id: string } =>
+  typeof x === 'object' && x !== null && 'id' in (x as any) && typeof (x as any).id === 'string';
 
 const EditorCrachas: React.FC = () => {
   const { currentUser } = useAuth();
@@ -83,6 +91,12 @@ const EditorCrachas: React.FC = () => {
 
   const [eventosDisponiveis, setEventosDisponiveis] = useState<Evento[]>([]);
   const [eventoSelecionadoId, setEventoSelecionadoId] = useState<string | null>(null);
+
+  // 🔹 Mapa id->nome para exibir nome do evento na tabela
+  const eventosById = useMemo<Record<string, string>>(
+    () => Object.fromEntries(eventosDisponiveis.map(ev => [ev.id, ev.nome])),
+    [eventosDisponiveis]
+  );
 
   useEffect(() => {
     const carregarModelos = async () => {
@@ -118,7 +132,7 @@ const EditorCrachas: React.FC = () => {
             criadoPorId: currentUser?.uid || '',
             criadoEm: '',
             atualizadoEm: ''
-          };          
+          };
           setModelo(modeloTemporario);
           setModeloId(null);
           setNomeModelo(modeloTemporario.nome);
@@ -152,6 +166,96 @@ const EditorCrachas: React.FC = () => {
     observacao:'Participante confirmado com credencial VIP'
   };
 
+  // 🔹 Garante 1 padrão por evento e associa evento ao modelo
+  const definirModeloComoPadrao = async (modeloIdAlvo: string, eventoIdAlvo: string) => {
+    const modelosDoEvento = await listarModelosCrachaPorEvento(eventoIdAlvo);
+    await Promise.all(
+      modelosDoEvento
+        .filter(m => (m as any).padrao && m.id !== modeloIdAlvo)
+        .map(m => atualizarModeloCracha(m.id, { padrao: false }))
+    );
+    await atualizarModeloCracha(modeloIdAlvo, { padrao: true, eventoId: eventoIdAlvo });
+  };
+
+  // ✅ Create: monta payload COMPLETO (sem id/criadoEm/atualizadoEm)
+  const montarPayloadModeloCreate = (): ModeloCrachaCreate => {
+    if (!eventoSelecionadoId) throw new Error('Selecione um evento antes de salvar.');
+    const nomeSeguro = (nomeModelo || '').trim() || 'Modelo sem nome';
+    return {
+      nome: nomeSeguro,
+      eventoId: eventoSelecionadoId,
+      componentes: sanitizeObjeto(componentes) as ComponenteEditor[],
+      larguraCm: modelo?.larguraCm ?? 8,
+      alturaCm: modelo?.alturaCm ?? 3,
+      criadoPorId: currentUser?.uid || '',
+      // remova se seu tipo não tiver essa chave:
+      padrao: false,
+    } as ModeloCrachaCreate;
+  };
+
+  // ✅ Update: parcial
+  const montarPayloadModeloUpdate = (): Partial<ModeloCracha> => {
+    if (!eventoSelecionadoId) throw new Error('Selecione um evento antes de atualizar.');
+    const nomeSeguro = (nomeModelo || '').trim() || 'Modelo sem nome';
+    return {
+      nome: nomeSeguro,
+      eventoId: eventoSelecionadoId,
+      componentes: sanitizeObjeto(componentes) as ComponenteEditor[],
+      larguraCm: modelo?.larguraCm ?? 8,
+      alturaCm: modelo?.alturaCm ?? 3,
+      atualizadoEm: new Date().toISOString(),
+    };
+  };
+
+  const handleSalvarComoNovo = async () => {
+    try {
+      setSalvando(true);
+      const payload = montarPayloadModeloCreate();
+      const res = (await criarModeloCracha(payload)) as CreateReturn;
+
+      const novoId: string | null =
+        typeof res === 'string' ? res : hasId(res) ? res.id : null;
+
+      const atualizados = await listarTodosModelosCracha();
+      setModelosSalvos(atualizados);
+
+      if (novoId) {
+        const created = (atualizados as ModeloCracha[]).find((m) => m.id === novoId);
+        if (created) {
+          setModeloId(created.id);
+          setNomeModelo(created.nome);
+          setModelo(created);
+        }
+      }
+      setMensagem({ tipo: 'success', texto: 'Modelo criado com sucesso.' });
+    } catch (err:any) {
+      console.error(err);
+      setMensagem({ tipo: 'error', texto: err?.message || 'Erro ao criar novo modelo.' });
+    } finally {
+      setSalvando(false);
+    }
+  };
+
+  const handleAtualizarModelo = async () => {
+    if (!modeloId) {
+      setMensagem({ tipo: 'error', texto: 'Nenhum modelo selecionado para atualizar.' });
+      return;
+    }
+    try {
+      setSalvando(true);
+      const payload = montarPayloadModeloUpdate();
+      await atualizarModeloCracha(modeloId, payload);
+      const atualizados = await listarTodosModelosCracha();
+      setModelosSalvos(atualizados);
+      setMensagem({ tipo: 'success', texto: 'Modelo atualizado com sucesso.' });
+    } catch (err:any) {
+      console.error(err);
+      setMensagem({ tipo: 'error', texto: err?.message || 'Erro ao atualizar modelo.' });
+    } finally {
+      setSalvando(false);
+    }
+  };
+
   return (
     <LayoutDefault title="Editor de Crachás" backUrl="/operador">
       {mensagem && (
@@ -160,7 +264,7 @@ const EditorCrachas: React.FC = () => {
         </div>
       )}
 
-      {/* 🔹 Novo: Seleção de Evento (acima dos campos) */}
+      {/* 🔹 Seleção de Evento (acima dos campos) */}
       <div className="bg-white p-4 rounded-lg shadow-sm mb-6">
         <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
           <div className="w-full md:w-2/3">
@@ -211,6 +315,49 @@ const EditorCrachas: React.FC = () => {
             ) : (
               <p className="mt-1 text-gray-500 text-sm">Nenhum evento selecionado.</p>
             )}
+          </div>
+        </div>
+      </div>
+
+      {/* 🔹 Bloco: salvar/atualizar modelo */}
+      <div className="bg-white p-4 rounded-lg shadow-sm mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+          <div className="md:col-span-2">
+            <label htmlFor="nomeModelo" className="block text-sm font-medium text-gray-700 mb-1">
+              Nome do Modelo
+            </label>
+            <input
+              id="nomeModelo"
+              type="text"
+              value={nomeModelo}
+              onChange={(e)=>setNomeModelo(e.target.value)}
+              placeholder="Ex.: Crachá VIP - Frente"
+              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Dica: use nomes claros (ex.: “Crachá Padrão · 8x3cm · Evento X”).
+            </p>
+          </div>
+
+          <div className="flex gap-2 p-4 mb-1">
+            <button
+              onClick={handleSalvarComoNovo}
+              disabled={salvando || !eventoSelecionadoId}
+              className="inline-flex items-center justify-center px-3 py-2 rounded-md text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60 w-1/2"
+              title="Cria um novo modelo a partir do layout atual"
+            >
+              <Save size={16} className="mr-2" />
+              Salvar como novo
+            </button>
+            <button
+              onClick={handleAtualizarModelo}
+              disabled={salvando || !modeloId || !eventoSelecionadoId}
+              className="inline-flex items-center justify-center px-3 py-2 rounded-md text-sm font-semibold bg-gray-800 text-white hover:bg-gray-900 disabled:opacity-60 w-1/2"
+              title="Atualiza o modelo atualmente selecionado"
+            >
+              <Edit size={16} className="mr-2" />
+              Atualizar modelo
+            </button>
           </div>
         </div>
       </div>
@@ -279,55 +426,86 @@ const EditorCrachas: React.FC = () => {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-4 py-2 text-left font-bold text-gray-600">Nome</th>
+                <th className="px-4 py-2 text-left font-bold text-gray-600">Evento</th>
                 <th className="px-4 py-2 text-right font-bold text-gray-600">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {modelosSalvos.map((modelo) => (
-                <tr key={modelo.id}>
-                  <td className="px-4 py-2">
-                    {modelo.nome} {modelo.padrao && <span className="text-sm text-primary font-semibold ml-2">(Padrão)</span>}
-                  </td>
-                  <td className="px-4 py-2 text-right space-x-2">
-                    <button
-                      onClick={async()=>{ try{
-                        await atualizarModeloCracha(modelo.id,{padrao:true});
-                        const atualizados=await listarTodosModelosCracha();
-                        setModelosSalvos(atualizados);
-                        setMensagem({tipo:'success',texto:'Modelo definido como padrão.'});
-                      }catch(err){console.error(err);setMensagem({tipo:'error',texto:'Erro ao definir modelo padrão.'});}}}
-                      className="btn btn-outline text-xs"
-                    >
-                      Definir como Padrão
-                    </button>
-                    <button
-                      onClick={async()=>{ try{
-                        const modeloCompleto=await obterModeloCrachaPorId(modelo.id);
-                        if(modeloCompleto){ setModeloId(modelo.id); setNomeModelo(modeloCompleto.nome); setComponentes(modeloCompleto.componentes);}
-                      }catch(err){console.error(err);setMensagem({tipo:'error',texto:'Erro ao carregar modelo.'});}}}
-                      className="text-blue-600 hover:text-blue-800"
-                      title="Carregar modelo"
-                    >
-                      <Upload size={18}/>
-                    </button>
-                    <button
-                      onClick={async()=>{ if(!window.confirm(`Excluir modelo "${modelo.nome}"?`))return;
-                        try{ await deleteDoc(doc(db,'modelosCracha',modelo.id));
-                          setModelosSalvos(prev=>prev.filter(m=>m.id!==modelo.id));
-                          if(modeloId===modelo.id){ setModeloId(null); setNomeModelo('Novo Modelo de Crachá'); setComponentes([]);}
-                          setMensagem({tipo:'success',texto:'Modelo excluído com sucesso.'});
-                        }catch(err){console.error(err);setMensagem({tipo:'error',texto:'Erro ao excluir modelo.'});}}}
-                      className="text-red-600 hover:text-red-800"
-                      title="Excluir modelo"
-                    >
-                      <Trash2 size={18}/>
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {modelosSalvos.map((m: ModeloCracha) => {
+                const nomeEvento = m.eventoId ? (eventosById[m.eventoId] ?? 'Desconhecido') : '—';
+                const isPadrao = (m as any).padrao === true;
+                return (
+                  <tr key={m.id}>
+                    <td className="px-4 py-2">
+                      {m.nome}{' '}
+                      {isPadrao && (
+                        <span className="text-xs text-emerald-700 font-semibold ml-2">
+                          (Padrão do evento)
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2">
+                      {nomeEvento}
+                    </td>
+                    <td className="px-4 py-2 text-right space-x-2">
+                      <button
+                        onClick={async()=>{ 
+                          if(!eventoSelecionadoId){
+                            setMensagem({tipo:'error',texto:'Selecione um evento antes de definir um modelo padrão.'});
+                            return;
+                          }
+                          try{
+                            await definirModeloComoPadrao(m.id, eventoSelecionadoId);
+                            const atualizados = await listarTodosModelosCracha();
+                            setModelosSalvos(atualizados);
+                            setMensagem({tipo:'success',texto:'Modelo definido como padrão para o evento selecionado.'});
+                          }catch(err){
+                            console.error(err);
+                            setMensagem({tipo:'error',texto:'Erro ao definir modelo padrão para o evento.'});
+                          }
+                        }}
+                        className="btn btn-outline text-xs"
+                        title="Definir como padrão do evento selecionado"
+                      >
+                        Definir como Padrão
+                      </button>
+                      <button
+                        onClick={async()=>{ try{
+                          const modeloCompleto=await obterModeloCrachaPorId(m.id);
+                          if(modeloCompleto){
+                            setModeloId(m.id);
+                            setNomeModelo(modeloCompleto.nome);
+                            setComponentes(modeloCompleto.componentes);
+                            setMensagem({tipo:'success',texto:`Modelo "${modeloCompleto.nome}" carregado para edição.`});
+                          }
+                        }catch(err){console.error(err);setMensagem({tipo:'error',texto:'Erro ao carregar modelo.'});}}}
+                        className="text-blue-600 hover:text-blue-800"
+                        title="Carregar modelo para edição"
+                      >
+                        <Upload size={18}/>
+                      </button>
+                      <button
+                        onClick={async()=>{ if(!window.confirm(`Excluir modelo "${m.nome}"?`))return;
+                          try{ await deleteDoc(doc(db,'modelosCracha',m.id));
+                            setModelosSalvos(prev=>prev.filter(x=>x.id!==m.id));
+                            if(modeloId===m.id){ setModeloId(null); setNomeModelo('Novo Modelo de Crachá'); setComponentes([]); }
+                            setMensagem({tipo:'success',texto:'Modelo excluído com sucesso.'});
+                          }catch(err){console.error(err);setMensagem({tipo:'error',texto:'Erro ao excluir modelo.'});}}}
+                        className="text-red-600 hover:text-red-800"
+                        title="Excluir modelo"
+                      >
+                        <Trash2 size={18}/>
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
+        <p className="text-xs text-gray-500 mt-2">
+          Observação: cada <strong>evento</strong> pode ter <strong>apenas um</strong> modelo marcado como <em>padrão</em>. Ao definir um novo padrão para um evento, o anterior é desmarcado automaticamente.
+        </p>
       </div>
     </LayoutDefault>
   );
