@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, QrCode, Layout, Calendar, FileArchive} from 'lucide-react';
+import { Users, QrCode, Layout, Calendar } from 'lucide-react';
 import LayoutDefault from '../../components/layout/LayoutDefault';
 import { useAuth } from '../../contexts/AuthContext';
 import { Evento } from '../../models/types';
@@ -108,23 +108,34 @@ const OperadorDashboard: React.FC = () => {
         </div>
       </div>
 
+      {/* Lista de eventos */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100">
           <h2 className="text-lg font-semibold mb-4">Eventos Ativos</h2>
           <div className="space-y-4">
-            {eventos.map(evento => (
+            {eventos.map((evento) => (
               <div
                 key={evento.id}
-                className="border border-gray-100 rounded-lg p-4 hover:bg-gray-50 transition-colors cursor-pointer"
-                onClick={() => navigate(`/AutoAtendimento/${evento.id}`)}
+                className="border border-gray-100 rounded-lg p-4 hover:bg-gray-50 transition-colors"
+                // ⭐ REMOVIDO o onClick que navegava o card inteiro para AutoAtendimento
               >
                 <div className="flex justify-between items-start mb-2">
-                  <h3 className="font-medium text-primary">{evento.nome}</h3>
+                  {/* ⭐ Nome do evento agora "linka" para a edição */}
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/operador/painel/${evento.id}`)} // ajuste a rota se necessário
+                    className="font-medium text-primary hover:underline text-left"
+                    title="Editar evento"
+                  >
+                    {evento.nome}
+                  </button>
+
                   <span className="px-2 py-1 text-xs rounded-full bg-success-light text-success">
                     Ativo
                   </span>
                 </div>
-                <div className="text-sm text-gray-500 space-y-1">
+
+                <div className="text-sm text-gray-500 space-y-1 mb-3">
                   <p>
                     <Calendar className="w-4 h-4 inline mr-2" />
                     {formatarData(evento.dataInicio)}
@@ -135,6 +146,17 @@ const OperadorDashboard: React.FC = () => {
                   </p>
                 </div>
 
+                {/* ⭐ Botão de Autoatendimento por evento */}
+                <div className="pt-2">
+                  <button
+                    onClick={() => navigate(`/AutoAtendimento/${evento.id}`)}
+                    className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-gray-200 hover:bg-gray-100 text-sm font-medium"
+                    title="Abrir autoatendimento deste evento"
+                  >
+                    <QrCode className="w-4 h-4" />
+                    Autoatendimento
+                  </button>
+                </div>
               </div>
             ))}
 
@@ -147,6 +169,7 @@ const OperadorDashboard: React.FC = () => {
           </div>
         </div>
 
+        {/* Ações rápidas (mantidas) */}
         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100">
           <h2 className="text-lg font-semibold mb-4">Ações Rápidas</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -172,7 +195,7 @@ const OperadorDashboard: React.FC = () => {
               </p>
             </button>
 
-            <button              
+            <button
               onClick={() => navigate('/operador/editor-painel/' + (eventos[0]?.id || ''))}
               className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-left"
             >
