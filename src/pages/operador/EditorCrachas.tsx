@@ -11,7 +11,7 @@ import { obterModeloCrachaPorId, criarModeloCracha, atualizarModeloCracha } from
 import { useAuth } from '../../contexts/AuthContext';
 import { ComponenteEditor, Evento, ModeloCracha } from '../../models/types';
 import CrachaPreviewToPrint from './CrachaPreviewToPrint';
-import { getDocs, collection, query, where, deleteDoc, doc } from 'firebase/firestore';
+import { getDocs, collection, query, where, deleteDoc, doc, updateDoc } from 'firebase/firestore'; // ⭐ import updateDoc
 import { db } from '../../firebase/config';
 
 const camposParticipantePadrao = [
@@ -106,6 +106,7 @@ const EditorCrachas: React.FC = () => {
     carregarModelos();
   }, []);
 
+  // ⭐ ao trocar/selecionar evento: se houver modeloCrachaPadraoId, carrega esse modelo no editor/preview; senão cria temporário
   useEffect(() => {
     const carregarDados = async () => {
       if (!eventoSelecionadoId) return;
@@ -116,27 +117,26 @@ const EditorCrachas: React.FC = () => {
           const camposPersonalizados = eventoDados.camposPersonalizados?.map(campo => campo.nome) || [];
           setCamposDisponiveis([...camposParticipantePadrao, ...camposPersonalizados]);
 
-          const modeloTemporario: ModeloCracha = {
-            id: '',
-            eventoId: eventoSelecionadoId,
-            nome: 'Modelo Padrão',
-            componentes: [
-              { id: nanoid(), tipo: 'texto', propriedades: { x:20,y:70,largura:360,altura:40,texto:eventoDados.nome,estilos:{ corFonte:'#063a80',tamanhoFonte:16,alinhamento:'center',negrito:true,fonte:'Arial' }}},
-              { id: nanoid(), tipo: 'campo', propriedades: { x:20,y:120,largura:360,altura:40,campoVinculado:'nome',estilos:{ corFonte:'#000',tamanhoFonte:18,alinhamento:'center',negrito:true,fonte:'Arial' }}},
-              { id: nanoid(), tipo: 'campo', propriedades: { x:20,y:170,largura:360,altura:30,campoVinculado:'empresa',estilos:{ corFonte:'#666',tamanhoFonte:14,alinhamento:'center',fonte:'Arial' }}},
-              { id: nanoid(), tipo: 'qrcode', propriedades: { x:20,y:210,largura:60,altura:60 }},
-              { id: nanoid(), tipo: 'campo', propriedades: { x:90,y:220,largura:290,altura:20,campoVinculado:'categoria',estilos:{ corFonte:'#fff',tamanhoFonte:12,alinhamento:'center',corFundo:'#ff914d',raio:4,fonte:'Arial' }}}
-            ],
-            larguraCm: 8,
-            alturaCm: 3,
-            criadoPorId: currentUser?.uid || '',
-            criadoEm: '',
-            atualizadoEm: ''
-          };
-          setModelo(modeloTemporario);
-          setModeloId(null);
-          setNomeModelo(modeloTemporario.nome);
-          setComponentes(modeloTemporario.componentes);
+          const modeloPadraoId = (eventoDados as any)?.modeloCrachaPadraoId as string | undefined;
+
+          if (modeloPadraoId) {
+            // ⭐ carrega o modelo padrão gravado no evento
+            const modeloPadrao = await obterModeloCrachaPorId(modeloPadraoId);
+            if (modeloPadrao) {
+              setModeloId(modeloPadrao.id);
+              setNomeModelo(modeloPadrao.nome);
+              setComponentes(modeloPadrao.componentes);
+              setModelo(modeloPadrao);
+            } else {
+              // fallback para temporário se não achar (excluído etc.)
+              const modeloTemporario = criarModeloTemporario(eventoSelecionadoId, eventoDados, currentUser?.uid);
+              hidratarTemporario(modeloTemporario);
+            }
+          } else {
+            // sem padrão definido ainda: gera temporário
+            const modeloTemporario = criarModeloTemporario(eventoSelecionadoId, eventoDados, currentUser?.uid);
+            hidratarTemporario(modeloTemporario);
+          }
         }
       } catch (err) {
         console.error('Erro ao carregar dados:', err);
@@ -145,6 +145,32 @@ const EditorCrachas: React.FC = () => {
     };
     carregarDados();
   }, [eventoSelecionadoId, currentUser]);
+
+  // helpers p/ temporário
+  const criarModeloTemporario = (eventoId: string, eventoDados: any, userId?: string | null): ModeloCracha => ({
+    id: '',
+    eventoId,
+    nome: 'Modelo Padrão',
+    componentes: [
+      { id: nanoid(), tipo: 'texto', propriedades: { x:20,y:70,largura:360,altura:40,texto:eventoDados.nome,estilos:{ corFonte:'#063a80',tamanhoFonte:16,alinhamento:'center',negrito:true,fonte:'Arial' }}},
+      { id: nanoid(), tipo: 'campo', propriedades: { x:20,y:120,largura:360,altura:40,campoVinculado:'nome',estilos:{ corFonte:'#000',tamanhoFonte:18,alinhamento:'center',negrito:true,fonte:'Arial' }}},
+      { id: nanoid(), tipo: 'campo', propriedades: { x:20,y:170,largura:360,altura:30,campoVinculado:'empresa',estilos:{ corFonte:'#666',tamanhoFonte:14,alinhamento:'center',fonte:'Arial' }}},
+      { id: nanoid(), tipo: 'qrcode', propriedades: { x:20,y:210,largura:60,altura:60 }},
+      { id: nanoid(), tipo: 'campo', propriedades: { x:90,y:220,largura:290,altura:20,campoVinculado:'categoria',estilos:{ corFonte:'#fff',tamanhoFonte:12,alinhamento:'center',corFundo:'#ff914d',raio:4,fonte:'Arial' }}}
+    ],
+    larguraCm: 8,
+    alturaCm: 3,
+    criadoPorId: userId || '',
+    criadoEm: '',
+    atualizadoEm: ''
+  });
+
+  const hidratarTemporario = (modeloTemporario: ModeloCracha) => {
+    setModelo(modeloTemporario);
+    setModeloId(null);
+    setNomeModelo(modeloTemporario.nome);
+    setComponentes(modeloTemporario.componentes);
+  };
 
   useEffect(() => {
     const carregarEventos = async () => {
@@ -166,15 +192,35 @@ const EditorCrachas: React.FC = () => {
     observacao:'Participante confirmado com credencial VIP'
   };
 
-  // 🔹 Garante 1 padrão por evento e associa evento ao modelo
+  // 🔹 Garante 1 padrão por evento e associa evento ao modelo + já carrega no preview
   const definirModeloComoPadrao = async (modeloIdAlvo: string, eventoIdAlvo: string) => {
+    // 1) desmarca outros padrões do mesmo evento
     const modelosDoEvento = await listarModelosCrachaPorEvento(eventoIdAlvo);
     await Promise.all(
       modelosDoEvento
         .filter(m => (m as any).padrao && m.id !== modeloIdAlvo)
         .map(m => atualizarModeloCracha(m.id, { padrao: false }))
     );
+
+    // 2) marca este como padrão
     await atualizarModeloCracha(modeloIdAlvo, { padrao: true, eventoId: eventoIdAlvo });
+
+    // 3) grava no documento do evento o id do modelo padrão
+    //    (ajuste o nome da coleção 'eventos' se na sua estrutura for diferente)
+    await updateDoc(doc(db, 'eventos', eventoIdAlvo), { modeloCrachaPadraoId: modeloIdAlvo }); // ⭐
+
+    // 4) recarrega tabela de modelos (para refletir badge de padrão)
+    const atualizados = await listarTodosModelosCracha();
+    setModelosSalvos(atualizados);
+
+    // 5) carrega o modelo no editor/preview imediatamente
+    const modeloPadrao = await obterModeloCrachaPorId(modeloIdAlvo);
+    if (modeloPadrao) {
+      setModeloId(modeloPadrao.id);
+      setNomeModelo(modeloPadrao.nome);
+      setComponentes(modeloPadrao.componentes);
+      setModelo(modeloPadrao);
+    }
   };
 
   // ✅ Create: monta payload COMPLETO (sem id/criadoEm/atualizadoEm)
@@ -456,9 +502,7 @@ const EditorCrachas: React.FC = () => {
                           }
                           try{
                             await definirModeloComoPadrao(m.id, eventoSelecionadoId);
-                            const atualizados = await listarTodosModelosCracha();
-                            setModelosSalvos(atualizados);
-                            setMensagem({tipo:'success',texto:'Modelo definido como padrão para o evento selecionado.'});
+                            setMensagem({tipo:'success',texto:'Modelo definido como padrão e carregado no preview.'}); // ⭐ feedback
                           }catch(err){
                             console.error(err);
                             setMensagem({tipo:'error',texto:'Erro ao definir modelo padrão para o evento.'});
@@ -476,6 +520,7 @@ const EditorCrachas: React.FC = () => {
                             setModeloId(m.id);
                             setNomeModelo(modeloCompleto.nome);
                             setComponentes(modeloCompleto.componentes);
+                            setModelo(modeloCompleto); // ⭐ garante preview correto
                             setMensagem({tipo:'success',texto:`Modelo "${modeloCompleto.nome}" carregado para edição.`});
                           }
                         }catch(err){console.error(err);setMensagem({tipo:'error',texto:'Erro ao carregar modelo.'});}}}
@@ -504,7 +549,7 @@ const EditorCrachas: React.FC = () => {
           </table>
         </div>
         <p className="text-xs text-gray-500 mt-2">
-          Observação: cada <strong>evento</strong> pode ter <strong>apenas um</strong> modelo marcado como <em>padrão</em>. Ao definir um novo padrão para um evento, o anterior é desmarcado automaticamente.
+          Observação: cada <strong>evento</strong> pode ter <strong>apenas um</strong> modelo marcado como <em>padrão</em>. Ao definir um novo padrão para um evento, o anterior é desmarcado automaticamente. O padrão do evento é carregado automaticamente no editor.
         </p>
       </div>
     </LayoutDefault>
