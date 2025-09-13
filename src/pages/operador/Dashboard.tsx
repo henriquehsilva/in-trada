@@ -195,8 +195,7 @@ const OperadorDashboard: React.FC = () => {
               </p>
             </button>
 
-            <button
-              onClick={() => navigate('/operador/editor-painel/' + (eventos[0]?.id || ''))}
+            <button              
               className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-left"
             >
               <Layout className="w-8 h-8 text-success mb-2" />

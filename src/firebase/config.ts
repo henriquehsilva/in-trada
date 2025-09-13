@@ -1,42 +1,40 @@
-import { initializeApp } from 'firebase/app';
-import { getAuth, connectAuthEmulator } from 'firebase/auth';
-import { getFirestore, connectFirestoreEmulator, enableIndexedDbPersistence } from 'firebase/firestore';
-import { getStorage, connectStorageEmulator } from 'firebase/storage';
+// firebase.ts (Vite + TS)
+import { getApp, getApps, initializeApp } from 'firebase/app'
+import { getAuth } from 'firebase/auth'
+import {
+  initializeFirestore,
+  persistentLocalCache,
+  persistentSingleTabManager,
+  getFirestore,
+  disableNetwork,
+  enableNetwork,
+} from 'firebase/firestore'
+import { getStorage } from 'firebase/storage'
 
-// Substitua com suas credenciais do Firebase
-const firebaseConfig = {
+const app = getApps().length ? getApp() : initializeApp({
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
   storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
-};
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
+})
 
-// Inicializa Firebase
-const app = initializeApp(firebaseConfig);
+// ✅ Inicialize o Firestore já com cache persistente
+initializeFirestore(app, {
+  localCache: persistentLocalCache({
+    // use multipleTab se quiser várias abas sincronizadas
+    tabManager: persistentSingleTabManager({}),
+  }),
+})
 
-// Inicializa serviços
-export const auth = getAuth(app);
-export const db = getFirestore(app);
-export const storage = getStorage(app);
+export const db = getFirestore(app)
+export const auth = getAuth(app)
+export const storage = getStorage(app)
 
-// Habilita persistência para funcionamento offline
-enableIndexedDbPersistence(db)
-  .catch((err) => {
-    if (err.code === 'failed-precondition') {
-      console.error('Multiple tabs open, persistence can only be enabled in one tab at a time.');
-    } else if (err.code === 'unimplemented') {
-      console.error('The current browser does not support all of the features required to enable persistence');
-    }
-  });
+// (opcional) helpers para alternar rede manualmente
+export const goOffline = () => disableNetwork(db)
+export const goOnline = () => enableNetwork(db)
 
-// Conecta a emuladores se estiver em desenvolvimento
-// if (process.env.NODE_ENV === 'development') {
-//   connectAuthEmulator(auth, 'http://localhost:9099');
-//   connectFirestoreEmulator(db, 'localhost', 8080);
-//   connectStorageEmulator(storage, 'localhost', 9199);
-// }
-
-export default app;
+export default app
