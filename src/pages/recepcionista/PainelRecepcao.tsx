@@ -3,15 +3,13 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { QrCode, Search, UserPlus, CheckCircle, Printer, Edit } from 'lucide-react';
 import LayoutDefault from '../../components/layout/LayoutDefault';
 import QrCodeScanner from '../../components/qrcode/QrCodeScanner';
-import { 
-  obterEventoPorId 
-} from '../../services/eventoService';
-import { 
+import { obterEventoPorId } from '../../services/eventoService';
+import {
   obterParticipantesPorEvento,
   buscarParticipantes,
   obterParticipantePorId,
   fazerCheckin,
-  criarParticipante
+  criarParticipante,
 } from '../../services/participanteService';
 import { useAuth } from '../../contexts/AuthContext';
 import { Evento, Participante } from '../../models/types';
@@ -20,11 +18,13 @@ import qz from 'qz-tray';
 import { obterModelosCrachaPorEvento } from '../../services/modeloService';
 import { ModeloCracha } from '../../models/types';
 import QRCode from 'qrcode';
-import DonutChart  from '../../components/DonutChart';
+import DonutChart from '../../components/DonutChart';
 import { ChromePicker } from 'react-color';
 import { doc, updateDoc, getDoc } from 'firebase/firestore';
 import { db } from '../../firebase/config';
 import JsBarcode from 'jsbarcode';
+
+// ===================== Helpers & Types =====================
 
 type Usuario = {
   role?: string;
@@ -44,11 +44,13 @@ const stableColorFromString = (str: string) => {
   return `hsl(${hue}, 55%, 75%)`;
 };
 
+// ===================== Componente =====================
+
 const PainelRecepcao: React.FC = () => {
   const navigate = useNavigate();
   const { eventoId } = useParams<{ eventoId: string }>();
   const { currentUser } = useAuth();
-  
+
   const [evento, setEvento] = useState<Evento | null>(null);
   const [participantes, setParticipantes] = useState<Participante[]>([]);
   const [participanteSelecionado, setParticipanteSelecionado] = useState<Participante | null>(null);
@@ -56,23 +58,29 @@ const PainelRecepcao: React.FC = () => {
   const [termoBusca, setTermoBusca] = useState('');
   const [showFormNovoParticipante, setShowFormNovoParticipante] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [mensagem, setMensagem] = useState<{ tipo: 'success' | 'error' | 'info', texto: string } | null>(null);
+  const [mensagem, setMensagem] = useState<{ tipo: 'success' | 'error' | 'info'; texto: string } | null>(null);
   const [confirmarImpressao, setConfirmarImpressao] = useState(false);
 
-  // Refs para formulário de novo participante
+  // ====== Refs novo participante ======
   const nomeRef = useRef<HTMLInputElement>(null);
+  const nomeCrachaRef = useRef<HTMLInputElement>(null); // NOVO
   const empresaRef = useRef<HTMLInputElement>(null);
+  const cargoRef = useRef<HTMLInputElement>(null); // NOVO
   const emailRef = useRef<HTMLInputElement>(null);
   const telefoneRef = useRef<HTMLInputElement>(null);
-  // categoria agora é SELECT (não mais INPUT)
+  // categoria é SELECT
   const categoriaSelectRef = useRef<HTMLSelectElement>(null);
+
   const [categoriaCor, setCategoriaCor] = useState<string>('');
-  const [editandoCor, setEditandoCor] = useState(false);
   const [editandoCorId, setEditandoCorId] = useState<string | null>(null);
   const [coresEdicao, setCoresEdicao] = useState<Record<string, string>>({});
 
   const [usuario, setUsuario] = useState<Usuario | null>(null);
 
+  // Campos personalizados do formulário
+  const [camposPersonalizadosValues, setCamposPersonalizadosValues] = useState<Record<string, any>>({});
+
+  // ====== Carrega usuário ======
   useEffect(() => {
     const carregarUsuario = async () => {
       if (!currentUser?.uid) return;
@@ -82,19 +90,43 @@ const PainelRecepcao: React.FC = () => {
         setUsuario(snap.data() as Usuario);
       }
     };
-
     carregarUsuario();
   }, [currentUser]);
-  
-  // Campos personalizados para o formulário
-  const [camposPersonalizadosValues, setCamposPersonalizadosValues] = useState<Record<string, any>>({});
 
   const isOperador = usuario?.role === 'operador';
+
   const obterModeloPadrao = async (eventoId: string): Promise<ModeloCracha | null> => {
     const modelos = await obterModelosCrachaPorEvento(eventoId);
-    return modelos.find(m => m.padrao) || null;
+    return modelos.find((m) => m.padrao) || null;
   };
 
+  // ====== Carrega evento + participantes ======
+  useEffect(() => {
+    const carregarDados = async () => {
+      if (!eventoId) return;
+      try {
+        const eventoDados = await obterEventoPorId(eventoId);
+        if (eventoDados) {
+          setEvento(eventoDados);
+          const participantesDados = await obterParticipantesPorEvento(eventoId);
+          setParticipantes(
+            participantesDados.map((p) => ({
+              ...p,
+              categoria: normalizeCategory(p.categoria),
+            })),
+          );
+        }
+      } catch (err) {
+        console.error('Erro ao carregar dados:', err);
+        setMensagem({ tipo: 'error', texto: 'Erro ao carregar dados. Tente novamente mais tarde.' });
+      } finally {
+        setLoading(false);
+      }
+    };
+    carregarDados();
+  }, [eventoId]);
+
+  // ====== Agregações e memos ======
   const statusCounts = participantes.reduce((acc, p) => {
     acc[p.status] = (acc[p.status] || 0) + 1;
     return acc;
@@ -102,42 +134,10 @@ const PainelRecepcao: React.FC = () => {
 
   const chartData = Object.entries(statusCounts).map(([status, count]) => ({
     name: status.charAt(0).toUpperCase() + status.slice(1),
-    value: count
+    value: count,
   }));
 
-  useEffect(() => {
-    const carregarDados = async () => {
-      if (!eventoId) return;
-      
-      try {
-        // Carrega dados do evento
-        const eventoDados = await obterEventoPorId(eventoId);
-        if (eventoDados) {
-          setEvento(eventoDados);
-          
-          // Carrega participantes do evento
-          const participantesDados = await obterParticipantesPorEvento(eventoId);
-          // Normaliza categoria para MAIÚSCULO no estado local (não altera banco)
-          setParticipantes(participantesDados.map(p => ({
-            ...p,
-            categoria: normalizeCategory(p.categoria),
-          })));
-        }
-      } catch (err) {
-        console.error('Erro ao carregar dados:', err);
-        setMensagem({
-          tipo: 'error',
-          texto: 'Erro ao carregar dados. Tente novamente mais tarde.'
-        });
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    carregarDados();
-  }, [eventoId]);
-
-  // Mapa Categoria -> Cor (primeira encontrada), com categoria EM MAIÚSCULO
+  // Mapa Categoria -> Cor
   const categoriaColorMap = useMemo(() => {
     const map: Record<string, string> = {};
     for (const p of participantes) {
@@ -149,7 +149,7 @@ const PainelRecepcao: React.FC = () => {
     return map;
   }, [participantes]);
 
-  // Lista de categorias do evento baseada nos participantes já cadastrados (sem duplicatas, MAIÚSCULO)
+  // Lista de categorias únicas do evento
   const categoriasEvento = useMemo(() => {
     const setCats = new Set<string>();
     for (const p of participantes) {
@@ -159,29 +159,22 @@ const PainelRecepcao: React.FC = () => {
     return Array.from(setCats).sort((a, b) => a.localeCompare(b));
   }, [participantes]);
 
+  // ===================== Ações =====================
+
   const handleSearch = async () => {
     if (!eventoId || !termoBusca.trim()) return;
-    
     try {
       setLoading(true);
       const resultados = await buscarParticipantes(eventoId, termoBusca);
-      // Normaliza categoria para exibição
-      setParticipantes(resultados.map(p => ({ ...p, categoria: normalizeCategory(p.categoria) })));
-      
+      setParticipantes(resultados.map((p) => ({ ...p, categoria: normalizeCategory(p.categoria) })));
       if (resultados.length === 0) {
-        setMensagem({
-          tipo: 'info',
-          texto: 'Nenhum participante encontrado. Deseja cadastrar um novo?'
-        });
+        setMensagem({ tipo: 'info', texto: 'Nenhum participante encontrado. Deseja cadastrar um novo?' });
       } else {
         setMensagem(null);
       }
     } catch (err) {
       console.error('Erro ao buscar participantes:', err);
-      setMensagem({
-        tipo: 'error',
-        texto: 'Erro ao buscar participantes. Tente novamente.'
-      });
+      setMensagem({ tipo: 'error', texto: 'Erro ao buscar participantes. Tente novamente.' });
     } finally {
       setLoading(false);
     }
@@ -189,175 +182,118 @@ const PainelRecepcao: React.FC = () => {
 
   const handleQrCodeScan = async (data: string) => {
     try {
-      // Assume que o QR Code contém o ID do participante
       let participanteId = data;
-      
-      // Se o QR Code contém um JSON, extrai o ID
       try {
         const jsonData = JSON.parse(data);
         participanteId = jsonData.id || data;
       } catch {
-        // Não é um JSON válido, usa o dado como está
+        // dado não JSON, segue como está
       }
-      
       const participante = await obterParticipantePorId(participanteId);
-      
       if (participante) {
-        // normaliza categoria ao exibir
         setParticipanteSelecionado({ ...participante, categoria: normalizeCategory(participante.categoria) });
         setShowQrScanner(false);
-        
         if (participante.status === 'credenciado') {
-          setMensagem({
-            tipo: 'info',
-            texto: 'Participante já realizou check-in anteriormente.'
-          });
+          setMensagem({ tipo: 'info', texto: 'Participante já realizou check-in anteriormente.' });
         } else {
-          setMensagem({
-            tipo: 'success',
-            texto: 'Participante encontrado! Realize o check-in.'
-          });
+          setMensagem({ tipo: 'success', texto: 'Participante encontrado! Realize o check-in.' });
         }
       } else {
-        setMensagem({
-          tipo: 'error',
-          texto: 'Participante não encontrado com este QR Code.'
-        });
+        setMensagem({ tipo: 'error', texto: 'Participante não encontrado com este QR Code.' });
       }
     } catch (err) {
       console.error('Erro ao processar QR Code:', err);
-      setMensagem({
-        tipo: 'error',
-        texto: 'Erro ao processar QR Code. Tente novamente.'
-      });
+      setMensagem({ tipo: 'error', texto: 'Erro ao processar QR Code. Tente novamente.' });
     }
   };
 
   const handleSelectParticipante = (participante: Participante) => {
     setParticipanteSelecionado({ ...participante, categoria: normalizeCategory(participante.categoria) });
     setMensagem(null);
-
     if ((participante as any).observacao?.trim()) {
-      setMensagem({
-        tipo: 'info',
-        texto: `Observação: ${(participante as any).observacao}`
-      });
+      setMensagem({ tipo: 'info', texto: `Observação: ${(participante as any).observacao}` });
     }
   };
 
   const handleCheckin = async () => {
     if (!participanteSelecionado) return;
-    
     try {
       setLoading(true);
       await fazerCheckin(participanteSelecionado.id);
-      
-      const participanteAtualizado = { 
-        ...participanteSelecionado, 
-        status: 'credenciado' as const 
-      };
+      const participanteAtualizado = { ...participanteSelecionado, status: 'credenciado' as const };
       setParticipanteSelecionado(participanteAtualizado);
-      
-      setParticipantes(prev => 
-        prev.map(p => p.id === participanteAtualizado.id ? participanteAtualizado : p)
-      );
-      
-      setMensagem({
-        tipo: 'success',
-        texto: 'Check-in realizado com sucesso!'
-      });
-      
+      setParticipantes((prev) => prev.map((p) => (p.id === participanteAtualizado.id ? participanteAtualizado : p)));
+      setMensagem({ tipo: 'success', texto: 'Check-in realizado com sucesso!' });
       setTimeout(() => setMensagem(null), 3000);
     } catch (err) {
       console.error('Erro ao fazer check-in:', err);
-      setMensagem({
-        tipo: 'error',
-        texto: 'Erro ao fazer check-in. Tente novamente.'
-      });
+      setMensagem({ tipo: 'error', texto: 'Erro ao fazer check-in. Tente novamente.' });
     } finally {
       setLoading(false);
     }
   };
 
-  const handleCheckinComConfirmacao = () => {
-    setConfirmarImpressao(true);
-  };
+  const handleCheckinComConfirmacao = () => setConfirmarImpressao(true);
 
   const confirmarCheckin = async (imprimir: boolean) => {
     setConfirmarImpressao(false);
     await handleCheckin();
-    if (imprimir) {
-      handlePrintCredencial();
-    }
+    if (imprimir) handlePrintCredencial();
   };
 
   const atualizarParticipante = async (id: string, dados: Partial<Participante>) => {
     const ref = doc(db, 'participantes', id);
-
-    const updatePayload: any = {
-      ...dados,
-      atualizadoEm: new Date().toISOString(),
-    };
-
-    if (!('corCategoria' in dados)) {
-      updatePayload.corCategoria = '#cccccc';
-    }
-
+    const updatePayload: any = { ...dados, atualizadoEm: new Date().toISOString() };
+    if (!('corCategoria' in dados)) updatePayload.corCategoria = '#cccccc';
     await updateDoc(ref, updatePayload);
   };
 
   const handlePrintCredencial = async () => {
     if (!participanteSelecionado || !evento) return;
-
     try {
       const modelos = await obterModelosCrachaPorEvento(evento.id);
       const modeloPadrao = modelos.find((m) => m.padrao);
-
       if (!modeloPadrao) {
-        setMensagem({
-          tipo: 'error',
-          texto: 'Nenhum modelo de crachá padrão definido para este evento.',
-        });
+        setMensagem({ tipo: 'error', texto: 'Nenhum modelo de crachá padrão definido para este evento.' });
         return;
       }
-
       const qrCodeDataUrl = await QRCode.toDataURL(JSON.stringify(participanteSelecionado));
       const cmToZplPx = (cm: number) => Math.round((cm / 2.54) * 203);
       const largura = cmToZplPx(modeloPadrao.larguraCm || 8);
       const altura = cmToZplPx(modeloPadrao.alturaCm || 3);
 
-      const htmlComponente = modeloPadrao.componentes.map((comp) => {
-        const props = comp.propriedades;
-        const valor = props.campoVinculado
-          ? (participanteSelecionado as any)[props.campoVinculado as keyof typeof participanteSelecionado] || ''
-          : props.texto || '';
+      const htmlComponente = modeloPadrao.componentes
+        .map((comp) => {
+          const props = comp.propriedades;
+          const valor = props.campoVinculado
+            ? (participanteSelecionado as any)[props.campoVinculado as keyof typeof participanteSelecionado] || ''
+            : props.texto || '';
 
-        if (comp.tipo === 'qrcode') {
-          return `
+          if (comp.tipo === 'qrcode') {
+            return `
             <div style="position:absolute; top:${props.y}px; left:${props.x}px; width:${props.largura}px; height:${props.altura}px;">
               <img src="${qrCodeDataUrl}" width="${props.largura}" height="${props.altura}" />
             </div>
           `;
-        }
+          }
 
-        if (comp.tipo === 'barcode') {
-          return `
+          if (comp.tipo === 'barcode') {
+            return `
             <div style="position:absolute; top:${props.y}px; left:${props.x}px;">
-              <svg id="barcode-${props.campoVinculado}" 
-                  jsbarcode-value="${valor}" 
-                  jsbarcode-format="CODE128" 
+              <svg id="barcode-${props.campoVinculado}"
+                  jsbarcode-value="${valor}"
+                  jsbarcode-format="CODE128"
                   jsbarcode-width="2"
                   jsbarcode-height="${props.altura}"
                   jsbarcode-displayvalue="false">
               </svg>
             </div>
           `;
-        }
+          }
 
-        return `
+          return `
           <div style="
-            position:absolute;
-            top:${props.y}px; left:${props.x}px;
+            position:absolute; top:${props.y}px; left:${props.x}px;
             width:${props.largura}px; height:${props.altura}px;
             font-size:${props.estilos?.tamanhoFonte || 14}px;
             font-weight:${props.estilos?.negrito ? 'bold' : 'normal'};
@@ -366,13 +302,12 @@ const PainelRecepcao: React.FC = () => {
             color:${props.estilos?.corFonte || '#000'};
             background-color:${props.estilos?.corFundo || 'transparent'};
             border-radius:${props.estilos?.raio || 0}px;
-            display:flex; align-items:center; justify-content:center;
-            overflow:hidden;
-          ">
+            display:flex; align-items:center; justify-content:center; overflow:hidden;">
             ${valor}
           </div>
         `;
-      }).join('');
+        })
+        .join('');
 
       const html = `
         <html>
@@ -393,7 +328,7 @@ const PainelRecepcao: React.FC = () => {
                 if (typeof JsBarcode !== 'undefined') {
                   JsBarcode("svg[id^='barcode-']").init();
                 } else {
-                  console.error("JsBarcode não carregado!");
+                  console.error('JsBarcode não carregado!');
                 }
                 window.print();
                 setTimeout(() => window.close(), 300);
@@ -405,45 +340,27 @@ const PainelRecepcao: React.FC = () => {
 
       const printWindow = window.open('', '_blank', 'width=600,height=400');
       if (!printWindow) return;
-
       printWindow.document.write(html);
       printWindow.document.close();
-
-      setMensagem({
-        tipo: 'success',
-        texto: 'Credencial enviada para impressão!',
-      });
-
+      setMensagem({ tipo: 'success', texto: 'Credencial enviada para impressão!' });
     } catch (err) {
       console.error('Erro ao imprimir:', err);
-      setMensagem({
-        tipo: 'error',
-        texto: 'Erro ao imprimir credencial.',
-      });
+      setMensagem({ tipo: 'error', texto: 'Erro ao imprimir credencial.' });
     }
   };
 
   const handleCadastrarParticipante = async (e: React.FormEvent) => {
     e.preventDefault();
-    
     if (!eventoId || !currentUser?.uid) return;
-    
     try {
       setLoading(true);
-
-      // Categoria selecionada -> MAIÚSCULO
       const catRaw = categoriaSelectRef.current?.value || '';
       const categoriaUpper = normalizeCategory(catRaw);
-
-      // Verifica se já existe registro de OUTRO participante com a mesma categoria no MESMO evento
-      // Se existir, reutiliza a cor; caso contrário, gera uma cor de fallback estável
       const corExistente = participantes.find(
-        (p) => p.eventoId === eventoId && normalizeCategory(p.categoria) === categoriaUpper && p.corCategoria
+        (p) => p.eventoId === eventoId && normalizeCategory(p.categoria) === categoriaUpper && p.corCategoria,
       )?.corCategoria;
-
       const corParaCategoria = corExistente || categoriaCor || stableColorFromString(categoriaUpper);
 
-      // Coleta dados do formulário
       const novoParticipante: Omit<Participante, 'id' | 'criadoEm' | 'atualizadoEm'> = {
         eventoId,
         nome: nomeRef.current?.value || '',
@@ -451,9 +368,9 @@ const PainelRecepcao: React.FC = () => {
         email1: emailRef.current?.value || '',
         email2: emailRef.current?.value || '',
         celular: telefoneRef.current?.value || '',
-        nomeCracha: nomeRef.current?.value || '',
+        nomeCracha: nomeCrachaRef.current?.value || '', // NOVO
         empresaCracha: empresaRef.current?.value || '',
-        cargo: '',
+        cargo: cargoRef.current?.value || '', // NOVO
         observacao: '',
         cpf: '',
         rg: '',
@@ -470,57 +387,45 @@ const PainelRecepcao: React.FC = () => {
         opcao9: '',
         opcao10: '',
         telefone: telefoneRef.current?.value || '',
-        categoria: categoriaUpper,          // sempre MAIÚSCULO
+        categoria: categoriaUpper,
         status: 'pendente',
         criadoPorId: currentUser.uid,
         camposPersonalizados: camposPersonalizadosValues,
-        corCategoria: corParaCategoria      // cor reaproveitada ou fallback
-      };
-      
-      // Cria participante no banco de dados
+        corCategoria: corParaCategoria,
+      } as any;
+
       const participanteId = await criarParticipante(novoParticipante);
-      
-      // Adiciona à lista local
       const participanteCriado: Participante = {
         ...novoParticipante,
         id: participanteId,
         criadoEm: new Date().toISOString(),
-        atualizadoEm: new Date().toISOString()
-      };
-      
-      setParticipantes(prev => [participanteCriado, ...prev]);
+        atualizadoEm: new Date().toISOString(),
+      } as any;
+
+      setParticipantes((prev) => [participanteCriado, ...prev]);
       setParticipanteSelecionado(participanteCriado);
       setShowFormNovoParticipante(false);
-      
-      setMensagem({
-        tipo: 'success',
-        texto: 'Participante cadastrado com sucesso! Realize o check-in.'
-      });
-      
+      setMensagem({ tipo: 'success', texto: 'Participante cadastrado com sucesso! Realize o check-in.' });
       setCamposPersonalizadosValues({});
     } catch (err) {
       console.error('Erro ao cadastrar participante:', err);
-      setMensagem({
-        tipo: 'error',
-        texto: 'Erro ao cadastrar participante. Tente novamente.'
-      });
+      setMensagem({ tipo: 'error', texto: 'Erro ao cadastrar participante. Tente novamente.' });
     } finally {
       setLoading(false);
     }
   };
 
   const handleCampoPersonalizadoChange = (id: string, valor: any) => {
-    setCamposPersonalizadosValues(prev => ({
-      ...prev,
-      [id]: valor
-    }));
+    setCamposPersonalizadosValues((prev) => ({ ...prev, [id]: valor }));
   };
+
+  // ===================== UI =====================
 
   if (loading && !evento) {
     return (
       <LayoutDefault title="Carregando...">
         <div className="flex justify-center items-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary" />
         </div>
       </LayoutDefault>
     );
@@ -529,24 +434,19 @@ const PainelRecepcao: React.FC = () => {
   if (!evento) {
     return (
       <LayoutDefault title="Evento não encontrado">
-        <div className="bg-error-light text-error p-4 rounded-md">
-          Evento não encontrado ou você não tem permissão para acessá-lo.
-        </div>
+        <div className="bg-error-light text-error p-4 rounded-md">Evento não encontrado ou você não tem permissão para acessá-lo.</div>
       </LayoutDefault>
     );
   }
 
   return (
-    <LayoutDefault 
-      title={`Recepção: ${evento.nome}`} 
-      backUrl="/recepcionista"
-    >
+    <LayoutDefault title={`Recepção: ${evento.nome}`} backUrl="/recepcionista">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Coluna 1: Busca e Lista */}
         <div className="lg:col-span-1 space-y-4">
           <div className="bg-white p-4 rounded-lg shadow-sm">
             <h3 className="font-semibold mb-3">Buscar Participante</h3>
-            
+
             <div className="flex mb-3">
               <input
                 type="text"
@@ -556,75 +456,60 @@ const PainelRecepcao: React.FC = () => {
                 placeholder="Nome, email ou empresa"
                 className="input-field flex-grow mr-2"
               />
-              <button
-                onClick={handleSearch}
-                className="btn btn-primary flex items-center justify-center"
-              >
+              <button onClick={handleSearch} className="btn btn-primary flex items-center justify-center">
                 <Search className="w-5 h-5" />
               </button>
             </div>
-            
+
             <div className="grid grid-cols-2 gap-2">
-              <button
-                onClick={() => setShowQrScanner(!showQrScanner)}
-                className="btn btn-outline flex items-center justify-center"
-              >
+              <button onClick={() => setShowQrScanner(!showQrScanner)} className="btn btn-outline flex items-center justify-center">
                 <QrCode className="w-5 h-5 mr-2" />
                 {showQrScanner ? 'Fechar Scanner' : 'Ler QR Code'}
               </button>
-              
-              <button
-                onClick={() => setShowFormNovoParticipante(!showFormNovoParticipante)}
-                className="btn btn-outline flex items-center justify-center"
-              >
+
+              <button onClick={() => setShowFormNovoParticipante(!showFormNovoParticipante)} className="btn btn-outline flex items-center justify-center">
                 <UserPlus className="w-5 h-5 mr-2" />
                 {showFormNovoParticipante ? 'Cancelar' : 'Novo'}
               </button>
             </div>
           </div>
-          
+
           {showQrScanner && (
             <div className="bg-white p-4 rounded-lg shadow-sm">
               <h3 className="font-semibold mb-3">Scanner QR Code</h3>
               <QrCodeScanner onScan={handleQrCodeScan} />
             </div>
           )}
-          
+
           {mensagem && (
-            <div className={`p-3 rounded-md ${
-              mensagem.tipo === 'success' 
-                ? 'bg-success-light text-success' 
-                : mensagem.tipo === 'error'
-                ? 'bg-error-light text-error'
-                : 'bg-warning-light text-warning'
-            }`}>
+            <div
+              className={`p-3 rounded-md ${
+                mensagem.tipo === 'success'
+                  ? 'bg-success-light text-success'
+                  : mensagem.tipo === 'error'
+                  ? 'bg-error-light text-error'
+                  : 'bg-warning-light text-warning'
+              }`}
+            >
               {mensagem.texto}
             </div>
           )}
 
           <div className="bg-white p-4 rounded-lg shadow-sm">
             <h3 className="font-semibold mb-3">Participantes</h3>
-            
+
             {participantes.length === 0 ? (
-              <p className="text-gray-500 text-sm">
-                Nenhum participante encontrado.
-              </p>
+              <p className="text-gray-500 text-sm">Nenhum participante encontrado.</p>
             ) : (
-              
-              <div className="divide-y divide-gray-100 max-h-80 overflow-y-auto">                
+              <div className="divide-y divide-gray-100 max-h-80 overflow-y-auto">
                 {participantes.map((participante) => (
-                  
                   <div
                     key={participante.id}
-                    className={`py-3 cursor-pointer hover:bg-gray-50 ${
-                      participanteSelecionado?.id === participante.id ? 'bg-gray-50' : ''
-                    }`}
+                    className={`py-3 cursor-pointer hover:bg-gray-50 ${participanteSelecionado?.id === participante.id ? 'bg-gray-50' : ''}`}
                     onClick={() => handleSelectParticipante(participante)}
                   >
                     <div>
-                      <label className="text-sm text-gray-500 block mb-1">
-                        {normalizeCategory(participante.categoria)}
-                      </label>
+                      <label className="text-sm text-gray-500 block mb-1">{normalizeCategory(participante.categoria)}</label>
                       {isOperador && (
                         <div className="flex items-center gap-3">
                           <div
@@ -632,19 +517,16 @@ const PainelRecepcao: React.FC = () => {
                             style={{ backgroundColor: participante.corCategoria || '#ccc' }}
                             onClick={() => setEditandoCorId(participante.id)}
                             title="Clique para editar a cor"
-                          ></div>
+                          />
                           {editandoCorId === participante.id && (
                             <div className="z-50 relative">
                               <ChromePicker
                                 color={coresEdicao[participante.id] || participante.corCategoria || '#cccccc'}
                                 onChangeComplete={(color) => {
-                                  setCoresEdicao((prev) => ({
-                                    ...prev,
-                                    [participante.id]: color.hex,
-                                  }));
+                                  setCoresEdicao((prev) => ({ ...prev, [participante.id]: color.hex }));
                                 }}
                               />
-                              
+
                               <button
                                 className="mt-2 btn btn-primary"
                                 onClick={async () => {
@@ -653,22 +535,20 @@ const PainelRecepcao: React.FC = () => {
                                   const categoriaAlvo = normalizeCategory(participante.categoria);
                                   const eventoAlvo = participante.eventoId;
 
-                                  const participantesMesmoGrupo = participantes.filter(p => 
-                                    normalizeCategory(p.categoria) === categoriaAlvo && p.eventoId === eventoAlvo
+                                  const participantesMesmoGrupo = participantes.filter(
+                                    (p) => normalizeCategory(p.categoria) === categoriaAlvo && p.eventoId === eventoAlvo,
                                   );
 
                                   await Promise.all(
-                                    participantesMesmoGrupo.map(p =>
-                                      atualizarParticipante(p.id, { corCategoria: novaCor })
-                                    )
+                                    participantesMesmoGrupo.map((p) => atualizarParticipante(p.id, { corCategoria: novaCor })),
                                   );
 
-                                  setParticipantes(prev =>
-                                    prev.map(p =>
+                                  setParticipantes((prev) =>
+                                    prev.map((p) =>
                                       normalizeCategory(p.categoria) === categoriaAlvo && p.eventoId === eventoAlvo
                                         ? { ...p, corCategoria: novaCor, categoria: normalizeCategory(p.categoria) }
-                                        : { ...p, categoria: normalizeCategory(p.categoria) }
-                                    )
+                                        : { ...p, categoria: normalizeCategory(p.categoria) },
+                                    ),
                                   );
 
                                   setMensagem({ tipo: 'success', texto: 'Cor atualizada para todos os participantes da mesma categoria!' });
@@ -681,7 +561,7 @@ const PainelRecepcao: React.FC = () => {
                         </div>
                       )}
                     </div>
-                      
+
                     <div className="flex justify-between items-start">
                       <div>
                         <h4 className="font-medium">{participante.nome}</h4>
@@ -689,15 +569,17 @@ const PainelRecepcao: React.FC = () => {
                         <p className="text-xs text-gray-500">{participante.email1}</p>
                       </div>
                       <div>
-                        <span className={`inline-block px-2 py-1 text-xs rounded-full ${
-                          participante.status === 'credenciado' 
-                            ? 'bg-success-light text-success' 
-                            : participante.status === 'confirmado'
-                            ? 'bg-primary-100 text-primary'
-                            : 'bg-gray-100 text-gray-800'
-                        }`}>
-                          {participante.status === 'credenciado' 
-                            ? 'Credenciado' 
+                        <span
+                          className={`inline-block px-2 py-1 text-xs rounded-full ${
+                            participante.status === 'credenciado'
+                              ? 'bg-success-light text-success'
+                              : participante.status === 'confirmado'
+                              ? 'bg-primary-100 text-primary'
+                              : 'bg-gray-100 text-gray-800'
+                          }`}
+                        >
+                          {participante.status === 'credenciado'
+                            ? 'Credenciado'
                             : participante.status === 'confirmado'
                             ? 'Confirmado'
                             : 'Pendente'}
@@ -710,65 +592,51 @@ const PainelRecepcao: React.FC = () => {
             )}
           </div>
         </div>
-        
-        {/* Coluna 2: Formulário de Novo Participante ou Detalhes do Participante */}
+
+        {/* Coluna 2: Formulário de Novo Participante ou Detalhes */}
         <div className="lg:col-span-2">
           {showFormNovoParticipante ? (
             <div className="bg-white p-4 rounded-lg shadow-sm">
               <h3 className="font-semibold mb-4">Cadastrar Novo Participante</h3>
-              
+
               <form onSubmit={handleCadastrarParticipante}>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  {/* Linha 1: Nome completo | Nome Crachá */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Nome completo *
-                    </label>
-                    <input
-                      type="text"
-                      ref={nomeRef}
-                      required
-                      className="input-field"
-                    />
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Nome completo *</label>
+                    <input type="text" ref={nomeRef} required className="input-field" />
                   </div>
-                  
+
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Empresa
-                    </label>
-                    <input
-                      type="text"
-                      ref={empresaRef}
-                      className="input-field"
-                    />
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Nome Crachá</label>
+                    <input type="text" ref={nomeCrachaRef} className="input-field" />
                   </div>
-                  
+
+                  {/* Linha 2: Empresa | Cargo */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Email *
-                    </label>
-                    <input
-                      type="email"
-                      ref={emailRef}
-                      required
-                      className="input-field"
-                    />
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Empresa</label>
+                    <input type="text" ref={empresaRef} className="input-field" />
                   </div>
-                  
+
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Telefone
-                    </label>
-                    <input
-                      type="tel"
-                      ref={telefoneRef}
-                      className="input-field"
-                    />
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Cargo</label>
+                    <input type="text" ref={cargoRef} className="input-field" />
                   </div>
-                  
+
+                  {/* Linha 3: Email | Telefone */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
+                    <input type="email" ref={emailRef} required className="input-field" />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Telefone</label>
+                    <input type="tel" ref={telefoneRef} className="input-field" />
+                  </div>
+
+                  {/* Linha 4: Categoria (full width) */}
                   <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Categoria * (selecionar existente — MAIÚSCULO)
-                    </label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Categoria * (selecionar existente — MAIÚSCULO)</label>
                     <select
                       ref={categoriaSelectRef}
                       required
@@ -780,7 +648,9 @@ const PainelRecepcao: React.FC = () => {
                       }}
                       defaultValue=""
                     >
-                      <option value="" disabled>Selecione uma categoria</option>
+                      <option value="" disabled>
+                        Selecione uma categoria
+                      </option>
                       {categoriasEvento.map((cat) => (
                         <option key={cat} value={cat}>
                           {cat}
@@ -803,7 +673,7 @@ const PainelRecepcao: React.FC = () => {
                           <label className="block text-sm font-medium text-gray-700 mb-1">
                             {campo.nome} {campo.obrigatorio ? '*' : ''}
                           </label>
-                          
+
                           {campo.tipo === 'texto' && (
                             <input
                               type="text"
@@ -813,7 +683,7 @@ const PainelRecepcao: React.FC = () => {
                               className="input-field"
                             />
                           )}
-                          
+
                           {campo.tipo === 'numero' && (
                             <input
                               type="number"
@@ -823,7 +693,7 @@ const PainelRecepcao: React.FC = () => {
                               className="input-field"
                             />
                           )}
-                          
+
                           {campo.tipo === 'data' && (
                             <input
                               type="date"
@@ -833,7 +703,7 @@ const PainelRecepcao: React.FC = () => {
                               className="input-field"
                             />
                           )}
-                          
+
                           {campo.tipo === 'selecao' && campo.opcoes && (
                             <select
                               value={camposPersonalizadosValues[campo.id] || ''}
@@ -849,7 +719,7 @@ const PainelRecepcao: React.FC = () => {
                               ))}
                             </select>
                           )}
-                          
+
                           {campo.tipo === 'checkbox' && (
                             <div className="flex items-center">
                               <input
@@ -870,20 +740,12 @@ const PainelRecepcao: React.FC = () => {
                     </div>
                   </div>
                 )}
-                
+
                 <div className="flex justify-end">
-                  <button
-                    type="button"
-                    onClick={() => setShowFormNovoParticipante(false)}
-                    className="btn btn-outline mr-2"
-                  >
+                  <button type="button" onClick={() => setShowFormNovoParticipante(false)} className="btn btn-outline mr-2">
                     Cancelar
                   </button>
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="btn btn-primary"
-                  >
+                  <button type="submit" disabled={loading} className="btn btn-primary">
                     {loading ? 'Salvando...' : 'Cadastrar e Credenciar'}
                   </button>
                 </div>
@@ -893,42 +755,44 @@ const PainelRecepcao: React.FC = () => {
             <div className="bg-white p-4 rounded-lg shadow-sm">
               <div className="flex justify-between items-start mb-4">
                 <h3 className="font-semibold">Detalhes do Participante</h3>
-                <span className={`inline-block px-2 py-1 text-xs rounded-full ${
-                  participanteSelecionado.status === 'credenciado' 
-                    ? 'bg-success-light text-success' 
-                    : participanteSelecionado.status === 'confirmado'
-                    ? 'bg-primary-100 text-primary'
-                    : 'bg-gray-100 text-gray-800'
-                }`}>
-                  {participanteSelecionado.status === 'credenciado' 
-                    ? 'Credenciado' 
+                <span
+                  className={`inline-block px-2 py-1 text-xs rounded-full ${
+                    participanteSelecionado.status === 'credenciado'
+                      ? 'bg-success-light text-success'
+                      : participanteSelecionado.status === 'confirmado'
+                      ? 'bg-primary-100 text-primary'
+                      : 'bg-gray-100 text-gray-800'
+                  }`}
+                >
+                  {participanteSelecionado.status === 'credenciado'
+                    ? 'Credenciado'
                     : participanteSelecionado.status === 'confirmado'
                     ? 'Confirmado'
                     : 'Pendente'}
                 </span>
               </div>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                 <div>
                   <p className="text-sm text-gray-500">Nome</p>
                   <p className="font-medium">{participanteSelecionado.nome}</p>
                 </div>
-                
+
                 <div>
                   <p className="text-sm text-gray-500">Empresa</p>
                   <p className="font-medium">{participanteSelecionado.empresa || '-'}</p>
                 </div>
-                
+
                 <div>
                   <p className="text-sm text-gray-500">Email</p>
                   <p className="font-medium">{participanteSelecionado.email1}</p>
                 </div>
-                
+
                 <div>
                   <p className="text-sm text-gray-500">Telefone</p>
                   <p className="font-medium">{participanteSelecionado.telefone || '-'}</p>
                 </div>
-                
+
                 <div>
                   <p className="text-sm text-gray-500">Categoria</p>
                   <p className="font-medium flex items-center gap-2">
@@ -936,41 +800,39 @@ const PainelRecepcao: React.FC = () => {
                     {normalizeCategory(participanteSelecionado.categoria)}
                   </p>
                 </div>
-                
+
                 <div>
                   <p className="text-sm text-gray-500">ID</p>
                   <p className="font-medium">{participanteSelecionado.id}</p>
                 </div>
               </div>
-              
+
               {/* Informações personalizadas */}
-              {participanteSelecionado.camposPersonalizados && 
-               Object.keys(participanteSelecionado.camposPersonalizados).length > 0 && (
-                <div className="mb-6">
-                  <h4 className="font-medium mb-2">Informações adicionais</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {Object.entries(participanteSelecionado.camposPersonalizados).map(([key, value]) => {
-                      const campo = evento.camposPersonalizados?.find(c => c.id === key);
-                      return (
-                        <div key={key}>
-                          <p className="text-sm text-gray-500">{campo?.nome || key}</p>
-                          <p className="font-medium">
-                            {typeof value === 'boolean' 
-                              ? (value ? 'Sim' : 'Não')
-                              : (value as any) || '-'}
-                          </p>
-                        </div>
-                      );
-                    })}
+              {participanteSelecionado.camposPersonalizados &&
+                Object.keys(participanteSelecionado.camposPersonalizados).length > 0 && (
+                  <div className="mb-6">
+                    <h4 className="font-medium mb-2">Informações adicionais</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {Object.entries(participanteSelecionado.camposPersonalizados).map(([key, value]) => {
+                        const campo = evento.camposPersonalizados?.find((c) => c.id === key);
+                        return (
+                          <div key={key}>
+                            <p className="text-sm text-gray-500">{campo?.nome || key}</p>
+                            <p className="font-medium">{typeof value === 'boolean' ? (value ? 'Sim' : 'Não') : (value as any) || '-'}</p>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-              )}
-              
+                )}
+
               <div className="flex flex-wrap gap-2">
                 <button
-                  onClick={() => navigate(`/operador/participantes/${eventoId}/${participanteSelecionado.id}/editar`, {
-                      state: { from: 'painel-recepcao' }
-                  })}
+                  onClick={() =>
+                    navigate(`/operador/participantes/${eventoId}/${participanteSelecionado.id}/editar`, {
+                      state: { from: 'painel-recepcao' },
+                    })
+                  }
                   className="btn btn-outline flex items-center"
                   title="Editar participante"
                 >
@@ -978,20 +840,13 @@ const PainelRecepcao: React.FC = () => {
                 </button>
 
                 {participanteSelecionado.status !== 'credenciado' && (
-                  <button
-                    onClick={handleCheckinComConfirmacao}
-                    disabled={loading}
-                    className="btn btn-primary flex items-center"
-                  >
+                  <button onClick={handleCheckinComConfirmacao} disabled={loading} className="btn btn-primary flex items-center">
                     <CheckCircle className="w-5 h-5 mr-2" />
                     {loading ? 'Processando...' : 'Fazer Check-in'}
                   </button>
                 )}
-                
-                <button
-                  onClick={handlePrintCredencial}
-                  className="btn btn-outline flex items-center"
-                >
+
+                <button onClick={handlePrintCredencial} className="btn btn-outline flex items-center">
                   <Printer className="w-5 h-5 mr-2" />
                   Imprimir Credencial
                 </button>
@@ -1002,22 +857,14 @@ const PainelRecepcao: React.FC = () => {
               <div className="text-center py-12">
                 <QrCode className="w-16 h-16 mx-auto text-gray-300 mb-4" />
                 <h3 className="font-semibold text-lg mb-2">Nenhum participante selecionado</h3>
-                <p className="text-gray-500 mb-4">
-                  Selecione um participante da lista ou use as opções abaixo:
-                </p>
+                <p className="text-gray-500 mb-4">Selecione um participante da lista ou use as opções abaixo:</p>
                 <div className="flex flex-wrap justify-center gap-2">
-                  <button
-                    onClick={() => setShowQrScanner(true)}
-                    className="btn btn-outline flex items-center"
-                  >
+                  <button onClick={() => setShowQrScanner(true)} className="btn btn-outline flex items-center">
                     <QrCode className="w-5 h-5 mr-2" />
                     Ler QR Code
                   </button>
-                  
-                  <button
-                    onClick={() => setShowFormNovoParticipante(true)}
-                    className="btn btn-primary flex items-center"
-                  >
+
+                  <button onClick={() => setShowFormNovoParticipante(true)} className="btn btn-primary flex items-center">
                     <UserPlus className="w-5 h-5 mr-2" />
                     Cadastrar Novo
                   </button>
@@ -1025,21 +872,16 @@ const PainelRecepcao: React.FC = () => {
               </div>
             </div>
           )}
+
           {confirmarImpressao && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
               <div className="bg-white rounded-lg shadow-lg p-6 max-w-md w-full">
                 <h2 className="text-lg font-semibold mb-4">Deseja imprimir a credencial?</h2>
                 <div className="flex justify-end gap-4">
-                  <button
-                    onClick={() => confirmarCheckin(false)}
-                    className="btn btn-outline"
-                  >
+                  <button onClick={() => confirmarCheckin(false)} className="btn btn-outline">
                     Não
                   </button>
-                  <button
-                    onClick={() => confirmarCheckin(true)}
-                    className="btn btn-primary"
-                  >
+                  <button onClick={() => confirmarCheckin(true)} className="btn btn-primary">
                     Sim
                   </button>
                 </div>
