@@ -55,7 +55,7 @@ const EditarParticipante: React.FC = () => {
   const { eventoId, id } = useParams<{ eventoId: string; id: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const from = location.state?.from;
+  const from = (location.state as any)?.from;
 
   const [form, setForm] = useState<Participante>({
     nome: '',
@@ -147,20 +147,23 @@ const EditarParticipante: React.FC = () => {
     return map;
   }, [participantesEvento]);
 
+  // Lista de categorias do evento (únicas, em MAIÚSCULO)
+  const categoriasEvento = useMemo(() => {
+    const setCats = new Set<string>();
+    for (const p of participantesEvento) {
+      const cat = normalizeCategory(p.categoria);
+      if (cat) setCats.add(cat);
+    }
+    return Array.from(setCats).sort((a, b) => a.localeCompare(b));
+  }, [participantesEvento]);
+
   const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
   ) => {
     const { name, value } = e.target;
 
-    // Categoria: input livre, forçar MAIÚSCULO + sugerir cor se existir
     if (name === 'categoria') {
       const upper = normalizeCategory(value);
-      // manter cursor e uppercase na UI
-      const target = e.target as HTMLInputElement;
-      const cursor = target.selectionStart || 0;
-      target.value = upper;
-      target.setSelectionRange(cursor, cursor);
-
       const corExistente = categoriaColorMap[upper];
       setForm(prev => ({
         ...prev,
@@ -277,21 +280,26 @@ const EditarParticipante: React.FC = () => {
                 );
               }
 
-              // Categoria passa a ser INPUT (MAIÚSCULO e herda cor)
+              // Categoria passa a ser SELECT dinâmico (MAIÚSCULO e herda cor)
               if (key === 'categoria') {
                 return (
                   <div key={key}>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Categoria (digite livremente)
+                      Categoria *
                     </label>
-                    <input
-                      type="text"
+                    <select
                       name="categoria"
-                      placeholder="Ex.: PARTICIPANTE, PALESTRANTE, VIP..."
                       value={(value as string) || ''}
                       onChange={handleChange}
                       className="w-full border px-4 py-2 rounded uppercase"
-                    />
+                      required
+                      defaultValue=""
+                    >
+                      <option value="" disabled>Selecione uma categoria</option>
+                      {categoriasEvento.map((cat) => (
+                        <option key={cat} value={cat}>{cat}</option>
+                      ))}
+                    </select>
                     <p className="text-xs text-gray-500 mt-1">
                       Será salva em MAIÚSCULO. Se já existir cor para essa categoria neste evento, ela será reutilizada automaticamente.
                     </p>
@@ -316,7 +324,7 @@ const EditarParticipante: React.FC = () => {
                         className="w-full border px-4 py-2 rounded"
                       />
                       <p className="text-xs text-gray-500 mt-1">
-                        Este valor será sobrescrito automaticamente caso exista uma cor já usada pela mesma categoria.
+                        Este valor pode ser sobrescrito automaticamente caso exista uma cor já usada pela mesma categoria.
                       </p>
                     </div>
                     <div
@@ -325,6 +333,21 @@ const EditarParticipante: React.FC = () => {
                       style={{ backgroundColor: (value as string) || '#ccc' }}
                     />
                   </div>
+                );
+              }
+
+              // Observação como textarea
+              if (key === 'observacao') {
+                return (
+                  <textarea
+                    key={key}
+                    name={key}
+                    placeholder="Observação"
+                    value={(value as string) || ''}
+                    onChange={handleChange}
+                    className="w-full border px-4 py-2 rounded"
+                    rows={3}
+                  />
                 );
               }
 
