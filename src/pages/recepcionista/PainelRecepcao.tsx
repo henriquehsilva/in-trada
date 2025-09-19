@@ -64,8 +64,8 @@ const PainelRecepcao: React.FC = () => {
   const empresaRef = useRef<HTMLInputElement>(null);
   const emailRef = useRef<HTMLInputElement>(null);
   const telefoneRef = useRef<HTMLInputElement>(null);
-  // categoria agora é INPUT (texto), não mais SELECT
-  const categoriaRef = useRef<HTMLInputElement>(null);
+  // categoria agora é SELECT (não mais INPUT)
+  const categoriaSelectRef = useRef<HTMLSelectElement>(null);
   const [categoriaCor, setCategoriaCor] = useState<string>('');
   const [editandoCor, setEditandoCor] = useState(false);
   const [editandoCorId, setEditandoCorId] = useState<string | null>(null);
@@ -147,6 +147,16 @@ const PainelRecepcao: React.FC = () => {
       }
     }
     return map;
+  }, [participantes]);
+
+  // Lista de categorias do evento baseada nos participantes já cadastrados (sem duplicatas, MAIÚSCULO)
+  const categoriasEvento = useMemo(() => {
+    const setCats = new Set<string>();
+    for (const p of participantes) {
+      const cat = normalizeCategory(p.categoria);
+      if (cat) setCats.add(cat);
+    }
+    return Array.from(setCats).sort((a, b) => a.localeCompare(b));
   }, [participantes]);
 
   const handleSearch = async () => {
@@ -421,8 +431,8 @@ const PainelRecepcao: React.FC = () => {
     try {
       setLoading(true);
 
-      // Categoria digitada livremente -> MAIÚSCULO
-      const catRaw = categoriaRef.current?.value || '';
+      // Categoria selecionada -> MAIÚSCULO
+      const catRaw = categoriaSelectRef.current?.value || '';
       const categoriaUpper = normalizeCategory(catRaw);
 
       // Verifica se já existe registro de OUTRO participante com a mesma categoria no MESMO evento
@@ -757,26 +767,26 @@ const PainelRecepcao: React.FC = () => {
                   
                   <div className="md:col-span-2">
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Categoria * (digite livremente)
+                      Categoria * (selecionar existente — MAIÚSCULO)
                     </label>
-                    <input
-                      type="text"
-                      ref={categoriaRef}
+                    <select
+                      ref={categoriaSelectRef}
                       required
                       className="input-field uppercase"
-                      placeholder="Ex.: Participante, Palestrante, VIP..."
                       onChange={(e) => {
-                        // força maiúsculo na digitação (UI) sem perder o cursor
-                        const cursor = e.target.selectionStart || 0;
-                        e.target.value = e.target.value.toUpperCase();
-                        e.target.setSelectionRange(cursor, cursor);
-
-                        // sugere cor conforme categoria já existente
                         const upper = normalizeCategory(e.target.value);
                         const corExistente = categoriaColorMap[upper];
                         setCategoriaCor(corExistente || stableColorFromString(upper));
                       }}
-                    />
+                      defaultValue=""
+                    >
+                      <option value="" disabled>Selecione uma categoria</option>
+                      {categoriasEvento.map((cat) => (
+                        <option key={cat} value={cat}>
+                          {cat}
+                        </option>
+                      ))}
+                    </select>
                     <p className="text-xs text-gray-500 mt-1">
                       A categoria será salva em MAIÚSCULO. Se já houver cor definida para a mesma categoria neste evento, ela será reutilizada automaticamente.
                     </p>
