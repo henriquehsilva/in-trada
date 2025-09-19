@@ -1,14 +1,12 @@
-// firebase.ts (Vite + TS)
+// firebase.ts
 import { getApp, getApps, initializeApp } from 'firebase/app'
-import { getAuth } from 'firebase/auth'
 import {
   initializeFirestore,
   persistentLocalCache,
   persistentSingleTabManager,
-  getFirestore,
-  disableNetwork,
-  enableNetwork,
+  getFirestore, disableNetwork, enableNetwork
 } from 'firebase/firestore'
+import { getAuth } from 'firebase/auth'
 import { getStorage } from 'firebase/storage'
 
 const app = getApps().length ? getApp() : initializeApp({
@@ -18,23 +16,17 @@ const app = getApps().length ? getApp() : initializeApp({
   storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 })
 
-// ✅ Inicialize o Firestore já com cache persistente
+// Persistência offline já na criação (single tab; troque por multipleTab se quiser)
 initializeFirestore(app, {
-  localCache: persistentLocalCache({
-    // use multipleTab se quiser várias abas sincronizadas
-    tabManager: persistentSingleTabManager({}),
-  }),
+  localCache: persistentLocalCache({ tabManager: persistentSingleTabManager({}) })
 })
 
 export const db = getFirestore(app)
 export const auth = getAuth(app)
 export const storage = getStorage(app)
 
-// (opcional) helpers para alternar rede manualmente
+// (opcionais) helpers para alternar rede manualmente em testes
 export const goOffline = () => disableNetwork(db)
-export const goOnline = () => enableNetwork(db)
-
-export default app
+export const goOnline  = () => enableNetwork(db)

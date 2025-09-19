@@ -132,6 +132,7 @@ const RecepcionistaDashboard: React.FC = () => {
                     Ativo
                   </span>
                 </div>
+
                 <div className="text-sm text-gray-500 space-y-1">
                   <p>
                     <Calendar className="w-4 h-4 inline mr-2" />
@@ -142,19 +143,24 @@ const RecepcionistaDashboard: React.FC = () => {
                     0 check-ins hoje
                   </p>
                 </div>
+
+                {/* Botão Autoatendimento */}
+                <div className="pt-3">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigate(`/AutoAtendimento/${evento.id}`); // mantém o casing existente da sua rota
+                    }}
+                    className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-gray-200 hover:bg-gray-100 text-sm font-medium"
+                    title="Abrir autoatendimento deste evento"
+                  >
+                    <QrCode className="w-4 h-4" />
+                    Autoatendimento
+                  </button>
+                </div>
               </div>
             ))}
-
-            {eventos.length === 0 && (
-              <div className="text-center py-8">
-                <Calendar className="w-16 h-16 mx-auto text-gray-300 mb-4" />
-                <p className="text-gray-500">
-                  {userData?.eventoId
-                    ? 'Você não está associado a nenhum evento ativo.'
-                    : 'Nenhum evento disponível no momento.'}
-                </p>
-              </div>
-            )}
           </div>
         </div>
 

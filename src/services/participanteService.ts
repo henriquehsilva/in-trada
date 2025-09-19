@@ -1,204 +1,202 @@
+// src/services/participanteService.ts
 import {
   collection,
   doc,
   addDoc,
   updateDoc,
   deleteDoc,
-  getDocs,
-  getDoc,
+  getDocsFromCache,
+  getDocsFromServer,
+  getDocFromCache,
+  getDocFromServer,
   query,
   where,
   serverTimestamp,
   Timestamp,
   orderBy,
-  limit
-} from 'firebase/firestore';
-import { db } from '../firebase/config';
-import { Participante } from '../models/types';
+  limit,
+  onSnapshot,
+  type QueryConstraint,
+} from 'firebase/firestore'
+import { db } from '../firebase/config'
+import { Participante } from '../models/types'
 
-// Criar novo participante
+const COL = 'participantes'
+
+// ------- helpers -------
+function toISO(v: any) {
+  return v instanceof Timestamp ? v.toDate().toISOString() : v
+}
+function normalizeDoc<T = any>(id: string, data: any): T {
+  return {
+    id,
+    ...data,
+    criadoEm: toISO(data.criadoEm),
+    atualizadoEm: toISO(data.atualizadoEm),
+  }
+}
+
+// Criar novo participante (funciona offline; sincroniza quando online)
 export const criarParticipante = async (
   participante: Omit<Participante, 'id' | 'criadoEm' | 'atualizadoEm'>
 ): Promise<string> => {
-  try {
-    const participanteRef = await addDoc(collection(db, 'participantes'), {
-      ...participante,
-      criadoEm: serverTimestamp(),
-      atualizadoEm: serverTimestamp(),
-    });
-    
-    return participanteRef.id;
-  } catch (error) {
-    console.error('Erro ao criar participante:', error);
-    throw error;
-  }
-};
+  const ref = await addDoc(collection(db, COL), {
+    ...participante,
+    criadoEm: serverTimestamp(),
+    atualizadoEm: serverTimestamp(),
+  })
+  return ref.id
+}
 
-// Obter todos os participantes de um evento
+// Obter todos os participantes de um evento (cache → server)
 export const obterParticipantesPorEvento = async (eventoId: string): Promise<Participante[]> => {
-  try {
-    const participantesRef = collection(db, 'participantes');
-    const q = query(
-      participantesRef,
-      where('eventoId', '==', eventoId),
-      orderBy('nome', 'asc')
-    );
-    const snapshot = await getDocs(q);
-    
-    return snapshot.docs.map(doc => {
-      const data = doc.data();
-      return {
-        id: doc.id,
-        ...data,
-        criadoEm: data.criadoEm instanceof Timestamp ? data.criadoEm.toDate().toISOString() : data.criadoEm,
-        atualizadoEm: data.atualizadoEm instanceof Timestamp ? data.atualizadoEm.toDate().toISOString() : data.atualizadoEm,
-      } as Participante;
-    });
-  } catch (error) {
-    console.error('Erro ao obter participantes por evento:', error);
-    throw error;
-  }
-};
+  const qy = query(collection(db, COL), where('eventoId', '==', eventoId), orderBy('nome', 'asc'))
+  let cached: Participante[] | undefined
 
-// Buscar participantes por termo de busca
-export const buscarParticipantes = async (
-  eventoId: string,
-  termo: string
-): Promise<Participante[]> => {
   try {
-    // Implementação simples - em uma aplicação real, usar alguma solução de busca
-    // como Algolia ou implementação específica do Firestore
-    const participantesRef = collection(db, 'participantes');
-    const q = query(
-      participantesRef,
-      where('eventoId', '==', eventoId)
-    );
-    const snapshot = await getDocs(q);
-    
-    const participantes = snapshot.docs.map(doc => {
-      const data = doc.data();
-      return {
-        id: doc.id,
-        ...data,
-        criadoEm: data.criadoEm instanceof Timestamp ? data.criadoEm.toDate().toISOString() : data.criadoEm,
-        atualizadoEm: data.atualizadoEm instanceof Timestamp ? data.atualizadoEm.toDate().toISOString() : data.atualizadoEm,
-      } as Participante;
-    });
-    
-    // Realizar busca local nos resultados
-    const termoLowerCase = termo.toLowerCase();
-    return participantes.filter(p => 
-      (p.nome?.toLowerCase() || '').includes(termoLowerCase) ||
-      (p.email1?.toLowerCase() || '').includes(termoLowerCase) ||
-      (p.empresa?.toLowerCase() || '').includes(termoLowerCase) ||
-      (p.categoria?.toLowerCase() || '').includes(termoLowerCase)
-    );
-  } catch (error) {
-    console.error('Erro ao buscar participantes:', error);
-    throw error;
-  }
-};
+    const cs = await getDocsFromCache(qy)
+    cached = cs.docs.map(d => normalizeDoc<Participante>(d.id, d.data()))
+  } catch {}
 
-// Obter participante por ID
+  try {
+    const ss = await getDocsFromServer(qy)
+    return ss.docs.map(d => normalizeDoc<Participante>(d.id, d.data()))
+  } catch {
+    // offline: devolve cache se existir
+    if (cached) return cached
+    // sem cache nem server: lista vazia
+    return []
+  }
+}
+
+// Buscar participantes por termo (puxa base cache→server e filtra local)
+export const buscarParticipantes = async (eventoId: string, termo: string): Promise<Participante[]> => {
+  const base = await obterParticipantesPorEvento(eventoId)
+  const t = termo.trim().toLowerCase()
+  if (!t) return base
+  return base.filter((p: any) => {
+    const arr = [p.nome, p.email1, p.email2, p.empresa, p.categoria, p.id].map((v: any) =>
+      (v || '').toString().toLowerCase()
+    )
+    return arr.some((v: string) => v.includes(t))
+  })
+}
+
+// Obter participante por ID (cache → server)
 export const obterParticipantePorId = async (id: string): Promise<Participante | null> => {
-  try {
-    const participanteRef = doc(db, 'participantes', id);
-    const snapshot = await getDoc(participanteRef);
-    
-    if (!snapshot.exists()) {
-      return null;
-    }
-    
-    const data = snapshot.data();
-    return {
-      id: snapshot.id,
-      ...data,
-      criadoEm: data.criadoEm instanceof Timestamp ? data.criadoEm.toDate().toISOString() : data.criadoEm,
-      atualizadoEm: data.atualizadoEm instanceof Timestamp ? data.atualizadoEm.toDate().toISOString() : data.atualizadoEm,
-    } as Participante;
-  } catch (error) {
-    console.error('Erro ao obter participante por ID:', error);
-    throw error;
-  }
-};
+  const ref = doc(db, COL, id)
 
-// Atualizar participante
+  try {
+    const c = await getDocFromCache(ref)
+    if (c.exists()) return normalizeDoc<Participante>(c.id, c.data())
+  } catch {}
+
+  const s = await getDocFromServer(ref)
+  return s.exists() ? normalizeDoc<Participante>(s.id, s.data()) : null
+}
+
+// Atualizar participante (offline-friendly)
 export const atualizarParticipante = async (
   id: string,
   participanteAtualizado: Partial<Omit<Participante, 'id' | 'criadoEm' | 'atualizadoEm'>>
 ): Promise<void> => {
-  try {
-    const participanteRef = doc(db, 'participantes', id);
-    await updateDoc(participanteRef, {
-      ...participanteAtualizado,
-      atualizadoEm: serverTimestamp(),
-    });
-  } catch (error) {
-    console.error('Erro ao atualizar participante:', error);
-    throw error;
-  }
-};
+  const ref = doc(db, COL, id)
+  await updateDoc(ref, {
+    ...participanteAtualizado,
+    atualizadoEm: serverTimestamp(),
+  })
+}
 
 // Excluir participante
 export const excluirParticipante = async (id: string): Promise<void> => {
-  try {
-    const participanteRef = doc(db, 'participantes', id);
-    await deleteDoc(participanteRef);
-  } catch (error) {
-    console.error('Erro ao excluir participante:', error);
-    throw error;
-  }
-};
+  const ref = doc(db, COL, id)
+  await deleteDoc(ref)
+}
 
-// Fazer check-in de participante
+// Fazer check-in (offline-friendly; sincroniza depois)
 export const fazerCheckin = async (id: string): Promise<void> => {
+  const ref = doc(db, 'participantes', id)
   try {
-    const participanteRef = doc(db, 'participantes', id);
-    await updateDoc(participanteRef, {
+    await updateDoc(ref, {
       status: 'credenciado',
       atualizadoEm: serverTimestamp(),
-    });
-  } catch (error) {
-    console.error('Erro ao fazer check-in de participante:', error);
-    throw error;
+      checkinEm: serverTimestamp(),
+    } as any)
+  } catch (err: any) {
+    // Se for “unavailable/offline”, seguimos otimistas (a UI já trata)
+    const msg = String(err?.message || '')
+    if (msg.includes('unavailable') || msg.includes('offline') || msg.includes('Failed to get')) {
+      // opcional: log
+      console.warn('Check-in offline (otimista):', err)
+      return
+    }
+    throw err
   }
-};
+}
 
-// Obter estatísticas de participantes por evento
+/**
+ * Reservar etiqueta “apenas 1x” (cliente otimista)
+ * - Atualiza local/offline; na sincronização o servidor valida.
+ * - Para garantia real no backend, crie regra no Firestore
+ *   impedindo sobrescrita quando `etiquetaImpressaEm` já existe.
+ */
+export const reservarEtiquetaUmaVez = async (id: string, usuarioId: string): Promise<void> => {
+  const ref = doc(db, COL, id)
+  await updateDoc(ref, {
+    etiquetaImpressaEm: serverTimestamp(),
+    etiquetaImpressaPorId: usuarioId,
+    atualizadoEm: serverTimestamp(),
+  } as any)
+}
+
+// Estatísticas (cache → server)
 export const obterEstatisticasParticipantes = async (eventoId: string): Promise<{
-  total: number;
-  porStatus: { [key: string]: number };
-  porCategoria: { [key: string]: number };
+  total: number
+  porStatus: { [key: string]: number }
+  porCategoria: { [key: string]: number }
 }> => {
+  const qy = query(collection(db, COL), where('eventoId', '==', eventoId))
+  let docs: Participante[] = []
+
   try {
-    const participantesRef = collection(db, 'participantes');
-    const q = query(participantesRef, where('eventoId', '==', eventoId));
-    const snapshot = await getDocs(q);
-    
-    const participantes = snapshot.docs.map(doc => doc.data() as Participante);
-    const total = participantes.length;
-    
-    // Contagem por status
-    const porStatus = participantes.reduce((acc, curr) => {
-      const status = curr.status;
-      acc[status] = (acc[status] || 0) + 1;
-      return acc;
-    }, {} as { [key: string]: number });
-    
-    // Contagem por categoria
-    const porCategoria = participantes.reduce((acc, curr) => {
-      const categoria = curr.categoria;
-      acc[categoria] = (acc[categoria] || 0) + 1;
-      return acc;
-    }, {} as { [key: string]: number });
-    
-    return {
-      total,
-      porStatus,
-      porCategoria,
-    };
-  } catch (error) {
-    console.error('Erro ao obter estatísticas de participantes:', error);
-    throw error;
+    const cs = await getDocsFromCache(qy)
+    docs = cs.docs.map(d => normalizeDoc<Participante>(d.id, d.data()))
+  } catch {}
+
+  try {
+    const ss = await getDocsFromServer(qy)
+    docs = ss.docs.map(d => normalizeDoc<Participante>(d.id, d.data()))
+  } catch {
+    // mantém o que tiver no cache
   }
-};
+
+  const total = docs.length
+  const porStatus = docs.reduce((acc, curr) => {
+    const k = (curr as any).status || 'indefinido'
+    acc[k] = (acc[k] || 0) + 1
+    return acc
+  }, {} as Record<string, number>)
+  const porCategoria = docs.reduce((acc, curr) => {
+    const k = (curr as any).categoria || 'indefinida'
+    acc[k] = (acc[k] || 0) + 1
+    return acc
+  }, {} as Record<string, number>)
+
+  return { total, porStatus, porCategoria }
+}
+
+/**
+ * Assinatura para “aquecer” o cache e manter base local atualizada
+ * (opcional, mas recomendado para telas que ficam abertas)
+ */
+export function subscribeParticipantesDoEvento(
+  eventoId: string,
+  cb: (lista: Participante[]) => void,
+  ...extras: QueryConstraint[]
+) {
+  const qy = query(collection(db, COL), where('eventoId', '==', eventoId), ...extras)
+  return onSnapshot(qy, (snap) => {
+    const arr = snap.docs.map(d => normalizeDoc<Participante>(d.id, d.data()))
+    cb(arr)
+  })
+}

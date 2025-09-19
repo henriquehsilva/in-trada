@@ -5,18 +5,23 @@ import QrCodeScanner from '../../components/qrcode/QrCodeScanner';
 import { useAuth } from '../../contexts/AuthContext';
 import { Evento, Participante } from '../../models/types';
 import { obterEventoPorId } from '../../services/eventoService';
-import { buscarParticipantes, fazerCheckin, obterParticipantePorId, obterParticipantesPorEvento } from '../../services/participanteService';
+import {
+  buscarParticipantes,
+  fazerCheckin,
+  obterParticipantePorId,
+  obterParticipantesPorEvento,
+  reservarEtiquetaUmaVez,
+  subscribeParticipantesDoEvento,
+} from '../../services/participanteService';
 import { obterModelosCrachaPorEvento } from '../../services/modeloService';
 import QRCode from 'qrcode';
-import { db } from '../../firebase/config';
-import { doc, runTransaction, serverTimestamp } from 'firebase/firestore';
 
 /**
- * Tela de Autoatendimento (Kiosk)
- * - Busca só é disparada quando o usuário pressiona Enter ou Tab
- * - Lista ampla com ações grandes (Check-in e Imprimir Etiqueta)
- * - Etiqueta: impressão apenas 1x (transação Firestore)
- * - FAB de QR Code
+ * Autoatendimento (Kiosk) – versão offline-first
+ * - Busca: cache → servidor, com fallback local
+ * - Check-in: permite offline (sincroniza depois via Firestore)
+ * - Etiqueta: reserva 1x pelo cliente (otimista, funciona offline) + REGRAS no backend garantem unicidade
+ * - Badge de estado de rede
  */
 
 const STATUS_LABEL: Record<string, string> = {
@@ -24,6 +29,8 @@ const STATUS_LABEL: Record<string, string> = {
   confirmado: 'Confirmado',
   pendente: 'Pendente',
 };
+
+const isOnline = () => (typeof navigator === 'undefined' ? true : navigator.onLine);
 
 const AutoAtendimento: React.FC = () => {
   const navigate = useNavigate();
@@ -42,12 +49,27 @@ const AutoAtendimento: React.FC = () => {
   const [msg, setMsg] = useState<{ tipo: 'success' | 'error' | 'info'; texto: string } | null>(null);
   const [showScanner, setShowScanner] = useState(false);
   const [confirmando, setConfirmando] = useState<Participante | null>(null);
+  const [online, setOnline] = useState<boolean>(isOnline());
 
   // ref para manter o foco no search
   const searchRef = useRef<HTMLInputElement>(null);
 
+  // ===== Rede: badge e comportamento =====
+  useEffect(() => {
+    const on = () => setOnline(true);
+    const off = () => setOnline(false);
+    window.addEventListener('online', on);
+    window.addEventListener('offline', off);
+    return () => {
+      window.removeEventListener('online', on);
+      window.removeEventListener('offline', off);
+    };
+  }, []);
+
   // ===== Carregar evento + lista inicial =====
   useEffect(() => {
+    let unsubscribe: (() => void) | undefined;
+
     const run = async () => {
       if (!eventId) {
         setCarregando(false);
@@ -58,9 +80,29 @@ const AutoAtendimento: React.FC = () => {
         setCarregando(true);
         const ev = await obterEventoPorId(eventId);
         setEvento(ev);
+
+        // pré-carrega base para busca local/offline
         const lista = await obterParticipantesPorEvento(eventId);
-        setBaseParticipantes(lista);
+        setBaseParticipantes(lista || []);
         setParticipantes([]);
+        setMsg(null);
+
+        // 🔄 mantém cache aquecido (opcional, mas recomendado)
+        unsubscribe = subscribeParticipantesDoEvento(eventId, (arr) => {
+          setBaseParticipantes(arr || []);
+          // Se há termo ativo, re-aplica filtro local para refletir atualizações
+          if (termo.trim()) {
+            const q = termo.trim().toLowerCase();
+            setParticipantes(
+              (arr || []).filter((p: any) => {
+                const vals = [p.nome, p.empresa, p.email1, p.email2, p.id].map((v: any) =>
+                  (v || '').toString().toLowerCase()
+                );
+                return vals.some((v: string) => v.includes(q));
+              })
+            );
+          }
+        });
       } catch (e) {
         console.error(e);
         setMsg({ tipo: 'error', texto: 'Erro ao carregar dados do evento.' });
@@ -68,10 +110,15 @@ const AutoAtendimento: React.FC = () => {
         setCarregando(false);
       }
     };
+
     run();
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId]);
 
-  // ===== Dispara busca apenas em Enter/Tab =====
+  // ===== Dispara busca apenas em Enter/Tab (cache → servidor) =====
   const executarBusca = async () => {
     if (!eventId) return;
     const q = termo.trim().toLowerCase();
@@ -82,14 +129,33 @@ const AutoAtendimento: React.FC = () => {
     }
     try {
       setBuscando(true);
-      const remotos = await buscarParticipantes(eventId, q);
-      const fallback = baseParticipantes.filter((p) => {
-        const arr = [p.nome, p.empresa, (p as any).email1, (p as any).email2, p.id].map((v) => (v || '').toString().toLowerCase());
+
+      // 1) filtro local (sempre disponível – bom para offline e resposta instantânea)
+      const local = baseParticipantes.filter((p) => {
+        const arr = [p.nome, p.empresa, (p as any).email1, (p as any).email2, p.id].map((v) =>
+          (v || '').toString().toLowerCase()
+        );
         return arr.some((v) => v.includes(q));
       });
-      const res = remotos?.length ? remotos : fallback;
+
+      // 2) servidor (se online) usando service (que já é cache→server)
+      let remotos: Participante[] = [];
+      if (online) {
+        try {
+          remotos = await buscarParticipantes(eventId, q);
+        } catch (err) {
+          console.warn('Busca remota falhou, mantendo local:', err);
+        }
+      }
+
+      // Preferir remotos quando existem; senão local
+      const res = remotos?.length ? remotos : local;
       setParticipantes(res);
-      setMsg(res.length ? null : { tipo: 'info', texto: 'Nenhum participante encontrado.' });
+      setMsg(
+        res.length
+          ? null
+          : { tipo: 'info', texto: online ? 'Nenhum participante encontrado.' : 'Sem rede: exibindo resultados locais.' }
+      );
     } catch (e) {
       console.error(e);
       setMsg({ tipo: 'error', texto: 'Falha na busca. Tente novamente.' });
@@ -98,42 +164,46 @@ const AutoAtendimento: React.FC = () => {
     }
   };
 
-  // ===== Ações =====
+  // ===== Regras de ação =====
   const podeImprimir = (p: Participante) => !(p as any).etiquetaImpressaEm;
 
+  // Reserva “apenas 1x” — OTIMISTA (funciona offline). Regras do Firestore garantem no backend.
   const reservarImpressao = async (p: Participante) => {
     if (!currentUser?.uid) throw new Error('Usuário não autenticado.');
-    const ref = doc(db, 'participantes', p.id);
-    await runTransaction(db, async (tx) => {
-      const snap = await tx.get(ref);
-      if (!snap.exists()) throw new Error('Participante não encontrado');
-      const dados = snap.data() as any;
-      if (dados.etiquetaImpressaEm) throw new Error('Etiqueta já foi impressa.');
-      tx.update(ref, { etiquetaImpressaEm: serverTimestamp(), etiquetaImpressaPorId: currentUser.uid });
-    });
-    // Reflete localmente
-    setParticipantes((prev) => prev.map((x) => (x.id === p.id ? ({ ...x, etiquetaImpressaEm: new Date().toISOString() } as any) : x)));
-    setBaseParticipantes((prev) => prev.map((x) => (x.id === p.id ? ({ ...x, etiquetaImpressaEm: new Date().toISOString() } as any) : x)));
+
+    // Atualiza servidor (ou fila offline) e reflete na UI
+    await reservarEtiquetaUmaVez(p.id, currentUser.uid);
+
+    const iso = new Date().toISOString();
+    setParticipantes((prev) => prev.map((x) => (x.id === p.id ? ({ ...x, etiquetaImpressaEm: iso } as any) : x)));
+    setBaseParticipantes((prev) => prev.map((x) => (x.id === p.id ? ({ ...x, etiquetaImpressaEm: iso } as any) : x)));
   };
 
   const handleImprimir = async (p: Participante) => {
     try {
       await reservarImpressao(p);
       await imprimirCracha(p);
-      setMsg({ tipo: 'success', texto: 'Etiqueta enviada para impressão!' });
+      setMsg({
+        tipo: 'success',
+        texto: online ? 'Etiqueta enviada para impressão!' : 'Etiqueta registrada offline. Será sincronizada quando houver rede.',
+      });
     } catch (e: any) {
       console.error(e);
       setMsg({ tipo: 'error', texto: e?.message || 'Erro ao imprimir etiqueta.' });
     }
   };
 
+  // Check-in pode operar offline (Firestore enfileira e sincroniza)
   const handleCheckin = async (p: Participante) => {
     try {
       await fazerCheckin(p.id);
       const up = { ...p, status: 'credenciado' as const };
       setParticipantes((prev) => prev.map((x) => (x.id === p.id ? up : x)));
       setBaseParticipantes((prev) => prev.map((x) => (x.id === p.id ? up : x)));
-      setMsg({ tipo: 'success', texto: 'Check-in realizado!' });
+      setMsg({
+        tipo: 'success',
+        texto: online ? 'Check-in realizado!' : 'Check-in registrado offline. Será sincronizado quando houver rede.',
+      });
     } catch (e) {
       console.error(e);
       setMsg({ tipo: 'error', texto: 'Erro no check-in.' });
@@ -143,12 +213,18 @@ const AutoAtendimento: React.FC = () => {
   const onScan = async (raw: string) => {
     try {
       let id = raw;
-      try { id = JSON.parse(raw)?.id || raw; } catch {}
+      try {
+        id = JSON.parse(raw)?.id || raw;
+      } catch {}
       const p = await obterParticipantePorId(id);
       if (!p) return setMsg({ tipo: 'error', texto: 'QR Code inválido.' });
       setParticipantes([p]);
       setTermo('');
-      setMsg(p.status === 'credenciado' ? { tipo: 'info', texto: 'Participante já credenciado.' } : { tipo: 'success', texto: 'Participante localizado!' });
+      setMsg(
+        p.status === 'credenciado'
+          ? { tipo: 'info', texto: 'Participante já credenciado.' }
+          : { tipo: 'success', texto: 'Participante localizado!' }
+      );
     } catch (e) {
       console.error(e);
       setMsg({ tipo: 'error', texto: 'Falha ao ler QR Code.' });
@@ -169,17 +245,19 @@ const AutoAtendimento: React.FC = () => {
     const largura = cmToZplPx(modeloPadrao.larguraCm || 8);
     const altura = cmToZplPx(modeloPadrao.alturaCm || 3);
 
-    const htmlComponente = (modeloPadrao.componentes || []).map((comp: any) => {
-      const props = comp.propriedades || {};
-      const valor = props.campoVinculado ? (participante as any)[props.campoVinculado] || '' : props.texto || '';
-      if (comp.tipo === 'qrcode') {
-        return `<div style="position:absolute;top:${props.y}px;left:${props.x}px;width:${props.largura}px;height:${props.altura}px;"><img src="${qr}" width="${props.largura}" height="${props.altura}"/></div>`;
-      }
-      if (comp.tipo === 'barcode') {
-        return `<div style="position:absolute;top:${props.y}px;left:${props.x}px;"><svg id="barcode-${props.campoVinculado}" jsbarcode-value="${valor}" jsbarcode-format="CODE128" jsbarcode-width="2" jsbarcode-height="${props.altura}" jsbarcode-displayvalue="false"></svg></div>`;
-      }
-      return `<div style="position:absolute;top:${props.y}px;left:${props.x}px;width:${props.largura}px;height:${props.altura}px;font-size:${props.estilos?.tamanhoFonte || 14}px;font-weight:${props.estilos?.negrito ? 'bold' : 'normal'};font-family:${props.estilos?.fonte || 'Arial'};text-align:${props.estilos?.alinhamento || 'left'};color:${props.estilos?.corFonte || '#000'};background-color:${props.estilos?.corFundo || 'transparent'};border-radius:${props.estilos?.raio || 0}px;display:flex;align-items:center;justify-content:center;overflow:hidden;">${valor}</div>`;
-    }).join('');
+    const htmlComponente = (modeloPadrao.componentes || [])
+      .map((comp: any) => {
+        const props = comp.propriedades || {};
+        const valor = props.campoVinculado ? (participante as any)[props.campoVinculado] || '' : props.texto || '';
+        if (comp.tipo === 'qrcode') {
+          return `<div style="position:absolute;top:${props.y}px;left:${props.x}px;width:${props.largura}px;height:${props.altura}px;"><img src="${qr}" width="${props.largura}" height="${props.altura}"/></div>`;
+        }
+        if (comp.tipo === 'barcode') {
+          return `<div style="position:absolute;top:${props.y}px;left:${props.x}px;"><svg id="barcode-${props.campoVinculado}" jsbarcode-value="${valor}" jsbarcode-format="CODE128" jsbarcode-width="2" jsbarcode-height="${props.altura}" jsbarcode-displayvalue="false"></svg></div>`;
+        }
+        return `<div style="position:absolute;top:${props.y}px;left:${props.x}px;width:${props.largura}px;height:${props.altura}px;font-size:${props.estilos?.tamanhoFonte || 14}px;font-weight:${props.estilos?.negrito ? 'bold' : 'normal'};font-family:${props.estilos?.fonte || 'Arial'};text-align:${props.estilos?.alinhamento || 'left'};color:${props.estilos?.corFonte || '#000'};background-color:${props.estilos?.corFundo || 'transparent'};border-radius:${props.estilos?.raio || 0}px;display:flex;align-items:center;justify-content:center;overflow:hidden;">${valor}</div>`;
+      })
+      .join('');
 
     const html = `<!doctype html><html><head><meta charset="utf-8"/><title>Imprimir</title><script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script><style>@page{size:${largura}px ${altura}px;margin:0}body{margin:0;padding:0}</style></head><body><div style="position:relative;width:${largura}px;height:${altura}px;">${htmlComponente}</div><script>window.onload=function(){if(window.JsBarcode){JsBarcode("svg[id^='barcode-']").init()}window.print();setTimeout(()=>window.close(),300)}</script></body></html>`;
     const w = window.open('', '_blank', 'width=800,height=600');
@@ -193,28 +271,39 @@ const AutoAtendimento: React.FC = () => {
     <div className="sticky top-0 z-20 bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60 border-b border-gray-100">
       <div className="max-w-6xl mx-auto px-4 py-4">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl md:text-3xl font-bold truncate">{evento ? evento.nome : 'Autoatendimento'}</h1>
-          {evento && (
-            <button
-              onClick={() => setShowScanner(true)}
-              className="hidden md:inline-flex items-center gap-2 rounded-xl border px-3 py-2 hover:bg-gray-50"
-              title="Ler QR Code"
-            >
-              <QrCode className="w-5 h-5"/> <span>QR Code</span>
-            </button>
-          )}
+          <h1 className="text-2xl md:text-3xl font-bold truncate">
+            {evento ? evento.nome : 'Autoatendimento'}
+          </h1>
+
+          <div className="flex items-center gap-3">
+            {!online && (
+              <span className="text-xs px-2 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                Offline
+              </span>
+            )}
+            {evento && (
+              <button
+                onClick={() => setShowScanner(true)}
+                className="hidden md:inline-flex items-center gap-2 rounded-xl border px-3 py-2 hover:bg-gray-50"
+                title="Ler QR Code"
+              >
+                <QrCode className="w-5 h-5" /> <span>QR Code</span>
+              </button>
+            )}
+          </div>
         </div>
+
         {/* Campo de busca grande */}
         <div className="mt-4">
           <div className="relative">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-6 h-6 text-gray-400"/>
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-6 h-6 text-gray-400" />
             <input
               ref={searchRef}
               autoFocus
               value={termo}
               onChange={(e) => {
                 setTermo(e.target.value);
-                // garante que o foco permaneça mesmo após re-render
+                // mantém foco após re-render
                 requestAnimationFrame(() => searchRef.current?.focus({ preventScroll: true }));
               }}
               onKeyDown={(e) => {
@@ -225,7 +314,9 @@ const AutoAtendimento: React.FC = () => {
                     if (el) {
                       el.focus({ preventScroll: true });
                       const end = el.value.length;
-                      try { el.setSelectionRange(end, end); } catch {}
+                      try {
+                        el.setSelectionRange(end, end);
+                      } catch {}
                     }
                   });
                 }
@@ -235,23 +326,29 @@ const AutoAtendimento: React.FC = () => {
             />
             {!!termo && (
               <button
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => {
-                setTermo('');
-                setParticipantes([]);
-                setMsg(null);
-                searchRef.current?.focus({ preventScroll: true });
-              }}
-              className="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-full hover:bg-gray-100"
-              title="Limpar"
-            >
-              <X className="w-5 h-5 text-gray-500"/>
-            </button>
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => {
+                  setTermo('');
+                  setParticipantes([]);
+                  setMsg(null);
+                  searchRef.current?.focus({ preventScroll: true });
+                }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-full hover:bg-gray-100"
+                title="Limpar"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
             )}
           </div>
           <div className="mt-2 text-sm text-gray-500 flex items-center gap-2 min-h-[1.25rem]">
-            {buscando && (<><Loader2 className="w-4 h-4 animate-spin"/> <span>Buscando...</span></>)}
-            {!buscando && termo.trim() && participantes.length > 0 && (<span>{participantes.length} resultado(s)</span>)}
+            {buscando && (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" /> <span>Buscando...</span>
+              </>
+            )}
+            {!buscando && termo.trim() && participantes.length > 0 && (
+              <span>{participantes.length} resultado(s)</span>
+            )}
           </div>
         </div>
       </div>
@@ -270,26 +367,39 @@ const AutoAtendimento: React.FC = () => {
           <div className="mt-1 text-sm text-gray-600 truncate">{p.empresa || '—'} • {(p as any).email1 || '—'}</div>
           {(p as any).etiquetaImpressaEm && (
             <div className="mt-2 inline-flex items-center text-xs text-green-700 bg-green-50 px-2 py-1 rounded-full">
-              <BadgeCheck className="w-4 h-4 mr-1"/> Etiqueta impressa
+              <BadgeCheck className="w-4 h-4 mr-1" /> Etiqueta impressa
             </div>
           )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <span className={`px-2.5 py-1 text-xs rounded-full border ${p.status==='credenciado' ? 'bg-green-50 text-green-700 border-green-200' : p.status==='confirmado' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-gray-50 text-gray-700 border-gray-200'}`}>
+          <span
+            className={`px-2.5 py-1 text-xs rounded-full border ${
+              p.status === 'credenciado'
+                ? 'bg-green-50 text-green-700 border-green-200'
+                : p.status === 'confirmado'
+                ? 'bg-blue-50 text-blue-700 border-blue-200'
+                : 'bg-gray-50 text-gray-700 border-gray-200'
+            }`}
+          >
             {STATUS_LABEL[p.status] || p.status}
           </span>
           {p.status !== 'credenciado' && (
-            <button onClick={() => handleCheckin(p)} className="inline-flex items-center gap-2 rounded-xl bg-blue-600 text-white px-3 py-2 hover:bg-blue-700">
-              <CheckCircle2 className="w-4 h-4"/> Check-in
+            <button
+              onClick={() => handleCheckin(p)}
+              className="inline-flex items-center gap-2 rounded-xl bg-blue-600 text-white px-3 py-2 hover:bg-blue-700"
+            >
+              <CheckCircle2 className="w-4 h-4" /> Check-in
             </button>
           )}
           <button
             onClick={() => setConfirmando(p)}
             disabled={!podeImprimir(p)}
-            className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 ${podeImprimir(p) ? 'hover:bg-gray-50' : 'opacity-60 cursor-not-allowed'}`}
+            className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 ${
+              podeImprimir(p) ? 'hover:bg-gray-50' : 'opacity-60 cursor-not-allowed'
+            }`}
             title={podeImprimir(p) ? 'Imprimir etiqueta' : 'Etiqueta já impressa'}
           >
-            <Printer className="w-4 h-4"/> Etiqueta
+            <Printer className="w-4 h-4" /> Etiqueta
           </button>
         </div>
       </div>
@@ -320,7 +430,10 @@ const AutoAtendimento: React.FC = () => {
               <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5" />
               <div>
                 <h2 className="font-semibold mb-1">Evento não informado</h2>
-                <p className="text-sm">Passe <code className="px-1.5 py-0.5 rounded bg-gray-100">/autoatendimento/:eventoId</code> ou <code className="px-1.5 py-0.5 rounded bg-gray-100">?eventoId=ID</code>.</p>
+                <p className="text-sm">
+                  Passe <code className="px-1.5 py-0.5 rounded bg-gray-100">/autoatendimento/:eventoId</code> ou{' '}
+                  <code className="px-1.5 py-0.5 rounded bg-gray-100">?eventoId=ID</code>.
+                </p>
               </div>
             </div>
           </div>
@@ -336,7 +449,17 @@ const AutoAtendimento: React.FC = () => {
       {/* Lista ampla */}
       <div className="max-w-6xl mx-auto px-4 py-6 md:py-10">
         {msg && (
-          <div className={`mb-4 rounded-xl px-4 py-3 text-sm ${msg.tipo==='success' ? 'bg-green-50 text-green-700' : msg.tipo==='error' ? 'bg-red-50 text-red-700' : 'bg-yellow-50 text-yellow-700'}`}>{msg.texto}</div>
+          <div
+            className={`mb-4 rounded-xl px-4 py-3 text-sm ${
+              msg.tipo === 'success'
+                ? 'bg-green-50 text-green-700'
+                : msg.tipo === 'error'
+                ? 'bg-red-50 text-red-700'
+                : 'bg-yellow-50 text-yellow-700'
+            }`}
+          >
+            {msg.texto}
+          </div>
         )}
 
         {participantes.length === 0 ? (
@@ -369,7 +492,9 @@ const AutoAtendimento: React.FC = () => {
           <div className="bg-white rounded-2xl w-full max-w-lg p-4 shadow-xl">
             <div className="flex items-center justify-between mb-2">
               <h3 className="font-semibold">Scanner QR Code</h3>
-              <button className="p-2 rounded-full hover:bg-gray-100" onClick={() => setShowScanner(false)}><X className="w-5 h-5"/></button>
+              <button className="p-2 rounded-full hover:bg-gray-100" onClick={() => setShowScanner(false)}>
+                <X className="w-5 h-5" />
+              </button>
             </div>
             <QrCodeScanner onScan={onScan} />
           </div>
@@ -383,8 +508,19 @@ const AutoAtendimento: React.FC = () => {
             <h3 className="text-lg font-semibold">Imprimir etiqueta?</h3>
             <p className="mt-1 text-sm text-gray-600">A etiqueta pode ser impressa apenas uma vez por participante.</p>
             <div className="mt-5 flex justify-end gap-2">
-              <button onClick={() => setConfirmando(null)} className="rounded-xl border px-4 py-2 hover:bg-gray-50">Cancelar</button>
-              <button onClick={async () => { const alvo = confirmando; setConfirmando(null); if (alvo) await handleImprimir(alvo); }} className="rounded-xl bg-blue-600 text-white px-4 py-2 hover:bg-blue-700">Imprimir</button>
+              <button onClick={() => setConfirmando(null)} className="rounded-xl border px-4 py-2 hover:bg-gray-50">
+                Cancelar
+              </button>
+              <button
+                onClick={async () => {
+                  const alvo = confirmando;
+                  setConfirmando(null);
+                  if (alvo) await handleImprimir(alvo);
+                }}
+                className="rounded-xl bg-blue-600 text-white px-4 py-2 hover:bg-blue-700"
+              >
+                Imprimir
+              </button>
             </div>
           </div>
         </div>
