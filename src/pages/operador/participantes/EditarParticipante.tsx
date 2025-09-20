@@ -92,13 +92,15 @@ const EditarParticipante: React.FC = () => {
   const [sucesso, setSucesso] = useState('');
   const [participantesEvento, setParticipantesEvento] = useState<Participante[]>([]);
 
+  // Carrega dados do participante e lista de participantes do evento (para compor categorias e herança de cor)
   useEffect(() => {
     const carregarDados = async () => {
       if (!id || !eventoId) return;
 
       try {
         setLoading(true);
-        // Carrega participante
+
+        // Participante
         const ref = doc(db, 'participantes', id);
         const snap = await getDoc(ref);
         if (snap.exists()) {
@@ -112,18 +114,13 @@ const EditarParticipante: React.FC = () => {
           setErro('Participante não encontrado.');
         }
 
-        // Carrega todos os participantes do evento (para herdar cor da categoria)
+        // Todos os participantes do evento (para categorias/cor)
         const participantesRef = collection(db, 'participantes');
-        const snapshot = await getDocs(query(
-          participantesRef,
-          where('eventoId', '==', eventoId)
-        ));
+        const snapshot = await getDocs(query(participantesRef, where('eventoId', '==', eventoId)));
         const lista = snapshot.docs.map(d => ({ id: d.id, ...(d.data() as Participante) }));
-        // normaliza categoria para trabalhar localmente
-        setParticipantesEvento(lista.map(p => ({
-          ...p,
-          categoria: normalizeCategory(p.categoria || ''),
-        })));
+        setParticipantesEvento(
+          lista.map(p => ({ ...p, categoria: normalizeCategory(p.categoria || '') }))
+        );
       } catch (err) {
         console.error(err);
         setErro('Erro ao carregar dados.');
@@ -157,6 +154,7 @@ const EditarParticipante: React.FC = () => {
     return Array.from(setCats).sort((a, b) => a.localeCompare(b));
   }, [participantesEvento]);
 
+  // Handler igual ao da tela de Criar: categoria sempre MAIÚSCULO e herda cor existente (ou gera estável)
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
   ) => {
@@ -164,12 +162,8 @@ const EditarParticipante: React.FC = () => {
 
     if (name === 'categoria') {
       const upper = normalizeCategory(value);
-      const corExistente = categoriaColorMap[upper];
-      setForm(prev => ({
-        ...prev,
-        categoria: upper,
-        corCategoria: prev.corCategoria?.trim() ? prev.corCategoria : (corExistente || stableColorFromString(upper)),
-      }));
+      const cor = categoriaColorMap[upper] || stableColorFromString(upper);
+      setForm(prev => ({ ...prev, categoria: upper, corCategoria: cor }));
       return;
     }
 
@@ -189,25 +183,17 @@ const EditarParticipante: React.FC = () => {
     }
 
     try {
-      // Normaliza categoria e decide cor
       const categoriaUpper = normalizeCategory(form.categoria);
       let corCategoria = (form.corCategoria || '').trim();
 
-      // 1) Tenta herdar do mapa carregado
-      const corNoMapa = categoriaColorMap[categoriaUpper];
-      // 2) Se ainda não tiver, consulta novamente (defesa caso o mapa não tenha tudo atualizado)
-      if (!corNoMapa && !corCategoria) {
+      // Herda cor da categoria no evento, se ainda não definida
+      if (!corCategoria) {
         const participantesRef = collection(db, 'participantes');
-        const snapshot = await getDocs(query(
-          participantesRef,
-          where('eventoId', '==', eventoId)
-        ));
+        const snapshot = await getDocs(query(participantesRef, where('eventoId', '==', eventoId)));
         const corExistente = snapshot.docs
           .map(d => d.data() as Participante)
           .find(p => normalizeCategory(p.categoria || '') === categoriaUpper)?.corCategoria;
         corCategoria = corExistente || stableColorFromString(categoriaUpper);
-      } else if (!corCategoria) {
-        corCategoria = corNoMapa || stableColorFromString(categoriaUpper);
       }
 
       const ref = doc(db, 'participantes', id);
@@ -218,14 +204,12 @@ const EditarParticipante: React.FC = () => {
         atualizadoEm: new Date().toISOString(),
       });
 
-      toast.success(`Participante atualizado com sucesso!`);
+      toast.success('Participante atualizado com sucesso!');
       setSucesso('Participante atualizado com sucesso!');
 
       setTimeout(() => {
         if (from === 'painel-recepcao') {
-          navigate(`/recepcionista/painel/${eventoId}`, {
-            state: { participanteId: id }
-          });
+          navigate(`/recepcionista/painel/${eventoId}`, { state: { participanteId: id } });
         } else {
           navigate(`/operador/participantes?eventoId=${eventoId}`);
         }
@@ -241,17 +225,7 @@ const EditarParticipante: React.FC = () => {
   return (
     <LayoutDefault title="Editar Participante">
       <div className="mx-auto bg-white border p-6 rounded-md shadow-sm">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-semibold">Editar Participante</h2>
-          {/* Botão de atualizar no topo */}
-          <button
-            onClick={() => handleSubmit()}
-            disabled={loading}
-            className="bg-primary text-white px-4 py-2 rounded hover:bg-primary-dark disabled:opacity-50"
-          >
-            {loading ? 'Salvando...' : 'Atualizar'}
-          </button>
-        </div>
+        <h2 className="text-xl font-semibold mb-4">Editar Participante</h2>
 
         {erro && <div className="text-red-600 mb-4">{erro}</div>}
         {sucesso && <div className="text-green-600 mb-4">{sucesso}</div>}
@@ -260,112 +234,162 @@ const EditarParticipante: React.FC = () => {
           <p>Carregando...</p>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Campos do formulário */}
-            {Object.entries(form).map(([key, value]) => {
-              // Select do status permanece como select
-              if (key === 'status') {
-                return (
-                  <select
-                    key={key}
-                    name={key}
-                    value={value as string}
-                    onChange={handleChange}
-                    className="w-full border px-4 py-2 rounded"
-                  >
-                    <option value="pendente">Pendente</option>
-                    <option value="confirmado">Confirmado</option>
-                    <option value="credenciado">Credenciado</option>
-                    <option value="cancelado">Cancelado</option>
-                  </select>
-                );
-              }
+            {/* Campos principais (igual Criar) */}
+            <input
+              type="text"
+              name="nome"
+              placeholder="Nome"
+              value={form.nome}
+              onChange={handleChange}
+              className="w-full border px-4 py-2 rounded"
+              required
+            />
 
-              // Categoria passa a ser SELECT dinâmico (MAIÚSCULO e herda cor)
-              if (key === 'categoria') {
-                return (
-                  <div key={key}>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Categoria *
-                    </label>
-                    <select
-                      name="categoria"
-                      value={(value as string) || ''}
-                      onChange={handleChange}
-                      className="w-full border px-4 py-2 rounded uppercase"
-                      required
-                      defaultValue=""
-                    >
-                      <option value="" disabled>Selecione uma categoria</option>
-                      {categoriasEvento.map((cat) => (
-                        <option key={cat} value={cat}>{cat}</option>
-                      ))}
-                    </select>
-                    <p className="text-xs text-gray-500 mt-1">
-                      Será salva em MAIÚSCULO. Se já existir cor para essa categoria neste evento, ela será reutilizada automaticamente.
-                    </p>
-                  </div>
-                );
-              }
+            <input
+              type="text"
+              name="empresa"
+              placeholder="Empresa"
+              value={form.empresa}
+              onChange={handleChange}
+              className="w-full border px-4 py-2 rounded"
+            />
 
-              // Campo de cor com preview e dica
-              if (key === 'corCategoria') {
-                return (
-                  <div key={key} className="flex items-center gap-3">
-                    <div className="flex-1">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Cor da Categoria
-                      </label>
-                      <input
-                        type="text"
-                        name="corCategoria"
-                        placeholder="#RRGGBB ou hsl(...)"
-                        value={(value as string) || ''}
-                        onChange={handleChange}
-                        className="w-full border px-4 py-2 rounded"
-                      />
-                      <p className="text-xs text-gray-500 mt-1">
-                        Este valor pode ser sobrescrito automaticamente caso exista uma cor já usada pela mesma categoria.
-                      </p>
-                    </div>
-                    <div
-                      className="w-10 h-10 rounded border"
-                      title="Preview da cor"
-                      style={{ backgroundColor: (value as string) || '#ccc' }}
-                    />
-                  </div>
-                );
-              }
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <input
+                type="text"
+                name="nomeCracha"
+                placeholder="Nome no Crachá"
+                value={form.nomeCracha}
+                onChange={handleChange}
+                className="w-full border px-4 py-2 rounded"
+              />
+              <input
+                type="text"
+                name="empresaCracha"
+                placeholder="Empresa no Crachá"
+                value={form.empresaCracha}
+                onChange={handleChange}
+                className="w-full border px-4 py-2 rounded"
+              />
+            </div>
 
-              // Observação como textarea
-              if (key === 'observacao') {
-                return (
-                  <textarea
-                    key={key}
-                    name={key}
-                    placeholder="Observação"
-                    value={(value as string) || ''}
-                    onChange={handleChange}
-                    className="w-full border px-4 py-2 rounded"
-                    rows={3}
-                  />
-                );
-              }
+            <input
+              type="text"
+              name="cargo"
+              placeholder="Cargo"
+              value={form.cargo}
+              onChange={handleChange}
+              className="w-full border px-4 py-2 rounded"
+            />
 
-              // Demais campos como input texto
-              return (
-                <input
-                  key={key}
-                  type="text"
-                  name={key}
-                  placeholder={key.charAt(0).toUpperCase() + key.slice(1)}
-                  value={(value as string) ?? ''}
-                  onChange={handleChange}
-                  className="w-full border px-4 py-2 rounded"
-                />
-              );
-            })}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <input
+                type="email"
+                name="email1"
+                placeholder="Email principal"
+                value={form.email1}
+                onChange={handleChange}
+                className="w-full border px-4 py-2 rounded"
+                required
+              />
+              <input
+                type="email"
+                name="email2"
+                placeholder="Email alternativo"
+                value={form.email2}
+                onChange={handleChange}
+                className="w-full border px-4 py-2 rounded"
+              />
+            </div>
 
-            {/* Botão no final do form (mantido) */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <input
+                type="tel"
+                name="celular"
+                placeholder="Celular"
+                value={form.celular}
+                onChange={handleChange}
+                className="w-full border px-4 py-2 rounded"
+              />
+              <input
+                type="tel"
+                name="telefone"
+                placeholder="Telefone"
+                value={form.telefone}
+                onChange={handleChange}
+                className="w-full border px-4 py-2 rounded"
+              />
+            </div>
+
+            {/* CATEGORIA como SELECT dinâmico (sempre em CAIXA ALTA) */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Categoria *</label>
+              <select
+                name="categoria"
+                value={form.categoria}
+                onChange={handleChange}
+                className="w-full border px-4 py-2 rounded uppercase"
+                required
+                defaultValue=""
+              >
+                <option value="" disabled>Selecione uma categoria</option>
+                {categoriasEvento.map((cat) => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-500 mt-1">
+                A categoria é salva em MAIÚSCULO e herdará a cor usada no evento, quando existir.
+              </p>
+            </div>
+
+            {/* Status */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+              <select
+                name="status"
+                value={form.status}
+                onChange={handleChange}
+                className="w-full border px-4 py-2 rounded"
+              >
+                <option value="pendente">Pendente</option>
+                <option value="confirmado">Confirmado</option>
+                <option value="credenciado">Credenciado</option>
+                <option value="cancelado">Cancelado</option>
+              </select>
+            </div>
+
+            {/* Observação */}
+            <textarea
+              name="observacao"
+              placeholder="Observação"
+              value={form.observacao}
+              onChange={handleChange}
+              className="w-full border px-4 py-2 rounded"
+              rows={3}
+            />
+
+            {/* Documentos e códigos */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <input type="text" name="cpf" placeholder="CPF" value={form.cpf} onChange={handleChange} className="w-full border px-4 py-2 rounded" />
+              <input type="text" name="rg" placeholder="RG" value={form.rg} onChange={handleChange} className="w-full border px-4 py-2 rounded" />
+              <input type="text" name="cnpj" placeholder="CNPJ" value={form.cnpj} onChange={handleChange} className="w-full border px-4 py-2 rounded" />
+              <input type="text" name="codigoCliente" placeholder="Código Cliente" value={form.codigoCliente} onChange={handleChange} className="w-full border px-4 py-2 rounded" />
+            </div>
+
+            {/* Opções extras */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <input type="text" name="opcao1" placeholder="Opção 1" value={form.opcao1} onChange={handleChange} className="w-full border px-4 py-2 rounded" />
+              <input type="text" name="opcao2" placeholder="Opção 2" value={form.opcao2} onChange={handleChange} className="w-full border px-4 py-2 rounded" />
+              <input type="text" name="opcao3" placeholder="Opção 3" value={form.opcao3} onChange={handleChange} className="w-full border px-4 py-2 rounded" />
+              <input type="text" name="opcao4" placeholder="Opção 4" value={form.opcao4} onChange={handleChange} className="w-full border px-4 py-2 rounded" />
+              <input type="text" name="opcao5" placeholder="Opção 5" value={form.opcao5} onChange={handleChange} className="w-full border px-4 py-2 rounded" />
+              <input type="text" name="opcao6" placeholder="Opção 6" value={form.opcao6} onChange={handleChange} className="w-full border px-4 py-2 rounded" />
+              <input type="text" name="opcao7" placeholder="Opção 7" value={form.opcao7} onChange={handleChange} className="w-full border px-4 py-2 rounded" />
+              <input type="text" name="opcao8" placeholder="Opção 8" value={form.opcao8} onChange={handleChange} className="w-full border px-4 py-2 rounded" />
+              <input type="text" name="opcao9" placeholder="Opção 9" value={form.opcao9} onChange={handleChange} className="w-full border px-4 py-2 rounded" />
+              <input type="text" name="opcao10" placeholder="Opção 10" value={form.opcao10} onChange={handleChange} className="w-full border px-4 py-2 rounded" />
+            </div>
+
             <button
               type="submit"
               disabled={loading}
