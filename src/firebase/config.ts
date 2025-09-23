@@ -1,4 +1,3 @@
-// firebase.ts
 import { getApp, getApps, initializeApp } from 'firebase/app'
 import {
   initializeFirestore,
@@ -7,6 +6,7 @@ import {
   persistentSingleTabManager,
   memoryLocalCache,
   getFirestore,
+  connectFirestoreEmulator,
   disableNetwork,
   enableNetwork,
 } from 'firebase/firestore'
@@ -15,8 +15,9 @@ import {
   indexedDBLocalPersistence,
   browserLocalPersistence,
   getAuth,
+  connectAuthEmulator,
 } from 'firebase/auth'
-import { getStorage } from 'firebase/storage'
+import { getStorage, connectStorageEmulator } from 'firebase/storage'
 
 const app = getApps().length
   ? getApp()
@@ -32,23 +33,20 @@ const app = getApps().length
 // Firestore com cache persistente e fallbacks
 export const db = (() => {
   try {
-    // múltiplas abas compartilhando o cache (⚠ settings exigido)
     return initializeFirestore(app, {
       localCache: persistentLocalCache({
-        tabManager: persistentMultipleTabManager(), // <- passou {}
+        tabManager: persistentMultipleTabManager(),
         cacheSizeBytes: 100 * 1024 * 1024,
       }),
     })
   } catch {
     try {
-      // single tab (kiosk) (⚠ settings exigido)
       return initializeFirestore(app, {
         localCache: persistentLocalCache({
-          tabManager: persistentSingleTabManager({}), // <- passou {}
+          tabManager: persistentSingleTabManager({}),
         }),
       })
     } catch {
-      // memória (não persistente)
       return initializeFirestore(app, {
         localCache: memoryLocalCache(),
       })
@@ -72,3 +70,12 @@ export const storage = getStorage(app)
 // Helpers para simular offline/online
 export const goOffline = () => disableNetwork(db)
 export const goOnline = () => enableNetwork(db)
+
+// 🔹 Conectar emuladores se variável ativada
+if (import.meta.env.VITE_USE_EMULATORS === '1') {
+  console.log('🔥 Usando Firebase Emulators')
+
+  connectFirestoreEmulator(db, '127.0.0.1', 8080)
+  connectAuthEmulator(auth, 'http://127.0.0.1:9099')
+  connectStorageEmulator(storage, '127.0.0.1', 9199)
+}

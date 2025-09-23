@@ -8,6 +8,5 @@ export default defineConfig({
     exclude: ['lucide-react']
   },
   define: {
-    'crypto.hash': 'undefined' // <- patch sujo para evitar crash
   }
 });
