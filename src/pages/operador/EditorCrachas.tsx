@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo } from 'react';
+// EditorCrachas.tsx
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Save, Edit, Trash2, Upload } from 'lucide-react';
 import LayoutDefault from '../../components/layout/LayoutDefault';
@@ -11,15 +12,52 @@ import { obterModeloCrachaPorId, criarModeloCracha, atualizarModeloCracha } from
 import { useAuth } from '../../contexts/AuthContext';
 import { ComponenteEditor, Evento, ModeloCracha } from '../../models/types';
 import CrachaPreviewToPrint from './CrachaPreviewToPrint';
-import { getDocs, collection, query, where, deleteDoc, doc, updateDoc } from 'firebase/firestore'; // ⭐ import updateDoc
+import { getDocs, collection, query, where, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../firebase/config';
+
+const fontesDisponiveisPadrao = [
+  'Arial','Verdana','Times New Roman','Courier New','Georgia','Tahoma','Trebuchet MS'
+];
+
+// 🆕 helpers para fontes customizadas (persistência simples no navegador)
+const LS_KEY_FONTS = 'editorCrachas.customFonts'; // { [family]: dataURL }
+
+async function registerFont(family: string, dataUrl: string) {
+  // registra a fonte na sessão do browser
+  const font = new FontFace(family, `url(${dataUrl})`);
+  await font.load();
+  (document as any).fonts.add(font);
+}
+
+async function loadSavedFonts(): Promise<Record<string,string>> {
+  try {
+    const raw = localStorage.getItem(LS_KEY_FONTS);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveFont(family: string, dataUrl: string) {
+  const all = JSON.parse(localStorage.getItem(LS_KEY_FONTS) || '{}');
+  all[family] = dataUrl;
+  localStorage.setItem(LS_KEY_FONTS, JSON.stringify(all));
+}
+
+function fileToDataURL(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onload = () => resolve(String(fr.result));
+    fr.onerror = reject;
+    fr.readAsDataURL(file);
+  });
+}
 
 const camposParticipantePadrao = [
   'id','nome','empresa','nomeCracha','empresaCracha','cargo','email1','email2','celular','telefone','categoria','cpf','rg','cnpj','codigoCliente',
   'opcao1','opcao2','opcao3','opcao4','opcao5','opcao6','opcao7','opcao8','opcao9','opcao10','observacao'
 ];
 
-// 🔹 Helper: pega os 6 primeiros dígitos do CPF
 function getCpfPrefix(participante: any): string {
   if (!participante?.cpf) return '';
   const digits = participante.cpf.replace(/\D/g, '');
@@ -45,8 +83,6 @@ export const listarTodosModelosCracha = async (): Promise<ModeloCracha[]> => {
   }));
 };
 
-const fontesDisponiveisPadrao = ['Arial','Verdana','Times New Roman','Courier New','Georgia','Tahoma','Trebuchet MS'];
-
 function sanitizeObjeto(obj: any): any {
   if (Array.isArray(obj)) return obj.map(sanitizeObjeto);
   if (typeof obj === 'object' && obj !== null) {
@@ -59,10 +95,7 @@ function sanitizeObjeto(obj: any): any {
   return obj;
 }
 
-// ✅ Tipo correto para criação
 type ModeloCrachaCreate = Omit<ModeloCracha, 'id' | 'criadoEm' | 'atualizadoEm'>;
-
-// ✅ Tipo de retorno possível do criarModeloCracha (sem alterar o service)
 type CreateReturn = string | { id: string } | null | undefined;
 const hasId = (x: unknown): x is { id: string } =>
   typeof x === 'object' && x !== null && 'id' in (x as any) && typeof (x as any).id === 'string';
@@ -84,6 +117,9 @@ const EditorCrachas: React.FC = () => {
   const [modelosSalvos, setModelosSalvos] = useState<ModeloCracha[]>([]);
   const [fontesDisponiveis, setFontesDisponiveis] = useState<string[]>(fontesDisponiveisPadrao);
 
+  // 🆕 input escondido para upload de fonte
+  const fontInputRef = useRef<HTMLInputElement | null>(null);
+
   const cmToZplPx = (cm: number) => Math.round((cm / 2.54) * 203);
   const tamanhoCracha = modelo?.larguraCm && modelo?.alturaCm
     ? { largura: cmToZplPx(modelo.larguraCm), altura: cmToZplPx(modelo.alturaCm) }
@@ -92,11 +128,56 @@ const EditorCrachas: React.FC = () => {
   const [eventosDisponiveis, setEventosDisponiveis] = useState<Evento[]>([]);
   const [eventoSelecionadoId, setEventoSelecionadoId] = useState<string | null>(null);
 
-  // 🔹 Mapa id->nome para exibir nome do evento na tabela
   const eventosById = useMemo<Record<string, string>>(
     () => Object.fromEntries(eventosDisponiveis.map(ev => [ev.id, ev.nome])),
     [eventosDisponiveis]
   );
+
+  // 🆕 restaurar fontes salvas do localStorage
+  useEffect(() => {
+    (async () => {
+      const saved = await loadSavedFonts();
+      const families = Object.keys(saved);
+      if (families.length) {
+        for (const fam of families) {
+          try {
+            await registerFont(fam, saved[fam]);
+          } catch (e) {
+            console.warn('Falha ao registrar fonte salva:', fam, e);
+          }
+        }
+        setFontesDisponiveis(prev => Array.from(new Set([...prev, ...families])));
+      }
+    })();
+  }, []);
+
+  // 🆕 handler de upload de fonte
+  const onClickUploadFont = () => fontInputRef.current?.click();
+
+  const onChangeFontFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // permite re-selecionar o mesmo arquivo depois
+    if (!file) return;
+
+    const extOk = /\.(ttf|otf)$/i.test(file.name);
+    if (!extOk) {
+      setMensagem({ tipo: 'error', texto: 'Formato inválido. Envie .ttf ou .otf.' });
+      return;
+    }
+
+    try {
+      // nome da família = nome do arquivo sem extensão
+      const family = file.name.replace(/\.(ttf|otf)$/i, '');
+      const dataUrl = await fileToDataURL(file);
+      await registerFont(family, dataUrl);
+      saveFont(family, dataUrl);
+      setFontesDisponiveis(prev => Array.from(new Set([...prev, family])));
+      setMensagem({ tipo: 'success', texto: `Fonte "${family}" adicionada e pronta para uso.` });
+    } catch (err: any) {
+      console.error(err);
+      setMensagem({ tipo: 'error', texto: 'Falha ao carregar a fonte.' });
+    }
+  };
 
   useEffect(() => {
     const carregarModelos = async () => {
@@ -106,7 +187,6 @@ const EditorCrachas: React.FC = () => {
     carregarModelos();
   }, []);
 
-  // ⭐ ao trocar/selecionar evento: se houver modeloCrachaPadraoId, carrega esse modelo no editor/preview; senão cria temporário
   useEffect(() => {
     const carregarDados = async () => {
       if (!eventoSelecionadoId) return;
@@ -114,13 +194,12 @@ const EditorCrachas: React.FC = () => {
         const eventoDados = await obterEventoPorId(eventoSelecionadoId);
         if (eventoDados) {
           setEvento(eventoDados);
-          const camposPersonalizados = eventoDados.camposPersonalizados?.map(campo => campo.nome) || [];
+          const camposPersonalizados = eventoDados.camposPersonalizados?.map((c:any) => c.nome) || [];
           setCamposDisponiveis([...camposParticipantePadrao, ...camposPersonalizados]);
 
           const modeloPadraoId = (eventoDados as any)?.modeloCrachaPadraoId as string | undefined;
 
           if (modeloPadraoId) {
-            // ⭐ carrega o modelo padrão gravado no evento
             const modeloPadrao = await obterModeloCrachaPorId(modeloPadraoId);
             if (modeloPadrao) {
               setModeloId(modeloPadrao.id);
@@ -128,12 +207,10 @@ const EditorCrachas: React.FC = () => {
               setComponentes(modeloPadrao.componentes);
               setModelo(modeloPadrao);
             } else {
-              // fallback para temporário se não achar (excluído etc.)
               const modeloTemporario = criarModeloTemporario(eventoSelecionadoId, eventoDados, currentUser?.uid);
               hidratarTemporario(modeloTemporario);
             }
           } else {
-            // sem padrão definido ainda: gera temporário
             const modeloTemporario = criarModeloTemporario(eventoSelecionadoId, eventoDados, currentUser?.uid);
             hidratarTemporario(modeloTemporario);
           }
@@ -146,7 +223,6 @@ const EditorCrachas: React.FC = () => {
     carregarDados();
   }, [eventoSelecionadoId, currentUser]);
 
-  // helpers p/ temporário
   const criarModeloTemporario = (eventoId: string, eventoDados: any, userId?: string | null): ModeloCracha => ({
     id: '',
     eventoId,
@@ -192,9 +268,7 @@ const EditorCrachas: React.FC = () => {
     observacao:'Participante confirmado com credencial VIP'
   };
 
-  // 🔹 Garante 1 padrão por evento e associa evento ao modelo + já carrega no preview
   const definirModeloComoPadrao = async (modeloIdAlvo: string, eventoIdAlvo: string) => {
-    // 1) desmarca outros padrões do mesmo evento
     const modelosDoEvento = await listarModelosCrachaPorEvento(eventoIdAlvo);
     await Promise.all(
       modelosDoEvento
@@ -202,18 +276,12 @@ const EditorCrachas: React.FC = () => {
         .map(m => atualizarModeloCracha(m.id, { padrao: false }))
     );
 
-    // 2) marca este como padrão
     await atualizarModeloCracha(modeloIdAlvo, { padrao: true, eventoId: eventoIdAlvo });
+    await updateDoc(doc(db, 'eventos', eventoIdAlvo), { modeloCrachaPadraoId: modeloIdAlvo });
 
-    // 3) grava no documento do evento o id do modelo padrão
-    //    (ajuste o nome da coleção 'eventos' se na sua estrutura for diferente)
-    await updateDoc(doc(db, 'eventos', eventoIdAlvo), { modeloCrachaPadraoId: modeloIdAlvo }); // ⭐
-
-    // 4) recarrega tabela de modelos (para refletir badge de padrão)
     const atualizados = await listarTodosModelosCracha();
     setModelosSalvos(atualizados);
 
-    // 5) carrega o modelo no editor/preview imediatamente
     const modeloPadrao = await obterModeloCrachaPorId(modeloIdAlvo);
     if (modeloPadrao) {
       setModeloId(modeloPadrao.id);
@@ -223,7 +291,6 @@ const EditorCrachas: React.FC = () => {
     }
   };
 
-  // ✅ Create: monta payload COMPLETO (sem id/criadoEm/atualizadoEm)
   const montarPayloadModeloCreate = (): ModeloCrachaCreate => {
     if (!eventoSelecionadoId) throw new Error('Selecione um evento antes de salvar.');
     const nomeSeguro = (nomeModelo || '').trim() || 'Modelo sem nome';
@@ -234,12 +301,10 @@ const EditorCrachas: React.FC = () => {
       larguraCm: modelo?.larguraCm ?? 8,
       alturaCm: modelo?.alturaCm ?? 3,
       criadoPorId: currentUser?.uid || '',
-      // remova se seu tipo não tiver essa chave:
       padrao: false,
     } as ModeloCrachaCreate;
   };
 
-  // ✅ Update: parcial
   const montarPayloadModeloUpdate = (): Partial<ModeloCracha> => {
     if (!eventoSelecionadoId) throw new Error('Selecione um evento antes de atualizar.');
     const nomeSeguro = (nomeModelo || '').trim() || 'Modelo sem nome';
@@ -310,7 +375,38 @@ const EditorCrachas: React.FC = () => {
         </div>
       )}
 
-      {/* 🔹 Seleção de Evento (acima dos campos) */}
+      {/* 🔹 Upload de fonte .ttf/.otf */}
+      <div className="bg-white p-4 rounded-lg shadow-sm mb-6">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-semibold">Fontes disponíveis no editor</p>
+            <p className="text-xs text-gray-500">
+              Padrões: {fontesDisponiveisPadrao.join(', ')}. &nbsp;
+              Customizadas: {fontesDisponiveis.filter(f => !fontesDisponiveisPadrao.includes(f)).join(', ') || '—'}
+            </p>
+          </div>
+          <div>
+            <input
+              ref={fontInputRef}
+              type="file"
+              accept=".ttf,.otf"
+              className="hidden"
+              onChange={onChangeFontFile}
+            />
+            <button
+              type="button"
+              onClick={onClickUploadFont}
+              className="inline-flex items-center px-3 py-2 rounded-md text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-700"
+              title="Enviar arquivo de fonte (.ttf/.otf) para usar no editor"
+            >
+              <Upload size={16} className="mr-2" />
+              Adicionar Fonte (.ttf/.otf)
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* 🔹 Seleção de Evento */}
       <div className="bg-white p-4 rounded-lg shadow-sm mb-6">
         <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
           <div className="w-full md:w-2/3">
@@ -343,7 +439,6 @@ const EditorCrachas: React.FC = () => {
             </p>
           </div>
 
-          {/* Resumo rápido do evento selecionado (opcional) */}
           <div className="w-full md:w-1/3 bg-gray-50 border border-gray-200 rounded-md p-3">
             <p className="text-xs uppercase tracking-wide text-gray-500">Resumo do Evento</p>
             {evento ? (
@@ -415,7 +510,7 @@ const EditorCrachas: React.FC = () => {
             onSave={setComponentes}
             tamanhoCracha={tamanhoCracha}
             camposDisponiveis={camposDisponiveis}
-            fontesDisponiveis={fontesDisponiveis}
+            fontesDisponiveis={fontesDisponiveis} // 👈 inclui as fontes customizadas
           />
         </div>
         <div className="bg-white p-4 rounded-lg shadow-sm">
@@ -435,6 +530,15 @@ const EditorCrachas: React.FC = () => {
               {componentes.map((comp) => {
                 const props = comp.propriedades as any;
                 const cpfPrefix = getCpfPrefix(participanteExemplo);
+                const content = comp.tipo==='qrcode'
+                  ? <QRCode value={cpfPrefix} size={props.altura}/>
+                  : comp.tipo==='barcode'
+                    ? <Barcode value={cpfPrefix} width={1} height={props.altura||40} displayValue={false} background="transparent"/>
+                    : (props.campoVinculado ? (participanteExemplo as any)[props.campoVinculado] || '' : props.texto || '');
+
+                // 🆕 aplica family se existir em estilos.fonte
+                const family = props?.estilos?.fonte ? String(props.estilos.fonte) : undefined;
+
                 return (
                   <div
                     key={comp.id}
@@ -446,16 +550,11 @@ const EditorCrachas: React.FC = () => {
                       height:props.altura,
                       display:'flex',
                       alignItems:'center',
-                      justifyContent:'center'
+                      justifyContent:'center',
+                      fontFamily: family
                     }}
                   >
-                    {comp.tipo==='qrcode' ? (
-                      <QRCode value={cpfPrefix} size={props.altura}/>
-                    ) : comp.tipo==='barcode' ? (
-                      <Barcode value={cpfPrefix} width={1} height={props.altura||40} displayValue={false} background="transparent"/>
-                    ) : (
-                      props.campoVinculado ? (participanteExemplo as any)[props.campoVinculado] || '' : props.texto || ''
-                    )}
+                    {content}
                   </div>
                 );
               })}
@@ -502,7 +601,7 @@ const EditorCrachas: React.FC = () => {
                           }
                           try{
                             await definirModeloComoPadrao(m.id, eventoSelecionadoId);
-                            setMensagem({tipo:'success',texto:'Modelo definido como padrão e carregado no preview.'}); // ⭐ feedback
+                            setMensagem({tipo:'success',texto:'Modelo definido como padrão e carregado no preview.'});
                           }catch(err){
                             console.error(err);
                             setMensagem({tipo:'error',texto:'Erro ao definir modelo padrão para o evento.'});
@@ -520,7 +619,7 @@ const EditorCrachas: React.FC = () => {
                             setModeloId(m.id);
                             setNomeModelo(modeloCompleto.nome);
                             setComponentes(modeloCompleto.componentes);
-                            setModelo(modeloCompleto); // ⭐ garante preview correto
+                            setModelo(modeloCompleto);
                             setMensagem({tipo:'success',texto:`Modelo "${modeloCompleto.nome}" carregado para edição.`});
                           }
                         }catch(err){console.error(err);setMensagem({tipo:'error',texto:'Erro ao carregar modelo.'});}}}
