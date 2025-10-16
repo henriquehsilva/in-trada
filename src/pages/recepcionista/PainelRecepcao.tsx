@@ -24,7 +24,7 @@ import { doc, updateDoc, getDoc } from 'firebase/firestore';
 import { db } from '../../firebase/config';
 import JsBarcode from 'jsbarcode';
 
-// ===================== Helpers & Types =====================
+/* ===================== Helpers & Types ===================== */
 
 type Usuario = {
   role?: string;
@@ -37,14 +37,49 @@ const normalizeCategory = (s: string) => (s || '').trim().toUpperCase();
 const stableColorFromString = (str: string) => {
   if (!str) return '#cccccc';
   let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    hash = str.charCodeAt(i) + ((hash << 5) - hash);
-  }
+  for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);
   const hue = Math.abs(hash) % 360;
   return `hsl(${hue}, 55%, 75%)`;
 };
 
-// ===================== Componente =====================
+/* ====== Impressão: suporte a fontes customizadas carregadas no Editor ====== */
+
+const LS_KEY_FONTS = 'editorCrachas.customFonts'; // { [family]: dataURL }
+const STD_FONTS = new Set([
+  'Arial','Verdana','Times New Roman','Courier New','Georgia','Tahoma','Trebuchet MS',
+  'sans-serif','serif','monospace'
+]);
+
+function getUsedFontFamilies(componentes: any[]): string[] {
+  const set = new Set<string>();
+  for (const c of componentes) {
+    const fam = c?.propriedades?.estilos?.fonte;
+    if (fam && typeof fam === 'string') set.add(fam);
+  }
+  return Array.from(set);
+}
+
+function buildFontFaceCSS(usedFamilies: string[]): string {
+  const saved = JSON.parse(localStorage.getItem(LS_KEY_FONTS) || '{}') as Record<string,string>;
+  const faces: string[] = [];
+  for (const fam of usedFamilies) {
+    if (STD_FONTS.has(fam)) continue;
+    const dataUrl = saved[fam];
+    if (!dataUrl) continue;
+    const fmt = dataUrl.includes('font/otf') || /\.otf/i.test(dataUrl) ? 'opentype' : 'truetype';
+    faces.push(`
+@font-face{
+  font-family:'${fam}';
+  src:url('${dataUrl}') format('${fmt}');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}`);
+  }
+  return faces.join('\n');
+}
+
+/* ===================== Componente ===================== */
 
 const PainelRecepcao: React.FC = () => {
   const navigate = useNavigate();
@@ -63,12 +98,11 @@ const PainelRecepcao: React.FC = () => {
 
   // ====== Refs novo participante ======
   const nomeRef = useRef<HTMLInputElement>(null);
-  const nomeCrachaRef = useRef<HTMLInputElement>(null); // NOVO
+  const nomeCrachaRef = useRef<HTMLInputElement>(null);
   const empresaRef = useRef<HTMLInputElement>(null);
-  const cargoRef = useRef<HTMLInputElement>(null); // NOVO
+  const cargoRef = useRef<HTMLInputElement>(null);
   const emailRef = useRef<HTMLInputElement>(null);
   const telefoneRef = useRef<HTMLInputElement>(null);
-  // categoria é SELECT
   const categoriaSelectRef = useRef<HTMLSelectElement>(null);
 
   const [categoriaCor, setCategoriaCor] = useState<string>('');
@@ -86,9 +120,7 @@ const PainelRecepcao: React.FC = () => {
       if (!currentUser?.uid) return;
       const docRef = doc(db, 'usuarios', currentUser.uid);
       const snap = await getDoc(docRef);
-      if (snap.exists()) {
-        setUsuario(snap.data() as Usuario);
-      }
+      if (snap.exists()) setUsuario(snap.data() as Usuario);
     };
     carregarUsuario();
   }, [currentUser]);
@@ -167,11 +199,7 @@ const PainelRecepcao: React.FC = () => {
       setLoading(true);
       const resultados = await buscarParticipantes(eventoId, termoBusca);
       setParticipantes(resultados.map((p) => ({ ...p, categoria: normalizeCategory(p.categoria) })));
-      if (resultados.length === 0) {
-        setMensagem({ tipo: 'info', texto: 'Nenhum participante encontrado. Deseja cadastrar um novo?' });
-      } else {
-        setMensagem(null);
-      }
+      setMensagem(resultados.length === 0 ? { tipo: 'info', texto: 'Nenhum participante encontrado. Deseja cadastrar um novo?' } : null);
     } catch (err) {
       console.error('Erro ao buscar participantes:', err);
       setMensagem({ tipo: 'error', texto: 'Erro ao buscar participantes. Tente novamente.' });
@@ -186,18 +214,16 @@ const PainelRecepcao: React.FC = () => {
       try {
         const jsonData = JSON.parse(data);
         participanteId = jsonData.id || data;
-      } catch {
-        // dado não JSON, segue como está
-      }
+      } catch { /* dado não JSON */ }
       const participante = await obterParticipantePorId(participanteId);
       if (participante) {
         setParticipanteSelecionado({ ...participante, categoria: normalizeCategory(participante.categoria) });
         setShowQrScanner(false);
-        if (participante.status === 'credenciado') {
-          setMensagem({ tipo: 'info', texto: 'Participante já realizou check-in anteriormente.' });
-        } else {
-          setMensagem({ tipo: 'success', texto: 'Participante encontrado! Realize o check-in.' });
-        }
+        setMensagem(
+          participante.status === 'credenciado'
+            ? { tipo: 'info', texto: 'Participante já realizou check-in anteriormente.' }
+            : { tipo: 'success', texto: 'Participante encontrado! Realize o check-in.' }
+        );
       } else {
         setMensagem({ tipo: 'error', texto: 'Participante não encontrado com este QR Code.' });
       }
@@ -209,10 +235,7 @@ const PainelRecepcao: React.FC = () => {
 
   const handleSelectParticipante = (participante: Participante) => {
     setParticipanteSelecionado({ ...participante, categoria: normalizeCategory(participante.categoria) });
-    setMensagem(null);
-    if ((participante as any).observacao?.trim()) {
-      setMensagem({ tipo: 'info', texto: `Observação: ${(participante as any).observacao}` });
-    }
+    setMensagem((participante as any).observacao?.trim() ? { tipo: 'info', texto: `Observação: ${(participante as any).observacao}` } : null);
   };
 
   const handleCheckin = async () => {
@@ -248,6 +271,7 @@ const PainelRecepcao: React.FC = () => {
     await updateDoc(ref, updatePayload);
   };
 
+  /* ===================== IMPRESSÃO (corrigido) ===================== */
   const handlePrintCredencial = async () => {
     if (!participanteSelecionado || !evento) return;
     try {
@@ -257,66 +281,80 @@ const PainelRecepcao: React.FC = () => {
         setMensagem({ tipo: 'error', texto: 'Nenhum modelo de crachá padrão definido para este evento.' });
         return;
       }
-      const qrCodeDataUrl = await QRCode.toDataURL(JSON.stringify(participanteSelecionado));
+
+      // ✅ Usa codigoCliente (fallback id) no QR e no barcode
+      const qrValue = (participanteSelecionado as any)?.codigoCliente || participanteSelecionado.id;
+      const qrCodeDataUrl = await QRCode.toDataURL(String(qrValue));
+
       const cmToZplPx = (cm: number) => Math.round((cm / 2.54) * 203);
       const largura = cmToZplPx(modeloPadrao.larguraCm || 8);
-      const altura = cmToZplPx(modeloPadrao.alturaCm || 3);
+      const altura  = cmToZplPx(modeloPadrao.alturaCm || 3);
+
+      // 🔤 fontes usadas & CSS @font-face com dataURL do LocalStorage
+      const usedFamilies = getUsedFontFamilies(modeloPadrao.componentes);
+      const fontFaceCSS  = buildFontFaceCSS(usedFamilies);
 
       const htmlComponente = modeloPadrao.componentes
         .map((comp) => {
-          const props = comp.propriedades;
+          const props: any = comp.propriedades || {};
+          const estilos: any = props.estilos || {};
           const valor = props.campoVinculado
-            ? (participanteSelecionado as any)[props.campoVinculado as keyof typeof participanteSelecionado] || ''
-            : props.texto || '';
+            ? (participanteSelecionado as any)[props.campoVinculado] ?? ''
+            : (props.texto ?? '');
+
+          const baseStyle = `
+            position:absolute; top:${props.y}px; left:${props.x}px;
+            width:${props.largura}px; height:${props.altura}px;
+            display:flex; align-items:center; justify-content:center; overflow:hidden;
+            ${estilos?.tamanhoFonte ? `font-size:${estilos.tamanhoFonte}px;` : ''}
+            ${estilos?.negrito ? 'font-weight:bold;' : ''}
+            ${estilos?.alinhamento ? `text-align:${estilos.alinhamento};` : ''}
+            ${estilos?.corFonte ? `color:${estilos.corFonte};` : ''}
+            ${estilos?.corFundo ? `background-color:${estilos.corFundo};` : ''}
+            ${estilos?.raio ? `border-radius:${estilos.raio}px;` : ''}
+            ${estilos?.fonte ? `font-family:'${String(estilos.fonte)}', ${STD_FONTS.has(estilos.fonte) ? estilos.fonte : 'sans-serif'};` : ''}
+          `;
 
           if (comp.tipo === 'qrcode') {
             return `
-            <div style="position:absolute; top:${props.y}px; left:${props.x}px; width:${props.largura}px; height:${props.altura}px;">
-              <img src="${qrCodeDataUrl}" width="${props.largura}" height="${props.altura}" />
-            </div>
-          `;
+              <div style="${baseStyle}">
+                <img src="${qrCodeDataUrl}" width="${props.largura}" height="${props.altura}" />
+              </div>
+            `;
           }
 
           if (comp.tipo === 'barcode') {
+            const idSvg = `barcode-${comp.id}`;
             return `
-            <div style="position:absolute; top:${props.y}px; left:${props.x}px;">
-              <svg id="barcode-${props.campoVinculado}"
-                  jsbarcode-value="${valor}"
-                  jsbarcode-format="CODE128"
-                  jsbarcode-width="2"
-                  jsbarcode-height="${props.altura}"
-                  jsbarcode-displayvalue="false">
-              </svg>
-            </div>
-          `;
+              <div style="${baseStyle}">
+                <svg id="${idSvg}"
+                    jsbarcode-value="${String(qrValue)}"
+                    jsbarcode-format="CODE128"
+                    jsbarcode-width="2"
+                    jsbarcode-height="${props.altura || 40}"
+                    jsbarcode-displayvalue="false">
+                </svg>
+              </div>
+            `;
           }
 
+          // texto/campo
           return `
-          <div style="
-            position:absolute; top:${props.y}px; left:${props.x}px;
-            width:${props.largura}px; height:${props.altura}px;
-            font-size:${props.estilos?.tamanhoFonte || 14}px;
-            font-weight:${props.estilos?.negrito ? 'bold' : 'normal'};
-            font-family:${props.estilos?.fonte || 'Arial'};
-            text-align:${props.estilos?.alinhamento || 'left'};
-            color:${props.estilos?.corFonte || '#000'};
-            background-color:${props.estilos?.corFundo || 'transparent'};
-            border-radius:${props.estilos?.raio || 0}px;
-            display:flex; align-items:center; justify-content:center; overflow:hidden;">
-            ${valor}
-          </div>
-        `;
+            <div style="${baseStyle}">${valor}</div>
+          `;
         })
         .join('');
 
       const html = `
         <html>
           <head>
+            <meta charset="utf-8" />
             <title>Imprimir Crachá</title>
             <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
             <style>
               @page { size: ${largura}px ${altura}px; margin: 0; }
-              body { margin: 0; padding: 0; }
+              html, body { margin: 0; padding: 0; }
+              ${fontFaceCSS}
             </style>
           </head>
           <body>
@@ -324,24 +362,35 @@ const PainelRecepcao: React.FC = () => {
               ${htmlComponente}
             </div>
             <script>
-              window.onload = function () {
-                if (typeof JsBarcode !== 'undefined') {
-                  JsBarcode("svg[id^='barcode-']").init();
-                } else {
-                  console.error('JsBarcode não carregado!');
+              (async function(){
+                try {
+                  if (document.fonts && document.fonts.ready) {
+                    await document.fonts.ready;
+                  }
+                  await new Promise(r => setTimeout(r, 120)); // pequeno atraso ajuda no Chrome
+                  if (typeof JsBarcode !== 'undefined') {
+                    JsBarcode("svg[id^='barcode-']").init();
+                  }
+                  await new Promise(r => setTimeout(r, 50));
+                  window.print();
+                  setTimeout(() => window.close(), 300);
+                } catch(e) {
+                  console.error('print error', e);
+                  window.print();
+                  setTimeout(() => window.close(), 500);
                 }
-                window.print();
-                setTimeout(() => window.close(), 300);
-              };
+              })();
             </script>
           </body>
         </html>
       `;
 
-      const printWindow = window.open('', '_blank', 'width=600,height=400');
+      const printWindow = window.open('', '_blank', 'width=800,height=600');
       if (!printWindow) return;
+      printWindow.document.open();
       printWindow.document.write(html);
       printWindow.document.close();
+
       setMensagem({ tipo: 'success', texto: 'Credencial enviada para impressão!' });
     } catch (err) {
       console.error('Erro ao imprimir:', err);
@@ -368,9 +417,9 @@ const PainelRecepcao: React.FC = () => {
         email1: emailRef.current?.value || '',
         email2: emailRef.current?.value || '',
         celular: telefoneRef.current?.value || '',
-        nomeCracha: nomeCrachaRef.current?.value || '', // NOVO
+        nomeCracha: nomeCrachaRef.current?.value || '',
         empresaCracha: empresaRef.current?.value || '',
-        cargo: cargoRef.current?.value || '', // NOVO
+        cargo: cargoRef.current?.value || '',
         observacao: '',
         cpf: '',
         rg: '',
@@ -419,7 +468,7 @@ const PainelRecepcao: React.FC = () => {
     setCamposPersonalizadosValues((prev) => ({ ...prev, [id]: valor }));
   };
 
-  // ===================== UI =====================
+  /* ===================== UI ===================== */
 
   if (loading && !evento) {
     return (
@@ -601,7 +650,6 @@ const PainelRecepcao: React.FC = () => {
 
               <form onSubmit={handleCadastrarParticipante}>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                  {/* Linha 1: Nome completo | Nome Crachá */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Nome completo *</label>
                     <input type="text" ref={nomeRef} required className="input-field" />
@@ -612,7 +660,6 @@ const PainelRecepcao: React.FC = () => {
                     <input type="text" ref={nomeCrachaRef} className="input-field" />
                   </div>
 
-                  {/* Linha 2: Empresa | Cargo */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Empresa</label>
                     <input type="text" ref={empresaRef} className="input-field" />
@@ -623,7 +670,6 @@ const PainelRecepcao: React.FC = () => {
                     <input type="text" ref={cargoRef} className="input-field" />
                   </div>
 
-                  {/* Linha 3: Email | Telefone */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
                     <input type="email" ref={emailRef} required className="input-field" />
@@ -634,7 +680,6 @@ const PainelRecepcao: React.FC = () => {
                     <input type="tel" ref={telefoneRef} className="input-field" />
                   </div>
 
-                  {/* Linha 4: Categoria (full width) */}
                   <div className="md:col-span-2">
                     <label className="block text-sm font-medium text-gray-700 mb-1">Categoria * (selecionar existente — MAIÚSCULO)</label>
                     <select
@@ -648,13 +693,9 @@ const PainelRecepcao: React.FC = () => {
                       }}
                       defaultValue=""
                     >
-                      <option value="" disabled>
-                        Selecione uma categoria
-                      </option>
+                      <option value="" disabled>Selecione uma categoria</option>
                       {categoriasEvento.map((cat) => (
-                        <option key={cat} value={cat}>
-                          {cat}
-                        </option>
+                        <option key={cat} value={cat}>{cat}</option>
                       ))}
                     </select>
                     <p className="text-xs text-gray-500 mt-1">
@@ -713,9 +754,7 @@ const PainelRecepcao: React.FC = () => {
                             >
                               <option value="">Selecione uma opção</option>
                               {campo.opcoes.map((opcao, index) => (
-                                <option key={index} value={opcao}>
-                                  {opcao}
-                                </option>
+                                <option key={index} value={opcao}>{opcao}</option>
                               ))}
                             </select>
                           )}
