@@ -208,54 +208,81 @@ const PainelRecepcao: React.FC = () => {
     }
   };
 
-  // ===> Scanner: lê QR como codigoCliente (string) e busca SOMENTE por eventoId + codigoCliente
+  // Scanner: lê QR como codigoCliente (string) e busca SOMENTE por eventoId + codigoCliente
   const handleQrCodeScan = async (data: string) => {
     try {
-      const scannedRaw = (data || '').trim();
+      const scannedRaw = (data ?? '').trim();
       if (!scannedRaw) {
         setMensagem({ tipo: 'error', texto: 'QR Code vazio.' });
         return;
       }
 
-      // QR pode vir como texto puro ou JSON contendo { codigoCliente }
+      // ---- helpers
+      const ALIASES = new Set([
+        'codigocliente','codigo','codcliente','code','value','valor','qr','qrcode',
+        'referencia','reference','ref','refid','ref_id'
+      ]);
+
+      const deepFindCodigo = (obj: any): string | undefined => {
+        try {
+          const stack = [obj];
+          while (stack.length) {
+            const cur = stack.pop();
+            if (cur && typeof cur === 'object') {
+              for (const [k, v] of Object.entries(cur)) {
+                const key = String(k).toLowerCase();
+                if (ALIASES.has(key) && (typeof v === 'string' || typeof v === 'number')) {
+                  const s = String(v).trim();
+                  if (s) return s;
+                }
+                if (v && typeof v === 'object') stack.push(v);
+              }
+            }
+          }
+        } catch {/* noop */}
+        return undefined;
+      };
+
+      // tenta extrair do JSON (qualquer nível / alias)
       let codigoCliente: string | undefined;
       try {
         const parsed = JSON.parse(scannedRaw);
         if (parsed && typeof parsed === 'object') {
-          codigoCliente = parsed.codigoCliente || parsed.codigo || parsed.codCliente || undefined;
+          codigoCliente = deepFindCodigo(parsed);
         }
       } catch {
-        // não era JSON — considere o próprio conteúdo como codigoCliente
+        // não é JSON → veremos no fallback
+      }
+
+      // fallback: usa o próprio conteúdo do QR
+      if (!codigoCliente) {
         codigoCliente = scannedRaw;
       }
 
+      // normalizações simples
+      codigoCliente = codigoCliente.trim();
       if (!codigoCliente) {
-        setMensagem({ tipo: 'error', texto: 'QR Code inválido: não contém codigoCliente.' });
+        setMensagem({ tipo: 'error', texto: 'QR Code inválido: não contém um valor utilizável.' });
         return;
       }
 
-      // 1) tenta em memória (apenas participantes deste evento)
+      // 1) tenta em memória (somente participantes deste evento)
       let participante: Participante | null =
         participantes.find(
           (p) =>
             p.eventoId === eventoId &&
-            (p.codigoCliente ?? '').toString() === codigoCliente!.toString()
+            String(p.codigoCliente ?? '').trim() === codigoCliente!
         ) || null;
 
-      // 2) se não achou, consulta Firestore por eventoId + codigoCliente
+      // 2) Firestore: eventoId + codigoCliente (string e, se for numérico, também number)
       if (!participante && eventoId) {
-        const ref = collection(db, 'participantes');
-
-        // se for numérico, fazemos uma consulta "in" com string e number
         const values: (string | number)[] = [codigoCliente];
         if (/^\d+$/.test(codigoCliente)) values.push(Number(codigoCliente));
-
-        // preferir 'in' para cobrir casos onde codigoCliente foi salvo como number em alguns docs
+        const ref = collection(db, 'participantes');
         const q =
           values.length > 1
             ? fsQuery(ref, where('eventoId', '==', eventoId), where('codigoCliente', 'in', values))
             : fsQuery(ref, where('eventoId', '==', eventoId), where('codigoCliente', '==', codigoCliente));
-
         const qs = await getDocs(q);
         if (!qs.empty) {
           const d = qs.docs[0];
