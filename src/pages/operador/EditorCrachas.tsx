@@ -480,7 +480,7 @@ const EditorCrachas: React.FC = () => {
             </p>
           </div>
 
-          <div className="flex gap-2 p-4 mb-1">
+        <div className="flex gap-2 p-4 mb-1">
             <button
               onClick={handleSalvarComoNovo}
               disabled={salvando || !eventoSelecionadoId}
@@ -529,14 +529,22 @@ const EditorCrachas: React.FC = () => {
             >
               {componentes.map((comp) => {
                 const props = comp.propriedades as any;
-                const cpfPrefix = getCpfPrefix(participanteExemplo);
-                const content = comp.tipo==='qrcode'
-                  ? <QRCode value={cpfPrefix} size={props.altura}/>
-                  : comp.tipo==='barcode'
-                    ? <Barcode value={cpfPrefix} width={1} height={props.altura||40} displayValue={false} background="transparent"/>
-                    : (props.campoVinculado ? (participanteExemplo as any)[props.campoVinculado] || '' : props.texto || '');
 
-                // 🆕 aplica family se existir em estilos.fonte
+                // ✅ SEMPRE usar codigoCliente (fallback para id) para QR/Barcode
+                const qrValue =
+                  (participanteExemplo as any)?.codigoCliente?.toString?.() ||
+                  (participanteExemplo as any)?.id?.toString?.() ||
+                  '';
+
+                // conteúdo por tipo
+                const content =
+                  comp.tipo === 'qrcode'
+                    ? <QRCode value={qrValue} size={props.altura}/>
+                    : comp.tipo === 'barcode'
+                      ? <Barcode value={qrValue} width={1} height={props.altura||40} displayValue={false} background="transparent"/>
+                      : (props.campoVinculado ? (participanteExemplo as any)[props.campoVinculado] || '' : props.texto || '');
+
+                // aplica a family se existir em estilos.fonte
                 const family = props?.estilos?.fonte ? String(props.estilos.fonte) : undefined;
 
                 return (
