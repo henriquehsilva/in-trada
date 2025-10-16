@@ -776,7 +776,7 @@ const PainelRecepcao: React.FC = () => {
                             />
                           )}
 
-                          {campo.tipo === 'data' e && (
+                          {campo.tipo === 'data' && (
                             <input
                               type="date"
                               value={camposPersonalizadosValues[campo.id] || ''}
