@@ -121,6 +121,9 @@ const PainelRecepcao: React.FC = () => {
   // Campos personalizados do formulário
   const [camposPersonalizadosValues, setCamposPersonalizadosValues] = useState<Record<string, any>>({});
 
+  // 🔹 NOVO: categorias do evento (buscadas do banco, independentes do state de participantes)
+  const [categoriasEvento, setCategoriasEvento] = useState<string[]>([]);
+
   // ====== Carrega usuário ======
   useEffect(() => {
     const carregarUsuario = async () => {
@@ -165,6 +168,26 @@ const PainelRecepcao: React.FC = () => {
     carregarDados();
   }, [eventoId]);
 
+  // 🔹 NOVO: buscar TODAS as categorias do evento direto do Firestore (independente do state)
+  useEffect(() => {
+    if (!eventoId) return;
+    (async () => {
+      try {
+        const ref = collection(db, 'participantes');
+        const q = fsQuery(ref, where('eventoId', '==', eventoId));
+        const qs = await getDocs(q);
+        const setCats = new Set<string>();
+        qs.forEach((d) => {
+          const cat = normalizeCategory((d.data() as any)?.categoria || '');
+          if (cat) setCats.add(cat);
+        });
+        setCategoriasEvento(Array.from(setCats).sort((a, b) => a.localeCompare(b)));
+      } catch (e) {
+        console.error('Erro ao carregar categorias do evento:', e);
+      }
+    })();
+  }, [eventoId]);
+
   // ====== Agregações e memos ======
   const statusCounts = participantes.reduce((acc, p) => {
     acc[p.status] = (acc[p.status] || 0) + 1;
@@ -176,7 +199,7 @@ const PainelRecepcao: React.FC = () => {
     value: count,
   }));
 
-  // Mapa Categoria -> Cor
+  // Mapa Categoria -> Cor (aqui pode continuar derivando da lista carregada)
   const categoriaColorMap = useMemo(() => {
     const map: Record<string, string> = {};
     for (const p of participantes) {
@@ -186,16 +209,6 @@ const PainelRecepcao: React.FC = () => {
       }
     }
     return map;
-  }, [participantes]);
-
-  // Lista de categorias únicas do evento
-  const categoriasEvento = useMemo(() => {
-    const setCats = new Set<string>();
-    for (const p of participantes) {
-      const cat = normalizeCategory(p.categoria);
-      if (cat) setCats.add(cat);
-    }
-    return Array.from(setCats).sort((a, b) => a.localeCompare(b));
   }, [participantes]);
 
   // ===================== Ações =====================
