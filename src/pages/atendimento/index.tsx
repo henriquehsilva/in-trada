@@ -15,10 +15,9 @@ import {
 } from '../../services/participanteService';
 import { obterModelosCrachaPorEvento } from '../../services/modeloService';
 import QRCode from 'qrcode';
-
-// 🔹 Firestore para busca direta por codigoCliente
 import { collection, query as fsQuery, where, getDocs } from 'firebase/firestore';
 import { db } from '../../firebase/config';
+
 
 /**
  * Autoatendimento (Kiosk) – versão offline-first
@@ -93,21 +92,15 @@ const AutoAtendimento: React.FC = () => {
 
         // 🔄 mantém cache aquecido (opcional, mas recomendado)
         unsubscribe = subscribeParticipantesDoEvento(eventId, (arr) => {
-          const next = arr || [];
-          setBaseParticipantes(next);
+          setBaseParticipantes(arr || []);
           // Se há termo ativo, re-aplica filtro local para refletir atualizações
           if (termo.trim()) {
             const q = termo.trim().toLowerCase();
             setParticipantes(
-              next.filter((p: any) => {
-                const vals = [
-                  p.nome,
-                  p.empresa,
-                  p.email1,
-                  p.email2,
-                  p.id,
-                  p.codigoCliente, // 👈 inclui codigoCliente no filtro “ao vivo”
-                ].map((v: any) => (v || '').toString().toLowerCase());
+              (arr || []).filter((p: any) => {
+                const vals = [p.nome, p.empresa, p.email1, p.email2, p.id].map((v: any) =>
+                  (v || '').toString().toLowerCase()
+                );
                 return vals.some((v: string) => v.includes(q));
               })
             );
@@ -225,76 +218,64 @@ const AutoAtendimento: React.FC = () => {
     }
   };
 
-  // ===== QRCode: buscar por codigoCliente (texto) dentro do evento; fallback para id se necessário
+  // QR: busca EXCLUSIVAMENTE por eventoId + codigoCliente (texto puro)
   const onScan = async (raw: string) => {
     if (!eventId) return;
     try {
-      const scanned = (raw || '').trim();
-      let codigoCliente: string | undefined;
-      let id: string | undefined;
-
-      // tenta JSON { codigoCliente?, id? }
-      try {
-        const parsed = JSON.parse(scanned);
-        if (parsed && typeof parsed === 'object') {
-          codigoCliente = parsed.codigoCliente || parsed.codigo || parsed.codCliente || undefined;
-          id = parsed.id || undefined;
-        }
-      } catch {
-        // não é JSON → trate como codigoCliente em texto puro
-        codigoCliente = scanned;
+      const codigoCliente = String(raw ?? '').trim();
+      if (!codigoCliente) {
+        setMsg({ tipo: 'error', texto: 'QR Code vazio.' });
+        return;
       }
 
-      let participante: Participante | null = null;
+      let participante: Participante | null =
+        baseParticipantes.find(
+          (p) =>
+            p.eventoId === eventId &&
+            String((p as any).codigoCliente ?? '').trim() === codigoCliente
+        ) || null;
 
-      // 1) tenta em memória (baseParticipantes) pelo codigoCliente
-      if (codigoCliente) {
-        participante =
-          baseParticipantes.find(
-            (p) => String((p as any).codigoCliente || '') === String(codigoCliente)
-          ) || null;
-      }
-
-      // 2) se não achou, consulta direto Firestore por eventoId + codigoCliente
-      if (!participante && codigoCliente) {
+      if (!participante) {
         const ref = collection(db, 'participantes');
-        const q = fsQuery(
+
+        // tenta como string
+        let q = fsQuery(
           ref,
           where('eventoId', '==', eventId),
           where('codigoCliente', '==', codigoCliente)
         );
-        const snap = await getDocs(q);
-        if (!snap.empty) {
-          const d = snap.docs[0];
+        let qs = await getDocs(q);
+
+        // se no Firestore o campo estiver como number, tenta também como número
+        if (qs.empty && /^\d+$/.test(codigoCliente)) {
+          q = fsQuery(
+            ref,
+            where('eventoId', '==', eventId),
+            where('codigoCliente', '==', Number(codigoCliente))
+          );
+          qs = await getDocs(q);
+        }
+
+        if (!qs.empty) {
+          const d = qs.docs[0];
           participante = { id: d.id, ...(d.data() as any) } as Participante;
         }
       }
 
-      // 3) fallback: tenta pelo id (se veio no JSON) ou pela própria string
-      if (!participante && (id || scanned)) {
-        const idToFetch = id || scanned;
-        try {
-          const p = await obterParticipantePorId(idToFetch);
-          if (p && p.eventoId === eventId) {
-            participante = p;
-          }
-        } catch {
-          // ignora
-        }
+      if (participante) {
+        setParticipantes([participante]);
+        setTermo('');
+        setMsg(
+          participante.status === 'credenciado'
+            ? { tipo: 'info', texto: 'Participante já credenciado.' }
+            : { tipo: 'success', texto: 'Participante localizado!' }
+        );
+      } else {
+        setMsg({
+          tipo: 'error',
+          texto: `Nenhum participante com codigoCliente "${codigoCliente}" neste evento.`,
+        });
       }
-
-      if (!participante) {
-        setMsg({ tipo: 'error', texto: 'QR Code inválido: participante não encontrado para este evento.' });
-        return;
-      }
-
-      setParticipantes([participante]);
-      setTermo('');
-      setMsg(
-        participante.status === 'credenciado'
-          ? { tipo: 'info', texto: 'Participante já credenciado.' }
-          : { tipo: 'success', texto: 'Participante localizado!' }
-      );
     } catch (e) {
       console.error(e);
       setMsg({ tipo: 'error', texto: 'Falha ao ler QR Code.' });
