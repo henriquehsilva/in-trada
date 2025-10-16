@@ -20,7 +20,7 @@ import { ModeloCracha } from '../../models/types';
 import QRCode from 'qrcode';
 import DonutChart from '../../components/DonutChart';
 import { ChromePicker } from 'react-color';
-import { doc, updateDoc, getDoc } from 'firebase/firestore';
+import { doc, updateDoc, getDoc, collection, query as fsQuery, where, getDocs } from 'firebase/firestore';
 import { db } from '../../firebase/config';
 import JsBarcode from 'jsbarcode';
 
@@ -208,24 +208,70 @@ const PainelRecepcao: React.FC = () => {
     }
   };
 
+  // ===> ATUALIZADO: aceita codigoCliente (texto puro ou JSON) e fallback para id
   const handleQrCodeScan = async (data: string) => {
     try {
-      let participanteId = data;
+      let scanned = (data || '').trim();
+      let codigoCliente: string | undefined;
+      let participanteId: string | undefined;
+
+      // tenta JSON { codigoCliente, id, ... }
       try {
-        const jsonData = JSON.parse(data);
-        participanteId = jsonData.id || data;
-      } catch { /* dado não JSON */ }
-      const participante = await obterParticipantePorId(participanteId);
+        const parsed = JSON.parse(scanned);
+        if (parsed && typeof parsed === 'object') {
+          codigoCliente = parsed.codigoCliente || parsed.codigo || parsed.codCliente || undefined;
+          participanteId = parsed.id || undefined;
+        }
+      } catch {
+        // não é JSON; considere que pode ser o proprio codigoCliente
+        codigoCliente = scanned;
+      }
+
+      let participante: Participante | null = null;
+
+      // 1) tenta em memória pelo codigoCliente
+      if (codigoCliente) {
+        participante =
+          participantes.find(
+            (p) => (p.codigoCliente || '').toString() === codigoCliente!.toString()
+          ) || null;
+      }
+
+      // 2) se não achou, consulta Firestore por eventoId + codigoCliente
+      if (!participante && codigoCliente && eventoId) {
+        const ref = collection(db, 'participantes');
+        const q = fsQuery(
+          ref,
+          where('eventoId', '==', eventoId),
+          where('codigoCliente', '==', codigoCliente)
+        );
+        const qs = await getDocs(q);
+        if (!qs.empty) {
+          const d = qs.docs[0];
+          participante = { id: d.id, ...(d.data() as any) } as Participante;
+        }
+      }
+
+      // 3) fallback: tenta pelo id (ou pela própria string)
+      if (!participante && (participanteId || scanned)) {
+        const idParaBuscar = participanteId || scanned;
+        try {
+          const p = await obterParticipantePorId(idParaBuscar);
+          if (p) participante = p;
+        } catch {/* ok */}
+      }
+
       if (participante) {
-        setParticipanteSelecionado({ ...participante, categoria: normalizeCategory(participante.categoria) });
+        const normalizado = { ...participante, categoria: normalizeCategory(participante.categoria) } as Participante;
+        setParticipanteSelecionado(normalizado);
         setShowQrScanner(false);
         setMensagem(
-          participante.status === 'credenciado'
+          normalizado.status === 'credenciado'
             ? { tipo: 'info', texto: 'Participante já realizou check-in anteriormente.' }
             : { tipo: 'success', texto: 'Participante encontrado! Realize o check-in.' }
         );
       } else {
-        setMensagem({ tipo: 'error', texto: 'Participante não encontrado com este QR Code.' });
+        setMensagem({ tipo: 'error', texto: 'Participante não encontrado para este QR Code.' });
       }
     } catch (err) {
       console.error('Erro ao processar QR Code:', err);
@@ -271,7 +317,7 @@ const PainelRecepcao: React.FC = () => {
     await updateDoc(ref, updatePayload);
   };
 
-  /* ===================== IMPRESSÃO (corrigido) ===================== */
+  /* ===================== IMPRESSÃO (mantém fontes e usa codigoCliente) ===================== */
   const handlePrintCredencial = async () => {
     if (!participanteSelecionado || !evento) return;
     try {
@@ -282,7 +328,7 @@ const PainelRecepcao: React.FC = () => {
         return;
       }
 
-      // ✅ Usa codigoCliente (fallback id) no QR e no barcode
+      // usa codigoCliente (fallback id) no QR e barcode
       const qrValue = (participanteSelecionado as any)?.codigoCliente || participanteSelecionado.id;
       const qrCodeDataUrl = await QRCode.toDataURL(String(qrValue));
 
@@ -290,7 +336,6 @@ const PainelRecepcao: React.FC = () => {
       const largura = cmToZplPx(modeloPadrao.larguraCm || 8);
       const altura  = cmToZplPx(modeloPadrao.alturaCm || 3);
 
-      // 🔤 fontes usadas & CSS @font-face com dataURL do LocalStorage
       const usedFamilies = getUsedFontFamilies(modeloPadrao.componentes);
       const fontFaceCSS  = buildFontFaceCSS(usedFamilies);
 
@@ -339,9 +384,7 @@ const PainelRecepcao: React.FC = () => {
           }
 
           // texto/campo
-          return `
-            <div style="${baseStyle}">${valor}</div>
-          `;
+          return `<div style="${baseStyle}">${valor}</div>`;
         })
         .join('');
 
@@ -364,10 +407,8 @@ const PainelRecepcao: React.FC = () => {
             <script>
               (async function(){
                 try {
-                  if (document.fonts && document.fonts.ready) {
-                    await document.fonts.ready;
-                  }
-                  await new Promise(r => setTimeout(r, 120)); // pequeno atraso ajuda no Chrome
+                  if (document.fonts && document.fonts.ready) { await document.fonts.ready; }
+                  await new Promise(r => setTimeout(r, 120));
                   if (typeof JsBarcode !== 'undefined') {
                     JsBarcode("svg[id^='barcode-']").init();
                   }
@@ -735,7 +776,7 @@ const PainelRecepcao: React.FC = () => {
                             />
                           )}
 
-                          {campo.tipo === 'data' && (
+                          {campo.tipo === 'data' e && (
                             <input
                               type="date"
                               value={camposPersonalizadosValues[campo.id] || ''}
