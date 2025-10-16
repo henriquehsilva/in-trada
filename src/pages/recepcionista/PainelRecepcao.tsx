@@ -208,43 +208,54 @@ const PainelRecepcao: React.FC = () => {
     }
   };
 
-  // ===> ATUALIZADO: aceita codigoCliente (texto puro ou JSON) e fallback para id
+  // ===> Scanner: lê QR como codigoCliente (string) e busca SOMENTE por eventoId + codigoCliente
   const handleQrCodeScan = async (data: string) => {
     try {
-      let scanned = (data || '').trim();
-      let codigoCliente: string | undefined;
-      let participanteId: string | undefined;
+      const scannedRaw = (data || '').trim();
+      if (!scannedRaw) {
+        setMensagem({ tipo: 'error', texto: 'QR Code vazio.' });
+        return;
+      }
 
-      // tenta JSON { codigoCliente, id, ... }
+      // QR pode vir como texto puro ou JSON contendo { codigoCliente }
+      let codigoCliente: string | undefined;
       try {
-        const parsed = JSON.parse(scanned);
+        const parsed = JSON.parse(scannedRaw);
         if (parsed && typeof parsed === 'object') {
           codigoCliente = parsed.codigoCliente || parsed.codigo || parsed.codCliente || undefined;
-          participanteId = parsed.id || undefined;
         }
       } catch {
-        // não é JSON; considere que pode ser o proprio codigoCliente
-        codigoCliente = scanned;
+        // não era JSON — considere o próprio conteúdo como codigoCliente
+        codigoCliente = scannedRaw;
       }
 
-      let participante: Participante | null = null;
-
-      // 1) tenta em memória pelo codigoCliente
-      if (codigoCliente) {
-        participante =
-          participantes.find(
-            (p) => (p.codigoCliente || '').toString() === codigoCliente!.toString()
-          ) || null;
+      if (!codigoCliente) {
+        setMensagem({ tipo: 'error', texto: 'QR Code inválido: não contém codigoCliente.' });
+        return;
       }
+
+      // 1) tenta em memória (apenas participantes deste evento)
+      let participante: Participante | null =
+        participantes.find(
+          (p) =>
+            p.eventoId === eventoId &&
+            (p.codigoCliente ?? '').toString() === codigoCliente!.toString()
+        ) || null;
 
       // 2) se não achou, consulta Firestore por eventoId + codigoCliente
-      if (!participante && codigoCliente && eventoId) {
+      if (!participante && eventoId) {
         const ref = collection(db, 'participantes');
-        const q = fsQuery(
-          ref,
-          where('eventoId', '==', eventoId),
-          where('codigoCliente', '==', codigoCliente)
-        );
+
+        // se for numérico, fazemos uma consulta "in" com string e number
+        const values: (string | number)[] = [codigoCliente];
+        if (/^\d+$/.test(codigoCliente)) values.push(Number(codigoCliente));
+
+        // preferir 'in' para cobrir casos onde codigoCliente foi salvo como number em alguns docs
+        const q =
+          values.length > 1
+            ? fsQuery(ref, where('eventoId', '==', eventoId), where('codigoCliente', 'in', values))
+            : fsQuery(ref, where('eventoId', '==', eventoId), where('codigoCliente', '==', codigoCliente));
+
         const qs = await getDocs(q);
         if (!qs.empty) {
           const d = qs.docs[0];
@@ -252,17 +263,12 @@ const PainelRecepcao: React.FC = () => {
         }
       }
 
-      // 3) fallback: tenta pelo id (ou pela própria string)
-      if (!participante && (participanteId || scanned)) {
-        const idParaBuscar = participanteId || scanned;
-        try {
-          const p = await obterParticipantePorId(idParaBuscar);
-          if (p) participante = p;
-        } catch {/* ok */}
-      }
-
       if (participante) {
-        const normalizado = { ...participante, categoria: normalizeCategory(participante.categoria) } as Participante;
+        const normalizado: Participante = {
+          ...participante,
+          categoria: normalizeCategory(participante.categoria),
+        } as Participante;
+
         setParticipanteSelecionado(normalizado);
         setShowQrScanner(false);
         setMensagem(
@@ -271,7 +277,7 @@ const PainelRecepcao: React.FC = () => {
             : { tipo: 'success', texto: 'Participante encontrado! Realize o check-in.' }
         );
       } else {
-        setMensagem({ tipo: 'error', texto: 'Participante não encontrado para este QR Code.' });
+        setMensagem({ tipo: 'error', texto: 'Participante não encontrado para este codigoCliente neste evento.' });
       }
     } catch (err) {
       console.error('Erro ao processar QR Code:', err);
