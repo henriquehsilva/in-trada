@@ -7,7 +7,6 @@ import { obterEventoPorId } from '../../services/eventoService';
 import {
   obterParticipantesPorEvento,
   buscarParticipantes,
-  obterParticipantePorId,
   fazerCheckin,
   criarParticipante,
 } from '../../services/participanteService';
@@ -59,6 +58,7 @@ function getUsedFontFamilies(componentes: any[]): string[] {
   return Array.from(set);
 }
 
+/** ⬇️ NOVA: gera @font-face (400 e 700) a partir do localStorage (dataURL) */
 function buildFontFaceCSS(usedFamilies: string[]): string {
   const saved = JSON.parse(localStorage.getItem(LS_KEY_FONTS) || '{}') as Record<string,string>;
   const faces: string[] = [];
@@ -71,7 +71,14 @@ function buildFontFaceCSS(usedFamilies: string[]): string {
 @font-face{
   font-family:'${fam}';
   src:url('${dataUrl}') format('${fmt}');
-  font-weight: normal;
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face{
+  font-family:'${fam}';
+  src:url('${dataUrl}') format('${fmt}');
+  font-weight: 700;
   font-style: normal;
   font-display: swap;
 }`);
@@ -344,16 +351,18 @@ const PainelRecepcao: React.FC = () => {
             ? (participanteSelecionado as any)[props.campoVinculado] ?? ''
             : (props.texto ?? '');
 
+          // ⬇️ estilo base com fonte custom, weight coerente, line-height e pre-wrap
           const baseStyle = `
             position:absolute; top:${props.y}px; left:${props.x}px;
             width:${props.largura}px; height:${props.altura}px;
             display:flex; align-items:center; justify-content:center; overflow:hidden;
             ${estilos?.tamanhoFonte ? `font-size:${estilos.tamanhoFonte}px;` : ''}
-            ${estilos?.negrito ? 'font-weight:bold;' : ''}
+            ${estilos?.negrito ? 'font-weight:700;' : 'font-weight:400;'}
             ${estilos?.alinhamento ? `text-align:${estilos.alinhamento};` : ''}
             ${estilos?.corFonte ? `color:${estilos.corFonte};` : ''}
             ${estilos?.corFundo ? `background-color:${estilos.corFundo};` : ''}
             ${estilos?.raio ? `border-radius:${estilos.raio}px;` : ''}
+            line-height:1.1; white-space:pre-wrap;
             ${estilos?.fonte ? `font-family:'${String(estilos.fonte)}', ${STD_FONTS.has(estilos.fonte) ? estilos.fonte : 'sans-serif'};` : ''}
           `;
 
@@ -394,24 +403,25 @@ const PainelRecepcao: React.FC = () => {
             <style>
               @page { size: ${largura}px ${altura}px; margin: 0; }
               html, body { margin: 0; padding: 0; }
+              * { -webkit-print-color-adjust: exact; print-color-adjust: exact; } /* força cores em print */
               ${fontFaceCSS}
             </style>
           </head>
           <body>
-            <div style="position:relative; width:${largura}px; height:${altura}px;">
+            <div id="root" style="position:relative; width:${largura}px; height:${altura}px;">
               ${htmlComponente}
             </div>
             <script>
               (async function(){
                 try {
                   if (document.fonts && document.fonts.ready) { await document.fonts.ready; }
-                  await new Promise(r => setTimeout(r, 120));
+                  await new Promise(r => setTimeout(r, 150));
                   if (typeof JsBarcode !== 'undefined') {
                     JsBarcode("svg[id^='barcode-']").init();
                   }
-                  await new Promise(r => setTimeout(r, 50));
+                  await new Promise(r => setTimeout(r, 80));
                   window.print();
-                  setTimeout(() => window.close(), 300);
+                  setTimeout(() => window.close(), 350);
                 } catch(e) {
                   console.error('print error', e);
                   window.print();
