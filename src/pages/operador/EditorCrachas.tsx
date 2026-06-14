@@ -6,6 +6,7 @@ import LayoutDefault from '../../components/layout/LayoutDefault';
 import DragDropEditor from '../../components/editor/DragDropEditor';
 import QRCode from 'qrcode.react';
 import Barcode from 'react-barcode';
+import { buildQrValue } from '../../utils/qrcode';
 import { nanoid } from 'nanoid';
 import { obterEventoPorId, listarEventosPorAdmin } from '../../services/eventoService';
 import { obterModeloCrachaPorId, criarModeloCracha, atualizarModeloCracha } from '../../services/modeloService';
@@ -530,16 +531,15 @@ const EditorCrachas: React.FC = () => {
               {componentes.map((comp) => {
                 const props = comp.propriedades as any;
 
-                // ✅ SEMPRE usar codigoCliente (fallback para id) para QR/Barcode
-                const qrValue =
-                  (participanteExemplo as any)?.codigoCliente?.toString?.() ||
-                  (participanteExemplo as any)?.id?.toString?.() ||
-                  '';
+                const qrValue = comp.tipo === 'qrcode'
+                  ? buildQrValue(participanteExemplo as any, props.camposQrCode, props.separadorQrCode)
+                  : (participanteExemplo as any)?.codigoCliente?.toString?.() ||
+                    (participanteExemplo as any)?.id?.toString?.() || '';
 
                 // conteúdo por tipo
                 const content =
                   comp.tipo === 'qrcode'
-                    ? <QRCode value={qrValue} size={props.altura}/>
+                    ? <QRCode value={qrValue || 'QR Code'} size={props.altura}/>
                     : comp.tipo === 'barcode'
                       ? <Barcode value={qrValue} width={1} height={props.altura||40} displayValue={false} background="transparent"/>
                       : (props.campoVinculado ? (participanteExemplo as any)[props.campoVinculado] || '' : props.texto || '');

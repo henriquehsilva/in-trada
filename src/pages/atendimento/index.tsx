@@ -15,6 +15,7 @@ import {
 } from '../../services/participanteService';
 import { obterModelosCrachaPorEvento } from '../../services/modeloService';
 import QRCode from 'qrcode';
+import { buildQrValue } from '../../utils/qrcode';
 import { collection, query as fsQuery, where, getDocs } from 'firebase/firestore';
 import { db } from '../../firebase/config';
 
@@ -291,17 +292,26 @@ const AutoAtendimento: React.FC = () => {
     const modeloPadrao = modelos.find((m) => m.padrao);
     if (!modeloPadrao) throw new Error('Modelo padrão não definido.');
 
-    const qr = await QRCode.toDataURL(JSON.stringify(participante));
     const cmToZplPx = (cm: number) => Math.round((cm / 2.54) * 203);
     const largura = cmToZplPx(modeloPadrao.larguraCm || 8);
     const altura = cmToZplPx(modeloPadrao.alturaCm || 3);
+
+    const qrCache: Record<string, string> = {};
+    for (const comp of (modeloPadrao.componentes || []) as any[]) {
+      if (comp.tipo === 'qrcode') {
+        const props = comp.propriedades || {};
+        const qrValor = buildQrValue(participante as any, props.camposQrCode, props.separadorQrCode)
+          || JSON.stringify(participante);
+        qrCache[comp.id] = await QRCode.toDataURL(qrValor);
+      }
+    }
 
     const htmlComponente = (modeloPadrao.componentes || [])
       .map((comp: any) => {
         const props = comp.propriedades || {};
         const valor = props.campoVinculado ? (participante as any)[props.campoVinculado] || '' : props.texto || '';
         if (comp.tipo === 'qrcode') {
-          return `<div style="position:absolute;top:${props.y}px;left:${props.x}px;width:${props.largura}px;height:${props.altura}px;"><img src="${qr}" width="${props.largura}" height="${props.altura}"/></div>`;
+          return `<div style="position:absolute;top:${props.y}px;left:${props.x}px;width:${props.largura}px;height:${props.altura}px;"><img src="${qrCache[comp.id]}" width="${props.largura}" height="${props.altura}"/></div>`;
         }
         if (comp.tipo === 'barcode') {
           return `<div style="position:absolute;top:${props.y}px;left:${props.x}px;"><svg id="barcode-${props.campoVinculado}" jsbarcode-value="${valor}" jsbarcode-format="CODE128" jsbarcode-width="2" jsbarcode-height="${props.altura}" jsbarcode-displayvalue="false"></svg></div>`;

@@ -119,6 +119,8 @@ export interface ComponenteEditor {
     campoVinculado?: string;
     estilos?: EstilosComponente;
     url?: string;
+    camposQrCode?: string[];
+    separadorQrCode?: string;
   };
 }
 

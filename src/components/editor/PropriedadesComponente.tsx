@@ -113,6 +113,57 @@ const PropriedadesComponente: React.FC<PropriedadesComponenteProps> = ({
           </div>
         )}
 
+        {/* QR Code — campos e separador */}
+        {componente.tipo === 'qrcode' && (
+          <div className="space-y-2">
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Separador entre campos</label>
+              <select
+                value={componente.propriedades.separadorQrCode ?? ';'}
+                onChange={(e) => handleChange('separadorQrCode', e.target.value)}
+                className="mt-1 block w-full text-sm border-gray-300 rounded-md shadow-sm focus:ring-primary focus:border-primary"
+              >
+                <option value=";">Ponto e vírgula ( ; )</option>
+                <option value=",">Vírgula ( , )</option>
+                <option value={'\t'}>TAB</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Campos incluídos no QR Code</label>
+              {camposDisponiveis.length === 0 && (
+                <p className="text-xs text-gray-400">Nenhum campo disponível.</p>
+              )}
+              <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-md p-2 space-y-1 bg-gray-50">
+                {camposDisponiveis.map((campo) => {
+                  const camposQr = componente.propriedades.camposQrCode ?? [];
+                  const checked = camposQr.includes(campo);
+                  return (
+                    <label key={campo} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-white rounded px-1 py-0.5">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={(e) => {
+                          const novos = e.target.checked
+                            ? [...camposQr, campo]
+                            : camposQr.filter((c) => c !== campo);
+                          handleChange('camposQrCode', novos);
+                        }}
+                        className="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
+                      />
+                      <span className="text-gray-700">{campo}</span>
+                    </label>
+                  );
+                })}
+              </div>
+              {(componente.propriedades.camposQrCode ?? []).length > 0 && (
+                <p className="text-xs text-gray-500 mt-1">
+                  Ordem: {(componente.propriedades.camposQrCode ?? []).join(` ${componente.propriedades.separadorQrCode ?? ';'} `)}
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Imagem */}
         {componente.tipo === 'imagem' && (
           <div>

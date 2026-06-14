@@ -72,7 +72,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             ...userDataFromFirestore
           });
         } else {
-          console.error('Dados do usuário não encontrados no Firestore');
+          console.error('Dados do usuário não encontrados no Firestore — encerrando sessão');
+          await signOut(auth);
         }
       } else {
         setUserData(null);

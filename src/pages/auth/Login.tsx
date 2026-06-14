@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { LogIn, AlertCircle } from 'lucide-react';
@@ -8,32 +8,33 @@ const Login: React.FC = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [aguardandoRedirect, setAguardandoRedirect] = useState(false);
   const { login, userData } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const from = location.state?.from?.pathname || '/';
 
+  // Redireciona quando userData chegar após login bem-sucedido
+  useEffect(() => {
+    if (!aguardandoRedirect || !userData) return;
+    setAguardandoRedirect(false);
+    setLoading(false);
+    if (userData.role === 'admin') navigate('/admin');
+    else if (userData.role === 'operador') navigate('/operador');
+    else if (userData.role === 'recepcionista') navigate('/recepcionista');
+    else navigate(from, { replace: true });
+  }, [aguardandoRedirect, userData]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
     try {
       setError('');
       setLoading(true);
       await login(email, password);
-
-      if (userData?.role === 'admin') {
-        navigate('/admin');
-      } else if (userData?.role === 'operador') {
-        navigate('/operador');
-      } else if (userData?.role === 'recepcionista') {
-        navigate('/recepcionista');
-      } else {
-        navigate(from, { replace: true });
-      }
+      setAguardandoRedirect(true);
     } catch (err) {
       console.error('Erro ao fazer login:', err);
       setError('Falha no login. Verifique seu e-mail e senha.');
-    } finally {
       setLoading(false);
     }
   };

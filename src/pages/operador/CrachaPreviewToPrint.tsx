@@ -2,6 +2,7 @@ import React from 'react';
 import QRCode from 'qrcode.react';
 import Barcode from 'react-barcode';
 import { ComponenteEditor } from '../../models/types';
+import { buildQrValue } from '../../utils/qrcode';
 
 interface Props {
   componentes: ComponenteEditor[];
@@ -53,7 +54,7 @@ const CrachaPreviewToPrint: React.FC<Props> = ({ componentes, participante, tama
         return (
           <div key={comp.id} style={estiloComponente}>
             {comp.tipo === 'qrcode' ? (
-              <QRCode value={JSON.stringify(participante)} size={props.altura} />
+              <QRCode value={buildQrValue(participante, props.camposQrCode, props.separadorQrCode) || JSON.stringify(participante)} size={props.altura} />
             ) : comp.tipo === 'barcode' ? (
               <Barcode
                 value={valor}
