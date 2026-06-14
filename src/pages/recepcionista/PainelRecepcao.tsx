@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { QrCode, Search, UserPlus, CheckCircle, Printer, Edit } from 'lucide-react';
+import { QrCode, Search, UserPlus, CheckCircle, Printer, Edit, Settings, Pencil, Save, X, Loader2 } from 'lucide-react';
 import LayoutDefault from '../../components/layout/LayoutDefault';
 import QrCodeScanner from '../../components/qrcode/QrCodeScanner';
 import { obterEventoPorId } from '../../services/eventoService';
@@ -24,6 +24,27 @@ import { db } from '../../firebase/config';
 import JsBarcode from 'jsbarcode';
 
 /* ===================== Helpers & Types ===================== */
+
+const LABEL_CAMPO: Record<string, string> = {
+  nome: 'Nome', empresa: 'Empresa', nomeCracha: 'Nome no crachá',
+  empresaCracha: 'Empresa no crachá', cargo: 'Cargo',
+  email1: 'E-mail', email2: 'E-mail 2', celular: 'Celular',
+  telefone: 'Telefone', categoria: 'Categoria',
+  cpf: 'CPF', rg: 'RG', cnpj: 'CNPJ', codigoCliente: 'Código cliente',
+  opcao1: 'Opção 1', opcao2: 'Opção 2', opcao3: 'Opção 3', opcao4: 'Opção 4',
+  opcao5: 'Opção 5', opcao6: 'Opção 6', opcao7: 'Opção 7', opcao8: 'Opção 8',
+  opcao9: 'Opção 9', opcao10: 'Opção 10', observacao: 'Observação',
+};
+
+const CAMPOS_PADRAO_LISTA = [
+  'nome','empresa','nomeCracha','empresaCracha','cargo',
+  'email1','email2','celular','telefone','categoria',
+  'cpf','rg','cnpj','codigoCliente',
+  'opcao1','opcao2','opcao3','opcao4','opcao5',
+  'opcao6','opcao7','opcao8','opcao9','opcao10','observacao',
+];
+
+const CAMPOS_VISIVEIS_DEFAULT = ['nome', 'empresa', 'email1', 'telefone', 'categoria'];
 
 type Usuario = {
   role?: string;
@@ -123,6 +144,21 @@ const PainelRecepcao: React.FC = () => {
 
   // 🔹 NOVO: categorias do evento (buscadas do banco, independentes do state de participantes)
   const [categoriasEvento, setCategoriasEvento] = useState<string[]>([]);
+
+  // Campos visíveis configuráveis (persistidos por evento)
+  const [camposVisiveis, setCamposVisiveis] = useState<string[]>(() => {
+    if (!eventoId) return CAMPOS_VISIVEIS_DEFAULT;
+    try {
+      const saved = localStorage.getItem(`painel.campos.${eventoId}`);
+      return saved ? JSON.parse(saved) : CAMPOS_VISIVEIS_DEFAULT;
+    } catch { return CAMPOS_VISIVEIS_DEFAULT; }
+  });
+  const [showConfigurarCampos, setShowConfigurarCampos] = useState(false);
+
+  // Edição inline
+  const [editandoInline, setEditandoInline] = useState(false);
+  const [editValuesInline, setEditValuesInline] = useState<Record<string, any>>({});
+  const [salvandoInline, setSalvandoInline] = useState(false);
 
   // ====== Carrega usuário ======
   useEffect(() => {
@@ -529,6 +565,87 @@ const PainelRecepcao: React.FC = () => {
     setCamposPersonalizadosValues((prev) => ({ ...prev, [id]: valor }));
   };
 
+  /* ===================== Campos visíveis ===================== */
+
+  const toggleCampoVisivel = (key: string, checked: boolean) => {
+    const novos = checked
+      ? [...camposVisiveis, key]
+      : camposVisiveis.filter((c) => c !== key);
+    setCamposVisiveis(novos);
+    if (eventoId) localStorage.setItem(`painel.campos.${eventoId}`, JSON.stringify(novos));
+  };
+
+  const getFieldValueInPanel = (p: Participante, key: string): string => {
+    if (key.startsWith('cp:')) {
+      const id = key.slice(3);
+      const val = (p as any).camposPersonalizados?.[id];
+      return typeof val === 'boolean' ? (val ? 'Sim' : 'Não') : String(val ?? '');
+    }
+    return String((p as any)[key] ?? '');
+  };
+
+  const getLabelForKey = (key: string): string => {
+    if (key.startsWith('cp:')) {
+      const id = key.slice(3);
+      return evento?.camposPersonalizados?.find((c) => c.id === id)?.nome || id;
+    }
+    return LABEL_CAMPO[key] || key;
+  };
+
+  /* ===================== Edição inline ===================== */
+
+  const iniciarEdicaoInline = () => {
+    if (!participanteSelecionado) return;
+    const vals: Record<string, any> = {};
+    camposVisiveis.forEach((key) => { vals[key] = getFieldValueInPanel(participanteSelecionado, key); });
+    setEditValuesInline(vals);
+    setEditandoInline(true);
+  };
+
+  const cancelarEdicaoInline = () => {
+    setEditandoInline(false);
+    setEditValuesInline({});
+  };
+
+  const salvarEdicaoInline = async () => {
+    if (!participanteSelecionado) return;
+    try {
+      setSalvandoInline(true);
+      const updateObj: Record<string, any> = {};
+      const novosCamposPersonalizados = { ...((participanteSelecionado as any).camposPersonalizados || {}) };
+      let hasCustom = false;
+
+      for (const [key, valor] of Object.entries(editValuesInline)) {
+        if (key.startsWith('cp:')) {
+          novosCamposPersonalizados[key.slice(3)] = valor;
+          hasCustom = true;
+        } else {
+          updateObj[key] = valor;
+        }
+      }
+      if (hasCustom) updateObj.camposPersonalizados = novosCamposPersonalizados;
+
+      const ref = doc(db, 'participantes', participanteSelecionado.id);
+      await updateDoc(ref, { ...updateObj, atualizadoEm: new Date().toISOString() });
+
+      const atualizado = {
+        ...participanteSelecionado,
+        ...updateObj,
+        camposPersonalizados: novosCamposPersonalizados,
+      } as Participante;
+      setParticipanteSelecionado(atualizado);
+      setParticipantes((prev) => prev.map((p) => (p.id === atualizado.id ? atualizado : p)));
+      cancelarEdicaoInline();
+      setMensagem({ tipo: 'success', texto: 'Dados atualizados com sucesso!' });
+      setTimeout(() => setMensagem(null), 3000);
+    } catch (e) {
+      console.error(e);
+      setMensagem({ tipo: 'error', texto: 'Erro ao salvar alterações.' });
+    } finally {
+      setSalvandoInline(false);
+    }
+  };
+
   /* ===================== UI ===================== */
 
   if (loading && !evento) {
@@ -853,8 +970,18 @@ const PainelRecepcao: React.FC = () => {
             </div>
           ) : participanteSelecionado ? (
             <div className="bg-white p-4 rounded-lg shadow-sm">
+              {/* Cabeçalho */}
               <div className="flex justify-between items-start mb-4">
-                <h3 className="font-semibold">Detalhes do Participante</h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-semibold">Detalhes do Participante</h3>
+                  <button
+                    onClick={() => setShowConfigurarCampos(true)}
+                    className="p-1 text-gray-400 hover:text-gray-600 rounded"
+                    title="Configurar campos visíveis"
+                  >
+                    <Settings className="w-4 h-4" />
+                  </button>
+                </div>
                 <span
                   className={`inline-block px-2 py-1 text-xs rounded-full ${
                     participanteSelecionado.status === 'credenciado'
@@ -872,84 +999,97 @@ const PainelRecepcao: React.FC = () => {
                 </span>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                <div>
-                  <p className="text-sm text-gray-500">Nome</p>
-                  <p className="font-medium">{participanteSelecionado.nome}</p>
-                </div>
-
-                <div>
-                  <p className="text-sm text-gray-500">Empresa</p>
-                  <p className="font-medium">{participanteSelecionado.empresa || '-'}</p>
-                </div>
-
-                <div>
-                  <p className="text-sm text-gray-500">Email</p>
-                  <p className="font-medium">{participanteSelecionado.email1}</p>
-                </div>
-
-                <div>
-                  <p className="text-sm text-gray-500">Telefone</p>
-                  <p className="font-medium">{participanteSelecionado.telefone || '-'}</p>
-                </div>
-
-                <div>
-                  <p className="text-sm text-gray-500">Categoria</p>
-                  <p className="font-medium flex items-center gap-2">
-                    <span className="w-5 h-5 rounded-full border" style={{ backgroundColor: participanteSelecionado.corCategoria || '#ccc' }} />
-                    {normalizeCategory(participanteSelecionado.categoria)}
-                  </p>
-                </div>
-
-                <div>
-                  <p className="text-sm text-gray-500">ID</p>
-                  <p className="font-medium">{participanteSelecionado.id}</p>
-                </div>
-              </div>
-
-              {/* Informações personalizadas */}
-              {participanteSelecionado.camposPersonalizados &&
-                Object.keys(participanteSelecionado.camposPersonalizados).length > 0 && (
-                  <div className="mb-6">
-                    <h4 className="font-medium mb-2">Informações adicionais</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {Object.entries(participanteSelecionado.camposPersonalizados).map(([key, value]) => {
-                        const campo = evento.camposPersonalizados?.find((c) => c.id === key);
-                        return (
-                          <div key={key}>
-                            <p className="text-sm text-gray-500">{campo?.nome || key}</p>
-                            <p className="font-medium">{typeof value === 'boolean' ? (value ? 'Sim' : 'Não') : (value as any) || '-'}</p>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-              <div className="flex flex-wrap gap-2">
-                <button
-                  onClick={() =>
-                    navigate(`/operador/participantes/${eventoId}/${participanteSelecionado.id}/editar`, {
-                      state: { from: 'painel-recepcao' },
-                    })
-                  }
-                  className="btn btn-outline flex items-center"
-                  title="Editar participante"
-                >
-                  <Edit className="w-5 h-5 mr-2" /> Editar Participante
-                </button>
-
-                {participanteSelecionado.status !== 'credenciado' && (
-                  <button onClick={handleCheckinComConfirmacao} disabled={loading} className="btn btn-primary flex items-center">
-                    <CheckCircle className="w-5 h-5 mr-2" />
-                    {loading ? 'Processando...' : 'Fazer Check-in'}
+              {/* Campos configuráveis */}
+              {camposVisiveis.length === 0 ? (
+                <p className="text-sm text-gray-400 mb-6">
+                  Nenhum campo selecionado.{' '}
+                  <button onClick={() => setShowConfigurarCampos(true)} className="underline text-primary">
+                    Configurar campos
                   </button>
-                )}
+                </p>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                  {camposVisiveis.map((key) => (
+                    <div key={key}>
+                      <p className="text-sm text-gray-500">{getLabelForKey(key)}</p>
+                      {editandoInline ? (
+                        <input
+                          value={editValuesInline[key] ?? ''}
+                          onChange={(e) =>
+                            setEditValuesInline((prev) => ({ ...prev, [key]: e.target.value }))
+                          }
+                          className="input-field text-sm mt-0.5"
+                        />
+                      ) : (
+                        <p className="font-medium">
+                          {getFieldValueInPanel(participanteSelecionado, key) || '-'}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
 
-                <button onClick={handlePrintCredencial} className="btn btn-outline flex items-center">
-                  <Printer className="w-5 h-5 mr-2" />
-                  Imprimir Credencial
-                </button>
+              {/* Botões de ação */}
+              <div className="flex flex-wrap gap-2">
+                {editandoInline ? (
+                  <>
+                    <button
+                      onClick={salvarEdicaoInline}
+                      disabled={salvandoInline}
+                      className="btn btn-primary flex items-center"
+                    >
+                      {salvandoInline
+                        ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Salvando...</>
+                        : <><Save className="w-4 h-4 mr-2" />Salvar Alterações</>}
+                    </button>
+                    <button onClick={cancelarEdicaoInline} className="btn btn-outline flex items-center">
+                      <X className="w-4 h-4 mr-2" />Cancelar
+                    </button>
+                    <button
+                      onClick={() =>
+                        navigate(`/operador/participantes/${eventoId}/${participanteSelecionado.id}/editar`, {
+                          state: { from: 'painel-recepcao' },
+                        })
+                      }
+                      className="btn btn-outline flex items-center"
+                    >
+                      <Edit className="w-4 h-4 mr-2" />Editar Cadastro
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      onClick={iniciarEdicaoInline}
+                      className="btn btn-outline flex items-center"
+                    >
+                      <Pencil className="w-4 h-4 mr-2" />Editar
+                    </button>
+                    <button
+                      onClick={() =>
+                        navigate(`/operador/participantes/${eventoId}/${participanteSelecionado.id}/editar`, {
+                          state: { from: 'painel-recepcao' },
+                        })
+                      }
+                      className="btn btn-outline flex items-center"
+                    >
+                      <Edit className="w-5 h-5 mr-2" />Editar Cadastro
+                    </button>
+                    {participanteSelecionado.status !== 'credenciado' && (
+                      <button
+                        onClick={handleCheckinComConfirmacao}
+                        disabled={loading}
+                        className="btn btn-primary flex items-center"
+                      >
+                        <CheckCircle className="w-5 h-5 mr-2" />
+                        {loading ? 'Processando...' : 'Fazer Check-in'}
+                      </button>
+                    )}
+                    <button onClick={handlePrintCredencial} className="btn btn-outline flex items-center">
+                      <Printer className="w-5 h-5 mr-2" />Imprimir Credencial
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           ) : (
@@ -990,6 +1130,85 @@ const PainelRecepcao: React.FC = () => {
           )}
         </div>
       </div>
+      {/* Modal: Configurar campos visíveis */}
+      {showConfigurarCampos && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl w-full max-w-lg shadow-xl flex flex-col max-h-[90vh]">
+            <div className="flex items-center justify-between px-6 pt-6 pb-3 border-b border-gray-100">
+              <div>
+                <h3 className="text-lg font-semibold">Campos visíveis</h3>
+                <p className="text-sm text-gray-500 mt-0.5">
+                  Escolha quais dados aparecem nos detalhes do participante.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowConfigurarCampos(false)}
+                className="p-2 rounded-full hover:bg-gray-100"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto px-6 py-4 space-y-1 flex-1">
+              <p className="text-xs text-gray-400 uppercase tracking-wide mb-2">Campos padrão</p>
+              {CAMPOS_PADRAO_LISTA.map((key) => (
+                <label
+                  key={key}
+                  className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 cursor-pointer"
+                >
+                  <input
+                    type="checkbox"
+                    checked={camposVisiveis.includes(key)}
+                    onChange={(e) => toggleCampoVisivel(key, e.target.checked)}
+                    className="h-4 w-4 text-primary rounded border-gray-300 focus:ring-primary"
+                  />
+                  <span className="text-sm text-gray-700">{LABEL_CAMPO[key] || key}</span>
+                </label>
+              ))}
+
+              {evento.camposPersonalizados && evento.camposPersonalizados.length > 0 && (
+                <>
+                  <p className="text-xs text-gray-400 uppercase tracking-wide mt-4 mb-2">
+                    Campos personalizados
+                  </p>
+                  {evento.camposPersonalizados.map((campo) => {
+                    const key = `cp:${campo.id}`;
+                    return (
+                      <label
+                        key={key}
+                        className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 cursor-pointer"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={camposVisiveis.includes(key)}
+                          onChange={(e) => toggleCampoVisivel(key, e.target.checked)}
+                          className="h-4 w-4 text-primary rounded border-gray-300 focus:ring-primary"
+                        />
+                        <span className="text-sm text-gray-700">{campo.nome}</span>
+                        <span className="text-xs bg-purple-50 text-purple-600 px-1.5 py-0.5 rounded">
+                          personalizado
+                        </span>
+                      </label>
+                    );
+                  })}
+                </>
+              )}
+            </div>
+
+            <div className="px-6 py-4 border-t border-gray-100 flex justify-between items-center">
+              <span className="text-sm text-gray-500">
+                {camposVisiveis.length} campo(s) selecionado(s)
+              </span>
+              <button
+                onClick={() => setShowConfigurarCampos(false)}
+                className="btn btn-primary"
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </LayoutDefault>
   );
 };
