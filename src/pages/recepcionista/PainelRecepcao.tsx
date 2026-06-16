@@ -1013,13 +1013,28 @@ const PainelRecepcao: React.FC = () => {
                     <div key={key}>
                       <p className="text-sm text-gray-500">{getLabelForKey(key)}</p>
                       {editandoInline ? (
-                        <input
-                          value={editValuesInline[key] ?? ''}
-                          onChange={(e) =>
-                            setEditValuesInline((prev) => ({ ...prev, [key]: e.target.value }))
-                          }
-                          className="input-field text-sm mt-0.5"
-                        />
+                        key === 'categoria' ? (
+                          <select
+                            value={editValuesInline[key] ?? ''}
+                            onChange={(e) =>
+                              setEditValuesInline((prev) => ({ ...prev, [key]: normalizeCategory(e.target.value) }))
+                            }
+                            className="input-field text-sm mt-0.5 uppercase"
+                          >
+                            <option value="">Selecione uma categoria</option>
+                            {categoriasEvento.map((cat) => (
+                              <option key={cat} value={cat}>{cat}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <input
+                            value={editValuesInline[key] ?? ''}
+                            onChange={(e) =>
+                              setEditValuesInline((prev) => ({ ...prev, [key]: e.target.value }))
+                            }
+                            className="input-field text-sm mt-0.5"
+                          />
+                        )
                       ) : (
                         <p className="font-medium">
                           {getFieldValueInPanel(participanteSelecionado, key) || '-'}
