@@ -17,6 +17,7 @@ import qz from 'qz-tray';
 import { obterModelosCrachaPorEvento } from '../../services/modeloService';
 import { ModeloCracha } from '../../models/types';
 import QRCode from 'qrcode';
+import { buildQrValue } from '../../utils/qrcode';
 import DonutChart from '../../components/DonutChart';
 import { ChromePicker } from 'react-color';
 import { doc, updateDoc, getDoc, collection, query as fsQuery, where, getDocs } from 'firebase/firestore';
@@ -408,9 +409,22 @@ const PainelRecepcao: React.FC = () => {
         return;
       }
 
-      // usa codigoCliente (fallback id) no QR e barcode
-      const qrValue = (participanteSelecionado as any)?.codigoCliente || participanteSelecionado.id;
-      const qrCodeDataUrl = await QRCode.toDataURL(String(qrValue));
+      // usa codigoCliente (fallback id) no barcode
+      const barcodeValue = (participanteSelecionado as any)?.codigoCliente || participanteSelecionado.id;
+
+      // pré-gera QR por componente respeitando camposQrCode configurados
+      const qrCache: Record<string, string> = {};
+      for (const comp of modeloPadrao.componentes) {
+        if (comp.tipo === 'qrcode') {
+          const p: any = comp.propriedades || {};
+          const qrValor = buildQrValue(
+            participanteSelecionado as any,
+            p.camposQrCode,
+            p.separadorQrCode
+          ) || String(barcodeValue);
+          qrCache[comp.id] = await QRCode.toDataURL(qrValor);
+        }
+      }
 
       const larguraCm = modeloPadrao.larguraCm || 8;
       const alturaCm  = modeloPadrao.alturaCm  || 3;
@@ -447,7 +461,7 @@ const PainelRecepcao: React.FC = () => {
           if (comp.tipo === 'qrcode') {
             return `
               <div style="${baseStyle}">
-                <img src="${qrCodeDataUrl}" width="${props.largura}" height="${props.altura}" />
+                <img src="${qrCache[comp.id]}" width="${props.largura}" height="${props.altura}" />
               </div>
             `;
           }
@@ -457,7 +471,7 @@ const PainelRecepcao: React.FC = () => {
             return `
               <div style="${baseStyle}">
                 <svg id="${idSvg}"
-                    jsbarcode-value="${String(qrValue)}"
+                    jsbarcode-value="${String(barcodeValue)}"
                     jsbarcode-format="CODE128"
                     jsbarcode-width="2"
                     jsbarcode-height="${props.altura || 40}"
