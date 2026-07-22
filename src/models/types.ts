@@ -23,6 +23,7 @@ export interface Evento {
   atualizadoEm: string;
   camposPersonalizados: CampoPersonalizado[];
   quantidadeParticipantes?: number;
+  labelsOpcoes?: Record<string, string>;
 }
 
 export interface CampoPersonalizado {

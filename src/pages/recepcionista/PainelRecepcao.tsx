@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { QrCode, Search, UserPlus, CheckCircle, Printer, Edit, Settings, Pencil, Save, X, Loader2, Wifi, WifiOff } from 'lucide-react';
+import { QrCode, Search, UserPlus, CheckCircle, Printer, Edit, Settings, Pencil, Save, X, Loader2, Wifi, WifiOff, Tag } from 'lucide-react';
 import LayoutDefault from '../../components/layout/LayoutDefault';
 import QrCodeScanner from '../../components/qrcode/QrCodeScanner';
-import { obterEventoPorId } from '../../services/eventoService';
+import { obterEventoPorId, atualizarEvento } from '../../services/eventoService';
 import {
   obterParticipantesPorEvento,
   buscarParticipantes,
@@ -23,6 +23,15 @@ import { ChromePicker } from 'react-color';
 import { doc, updateDoc, getDoc, collection, query as fsQuery, where, getDocs } from 'firebase/firestore';
 import { db } from '../../firebase/config';
 import JsBarcode from 'jsbarcode';
+
+/* ===================== QZ Tray: modo não assinado =====================
+   Sem certificado/assinatura configurados, o QZ Tray rejeita a conexão
+   e a impressão falha silenciosamente. Este é o setup oficial de "modo
+   não assinado" (sem backend de assinatura): o usuário verá um aviso de
+   "conexão não confiável" no QZ Tray na primeira vez e pode marcar
+   "Remember this decision" para não ver novamente nesta máquina. */
+qz.security.setCertificatePromise((resolve) => resolve());
+qz.security.setSignaturePromise(() => (resolve) => resolve());
 
 /* ===================== Helpers & Types ===================== */
 
@@ -46,6 +55,19 @@ const CAMPOS_PADRAO_LISTA = [
 ];
 
 const CAMPOS_VISIVEIS_DEFAULT = ['nome', 'empresa', 'email1', 'telefone', 'categoria'];
+
+const OPCOES_KEYS = [
+  'opcao1', 'opcao2', 'opcao3', 'opcao4', 'opcao5',
+  'opcao6', 'opcao7', 'opcao8', 'opcao9', 'opcao10',
+];
+
+// Campos já cobertos por inputs fixos no formulário "Cadastrar Novo Participante"
+// (email2, celular e empresaCracha NÃO têm input próprio nesse formulário — por padrão
+// espelham email1/telefone/empresa — por isso ficam de fora deste set e podem virar
+// campos extras editáveis quando marcados em "Campos visíveis")
+const CAMPOS_FIXOS_FORM_NOVO = new Set([
+  'nome', 'nomeCracha', 'empresa', 'cargo', 'email1', 'telefone', 'categoria',
+]);
 
 type Usuario = {
   role?: string;
@@ -143,6 +165,10 @@ const PainelRecepcao: React.FC = () => {
   // Campos personalizados do formulário
   const [camposPersonalizadosValues, setCamposPersonalizadosValues] = useState<Record<string, any>>({});
 
+  // Valores dos campos extras (cpf, rg, cnpj, codigoCliente, opcao1..10, observacao)
+  // exibidos no formulário de novo participante conforme "Campos visíveis"
+  const [camposExtrasValues, setCamposExtrasValues] = useState<Record<string, string>>({});
+
   // 🔹 NOVO: categorias do evento (buscadas do banco, independentes do state de participantes)
   const [categoriasEvento, setCategoriasEvento] = useState<string[]>([]);
 
@@ -156,6 +182,14 @@ const PainelRecepcao: React.FC = () => {
   });
   const [showConfigurarCampos, setShowConfigurarCampos] = useState(false);
 
+  // Edição dos nomes dos campos "Opção 1..10" (persistidos por evento)
+  const [showEditarNomesCampos, setShowEditarNomesCampos] = useState(false);
+  const [nomesOpcoesEdicao, setNomesOpcoesEdicao] = useState<Record<string, string>>({});
+  const [salvandoNomesOpcoes, setSalvandoNomesOpcoes] = useState(false);
+
+  // Renomeação inline de "Opção N" ao marcar no modal "Campos visíveis"
+  const [nomesOpcoesInline, setNomesOpcoesInline] = useState<Record<string, string>>({});
+
   // Edição inline
   const [editandoInline, setEditandoInline] = useState(false);
   const [editValuesInline, setEditValuesInline] = useState<Record<string, any>>({});
@@ -168,6 +202,7 @@ const PainelRecepcao: React.FC = () => {
   );
   const [impressorasDisponiveis, setImpressorasDisponiveis] = useState<string[]>([]);
   const [showSelecionarImpressora, setShowSelecionarImpressora] = useState(false);
+  const [reconectandoQz, setReconectandoQz] = useState(false);
 
   // ====== Carrega usuário ======
   useEffect(() => {
@@ -234,21 +269,23 @@ const PainelRecepcao: React.FC = () => {
   }, [eventoId]);
 
   // ====== QZ Tray: tenta conectar ao iniciar ======
-  useEffect(() => {
-    const conectar = async () => {
-      try {
-        if (!qz.websocket.isActive()) {
-          await qz.websocket.connect({ retries: 1, delay: 1 });
-        }
-        setQzConectado(true);
-        const result = await qz.printers.find('') as string | string[];
-        const lista = Array.isArray(result) ? result : result ? [result] : [];
-        setImpressorasDisponiveis(lista);
-      } catch {
-        setQzConectado(false);
+  const conectarQz = async () => {
+    try {
+      if (!qz.websocket.isActive()) {
+        await qz.websocket.connect({ retries: 3, delay: 1 });
       }
-    };
-    conectar();
+      setQzConectado(true);
+      const result = await qz.printers.find('') as string | string[];
+      const lista = Array.isArray(result) ? result : result ? [result] : [];
+      setImpressorasDisponiveis(lista);
+    } catch (err) {
+      console.error('Erro ao conectar ao QZ Tray:', err);
+      setQzConectado(false);
+    }
+  };
+
+  useEffect(() => {
+    conectarQz();
     return () => { try { if (qz.websocket.isActive()) qz.websocket.disconnect(); } catch {} };
   }, []);
 
@@ -568,26 +605,26 @@ const PainelRecepcao: React.FC = () => {
         nome: nomeRef.current?.value || '',
         empresa: empresaRef.current?.value || '',
         email1: emailRef.current?.value || '',
-        email2: emailRef.current?.value || '',
-        celular: telefoneRef.current?.value || '',
+        email2: camposExtrasValues.email2 || emailRef.current?.value || '',
+        celular: camposExtrasValues.celular || telefoneRef.current?.value || '',
         nomeCracha: nomeCrachaRef.current?.value || '',
-        empresaCracha: empresaRef.current?.value || '',
+        empresaCracha: camposExtrasValues.empresaCracha || empresaRef.current?.value || '',
         cargo: cargoRef.current?.value || '',
-        observacao: '',
-        cpf: '',
-        rg: '',
-        cnpj: '',
-        codigoCliente: '',
-        opcao1: '',
-        opcao2: '',
-        opcao3: '',
-        opcao4: '',
-        opcao5: '',
-        opcao6: '',
-        opcao7: '',
-        opcao8: '',
-        opcao9: '',
-        opcao10: '',
+        observacao: camposExtrasValues.observacao || '',
+        cpf: camposExtrasValues.cpf || '',
+        rg: camposExtrasValues.rg || '',
+        cnpj: camposExtrasValues.cnpj || '',
+        codigoCliente: camposExtrasValues.codigoCliente || '',
+        opcao1: camposExtrasValues.opcao1 || '',
+        opcao2: camposExtrasValues.opcao2 || '',
+        opcao3: camposExtrasValues.opcao3 || '',
+        opcao4: camposExtrasValues.opcao4 || '',
+        opcao5: camposExtrasValues.opcao5 || '',
+        opcao6: camposExtrasValues.opcao6 || '',
+        opcao7: camposExtrasValues.opcao7 || '',
+        opcao8: camposExtrasValues.opcao8 || '',
+        opcao9: camposExtrasValues.opcao9 || '',
+        opcao10: camposExtrasValues.opcao10 || '',
         telefone: telefoneRef.current?.value || '',
         categoria: categoriaUpper,
         status: 'pendente',
@@ -614,6 +651,7 @@ const PainelRecepcao: React.FC = () => {
       setShowFormNovoParticipante(false);
       setMensagem({ tipo: 'success', texto: 'Participante cadastrado com sucesso! Realize o check-in.' });
       setCamposPersonalizadosValues({});
+      setCamposExtrasValues({});
     } catch (err) {
       console.error('Erro ao cadastrar participante:', err);
       setMensagem({ tipo: 'error', texto: 'Erro ao cadastrar participante. Tente novamente.' });
@@ -650,7 +688,50 @@ const PainelRecepcao: React.FC = () => {
       const id = key.slice(3);
       return evento?.camposPersonalizados?.find((c) => c.id === id)?.nome || id;
     }
-    return LABEL_CAMPO[key] || key;
+    return evento?.labelsOpcoes?.[key] || LABEL_CAMPO[key] || key;
+  };
+
+  /* ===================== Editar nomes dos campos "Opção N" ===================== */
+
+  const abrirEditarNomesCampos = () => {
+    const vals: Record<string, string> = {};
+    OPCOES_KEYS.forEach((key) => {
+      vals[key] = evento?.labelsOpcoes?.[key] || LABEL_CAMPO[key];
+    });
+    setNomesOpcoesEdicao(vals);
+    setShowEditarNomesCampos(true);
+  };
+
+  const salvarNomesOpcoes = async () => {
+    if (!eventoId || !evento) return;
+    try {
+      setSalvandoNomesOpcoes(true);
+      await atualizarEvento(eventoId, { labelsOpcoes: nomesOpcoesEdicao });
+      setEvento({ ...evento, labelsOpcoes: nomesOpcoesEdicao });
+      setShowEditarNomesCampos(false);
+      setMensagem({ tipo: 'success', texto: 'Nomes dos campos atualizados com sucesso!' });
+      setTimeout(() => setMensagem(null), 3000);
+    } catch (e) {
+      console.error(e);
+      setMensagem({ tipo: 'error', texto: 'Erro ao salvar nomes dos campos.' });
+    } finally {
+      setSalvandoNomesOpcoes(false);
+    }
+  };
+
+  const salvarNomeOpcaoInline = async (key: string) => {
+    if (!eventoId || !evento) return;
+    const atual = evento.labelsOpcoes?.[key] || LABEL_CAMPO[key];
+    const novoValor = (nomesOpcoesInline[key] ?? atual).trim() || LABEL_CAMPO[key];
+    if (novoValor === atual) return;
+    try {
+      const novosLabels = { ...(evento.labelsOpcoes || {}), [key]: novoValor };
+      await atualizarEvento(eventoId, { labelsOpcoes: novosLabels });
+      setEvento({ ...evento, labelsOpcoes: novosLabels });
+    } catch (e) {
+      console.error('Erro ao renomear campo:', e);
+      setMensagem({ tipo: 'error', texto: 'Erro ao salvar nome do campo.' });
+    }
   };
 
   /* ===================== Edição inline ===================== */
@@ -885,7 +966,17 @@ const PainelRecepcao: React.FC = () => {
         <div className="lg:col-span-2">
           {showFormNovoParticipante ? (
             <div className="bg-white p-4 rounded-lg shadow-sm">
-              <h3 className="font-semibold mb-4">Cadastrar Novo Participante</h3>
+              <div className="flex items-center gap-2 mb-4">
+                <h3 className="font-semibold">Cadastrar Novo Participante</h3>
+                <button
+                  type="button"
+                  onClick={() => setShowConfigurarCampos(true)}
+                  className="p-1 text-gray-400 hover:text-gray-600 rounded"
+                  title="Configurar campos visíveis"
+                >
+                  <Settings className="w-4 h-4" />
+                </button>
+              </div>
 
               <form onSubmit={handleCadastrarParticipante}>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
@@ -942,6 +1033,33 @@ const PainelRecepcao: React.FC = () => {
                     </p>
                   </div>
                 </div>
+
+                {/* Campos extras conforme "Campos visíveis" (mesma configuração de Detalhes do Participante) */}
+                {camposVisiveis.some((key) => !key.startsWith('cp:') && !CAMPOS_FIXOS_FORM_NOVO.has(key)) && (
+                  <div className="mb-4">
+                    <h4 className="font-medium mb-2">Informações adicionais</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {camposVisiveis
+                        .filter((key) => !key.startsWith('cp:') && !CAMPOS_FIXOS_FORM_NOVO.has(key))
+                        .map((key) => (
+                          <div key={key}>
+                            <label htmlFor={key} className="block text-sm font-medium text-gray-700 mb-1">
+                              {getLabelForKey(key)}
+                            </label>
+                            <input
+                              id={key}
+                              type="text"
+                              value={camposExtrasValues[key] || ''}
+                              onChange={(e) =>
+                                setCamposExtrasValues((prev) => ({ ...prev, [key]: e.target.value }))
+                              }
+                              className="input-field"
+                            />
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                )}
 
                 {/* Campos personalizados do evento */}
                 {evento.camposPersonalizados && evento.camposPersonalizados.length > 0 && (
@@ -1041,6 +1159,13 @@ const PainelRecepcao: React.FC = () => {
                     title="Configurar campos visíveis"
                   >
                     <Settings className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={abrirEditarNomesCampos}
+                    className="p-1 text-gray-400 hover:text-gray-600 rounded"
+                    title="Editar nomes dos campos Opção"
+                  >
+                    <Tag className="w-4 h-4" />
                   </button>
                 </div>
                 <span
@@ -1242,20 +1367,37 @@ const PainelRecepcao: React.FC = () => {
 
             <div className="overflow-y-auto px-6 py-4 space-y-1 flex-1">
               <p className="text-xs text-gray-400 uppercase tracking-wide mb-2">Campos padrão</p>
-              {CAMPOS_PADRAO_LISTA.map((key) => (
-                <label
-                  key={key}
-                  className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 cursor-pointer"
-                >
-                  <input
-                    type="checkbox"
-                    checked={camposVisiveis.includes(key)}
-                    onChange={(e) => toggleCampoVisivel(key, e.target.checked)}
-                    className="h-4 w-4 text-primary rounded border-gray-300 focus:ring-primary"
-                  />
-                  <span className="text-sm text-gray-700">{LABEL_CAMPO[key] || key}</span>
-                </label>
-              ))}
+              {CAMPOS_PADRAO_LISTA.map((key) => {
+                const checked = camposVisiveis.includes(key);
+                const isOpcao = OPCOES_KEYS.includes(key);
+                return (
+                  <div key={key} className="rounded-lg hover:bg-gray-50">
+                    <label className="flex items-center gap-3 p-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={(e) => toggleCampoVisivel(key, e.target.checked)}
+                        className="h-4 w-4 text-primary rounded border-gray-300 focus:ring-primary"
+                      />
+                      <span className="text-sm text-gray-700">{getLabelForKey(key)}</span>
+                    </label>
+                    {isOpcao && checked && (
+                      <div className="pl-9 pr-2 pb-2">
+                        <input
+                          type="text"
+                          value={nomesOpcoesInline[key] ?? evento.labelsOpcoes?.[key] ?? LABEL_CAMPO[key]}
+                          onChange={(e) =>
+                            setNomesOpcoesInline((prev) => ({ ...prev, [key]: e.target.value }))
+                          }
+                          onBlur={() => salvarNomeOpcaoInline(key)}
+                          placeholder={LABEL_CAMPO[key]}
+                          className="input-field text-sm"
+                        />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
 
               {evento.camposPersonalizados && evento.camposPersonalizados.length > 0 && (
                 <>
@@ -1301,6 +1443,63 @@ const PainelRecepcao: React.FC = () => {
         </div>
       )}
 
+      {/* Modal: Editar nomes dos campos "Opção N" */}
+      {showEditarNomesCampos && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl w-full max-w-lg shadow-xl flex flex-col max-h-[90vh]">
+            <div className="flex items-center justify-between px-6 pt-6 pb-3 border-b border-gray-100">
+              <div>
+                <h3 className="text-lg font-semibold">Editar nomes dos campos</h3>
+                <p className="text-sm text-gray-500 mt-0.5">
+                  Personalize os nomes exibidos para os campos "Opção 1" a "Opção 10" neste evento.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowEditarNomesCampos(false)}
+                className="p-2 rounded-full hover:bg-gray-100"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto px-6 py-4 space-y-3 flex-1">
+              {OPCOES_KEYS.map((key) => (
+                <div key={key}>
+                  <label className="block text-xs text-gray-500 mb-1">{LABEL_CAMPO[key]}</label>
+                  <input
+                    type="text"
+                    value={nomesOpcoesEdicao[key] ?? ''}
+                    onChange={(e) =>
+                      setNomesOpcoesEdicao((prev) => ({ ...prev, [key]: e.target.value }))
+                    }
+                    placeholder={LABEL_CAMPO[key]}
+                    className="input-field text-sm"
+                  />
+                </div>
+              ))}
+            </div>
+
+            <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-2">
+              <button
+                onClick={() => setShowEditarNomesCampos(false)}
+                className="btn btn-outline"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={salvarNomesOpcoes}
+                disabled={salvandoNomesOpcoes}
+                className="btn btn-primary flex items-center"
+              >
+                {salvandoNomesOpcoes
+                  ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Salvando...</>
+                  : <><Save className="w-4 h-4 mr-2" />Salvar</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modal: Configurar impressora */}
       {showSelecionarImpressora && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
@@ -1324,9 +1523,24 @@ const PainelRecepcao: React.FC = () => {
 
             <div className="px-6 py-4">
               {!qzConectado ? (
-                <p className="text-sm text-gray-500">
-                  O QZ Tray não está em execução. Instale e inicie o aplicativo para imprimir diretamente sem abrir o diálogo do navegador.
-                </p>
+                <>
+                  <p className="text-sm text-gray-500 mb-3">
+                    O QZ Tray não está em execução ou a conexão não foi autorizada. Instale e inicie o aplicativo, autorize a conexão no aviso do QZ Tray (marque "Remember this decision" para não ver novamente) e tente de novo.
+                  </p>
+                  <button
+                    onClick={async () => {
+                      setReconectandoQz(true);
+                      await conectarQz();
+                      setReconectandoQz(false);
+                    }}
+                    disabled={reconectandoQz}
+                    className="btn btn-outline flex items-center"
+                  >
+                    {reconectandoQz
+                      ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Conectando...</>
+                      : 'Tentar novamente'}
+                  </button>
+                </>
               ) : (
                 <>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
