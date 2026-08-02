@@ -1,6 +1,6 @@
-const crypto = require('crypto');
+import crypto from 'crypto';
 
-exports.handler = async (event) => {
+export const handler = async (event) => {
   const privateKey = process.env.QZ_PRIVATE_KEY;
   if (!privateKey) {
     return { statusCode: 500, body: 'QZ_PRIVATE_KEY não configurada nas variáveis de ambiente do Netlify' };
