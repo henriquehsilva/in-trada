@@ -24,14 +24,22 @@ import { doc, updateDoc, getDoc, collection, query as fsQuery, where, getDocs } 
 import { db } from '../../firebase/config';
 import JsBarcode from 'jsbarcode';
 
-/* ===================== QZ Tray: modo não assinado =====================
-   Sem certificado/assinatura configurados, o QZ Tray rejeita a conexão
-   e a impressão falha silenciosamente. Este é o setup oficial de "modo
-   não assinado" (sem backend de assinatura): o usuário verá um aviso de
-   "conexão não confiável" no QZ Tray na primeira vez e pode marcar
-   "Remember this decision" para não ver novamente nesta máquina. */
-qz.security.setCertificatePromise((resolve) => resolve());
-qz.security.setSignaturePromise(() => (resolve) => resolve());
+/* ===================== QZ Tray: certificado e assinatura reais =====================
+   O certificado público (gerado em qz.io/login) fica em public/qz/digital-certificate.txt.
+   Cada conexão é assinada por um endpoint no backend (VITE_QZ_SIGN_URL), que guarda a
+   chave privada e nunca a expõe ao frontend. O usuário ainda verá o aviso "Action
+   Required" do QZ Tray na primeira vez (agora mostrando a identidade do certificado) e
+   pode marcar "Remember this decision" para não ver novamente nesta máquina. */
+qz.security.setCertificatePromise((resolve, reject) => {
+  fetch('/qz/digital-certificate.txt', { cache: 'no-store' })
+    .then((data) => (data.ok ? data.text().then(resolve) : data.text().then(reject)));
+});
+
+qz.security.setSignatureAlgorithm('SHA512');
+qz.security.setSignaturePromise((toSign) => (resolve, reject) => {
+  fetch(`${import.meta.env.VITE_QZ_SIGN_URL}?request=${encodeURIComponent(toSign)}`, { cache: 'no-store' })
+    .then((data) => (data.ok ? data.text().then(resolve) : data.text().then(reject)));
+});
 
 /* ===================== Helpers & Types ===================== */
 
