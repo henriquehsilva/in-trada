@@ -307,7 +307,7 @@ const PainelRecepcao: React.FC = () => {
     }
 
     try {
-      const result = await qz.printers.find('') as string | string[];
+      const result = await qz.printers.find() as string | string[];
       const lista = Array.isArray(result) ? result : result ? [result] : [];
       setImpressorasDisponiveis(lista);
     } catch (err) {
