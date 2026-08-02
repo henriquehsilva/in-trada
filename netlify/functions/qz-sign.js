@@ -1,12 +1,12 @@
 import crypto from 'crypto';
 
 export const handler = async (event) => {
-  const rawPrivateKey = process.env.QZ_PRIVATE_KEY;
-  if (!rawPrivateKey) {
-    return { statusCode: 500, body: 'QZ_PRIVATE_KEY não configurada nas variáveis de ambiente do Netlify' };
+  const privateKeyB64 = process.env.QZ_PRIVATE_KEY_B64;
+  if (!privateKeyB64) {
+    return { statusCode: 500, body: 'QZ_PRIVATE_KEY_B64 não configurada nas variáveis de ambiente do Netlify' };
   }
-  // Env vars costumam achatar as quebras de linha do PEM em "\n" literais; normaliza antes de assinar.
-  const privateKey = rawPrivateKey.replace(/\\n/g, '\n');
+  // Guarda a chave em base64 (uma linha só) pra evitar que a UI do Netlify corrompa as quebras de linha do PEM.
+  const privateKey = Buffer.from(privateKeyB64, 'base64').toString('utf8');
 
   const request = event.queryStringParameters?.request || '';
 
