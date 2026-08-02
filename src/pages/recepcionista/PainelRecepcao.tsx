@@ -275,12 +275,18 @@ const PainelRecepcao: React.FC = () => {
         await qz.websocket.connect({ retries: 3, delay: 1 });
       }
       setQzConectado(true);
+    } catch (err) {
+      console.error('Erro ao conectar ao QZ Tray:', err);
+      setQzConectado(false);
+      return;
+    }
+
+    try {
       const result = await qz.printers.find('') as string | string[];
       const lista = Array.isArray(result) ? result : result ? [result] : [];
       setImpressorasDisponiveis(lista);
     } catch (err) {
-      console.error('Erro ao conectar ao QZ Tray:', err);
-      setQzConectado(false);
+      console.error('QZ Tray conectado, mas falhou ao listar impressoras:', err);
     }
   };
 
