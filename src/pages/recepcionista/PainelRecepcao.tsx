@@ -500,6 +500,16 @@ const PainelRecepcao: React.FC = () => {
       const largura = cmToZplPx(larguraCm);
       const altura  = cmToZplPx(alturaCm);
 
+      /* Impressoras Brother (ao contrário da Zebra) ejetam a etiqueta de lado.
+         Em vez de depender da opção "rotation" do QZ Tray (não confiável para
+         impressão pixel/html), giramos o conteúdo 90° via CSS e invertemos as
+         dimensões físicas informadas à impressora. */
+      const rodado = !!modeloPadrao.imprimirRodado;
+      const pageLarguraPx = rodado ? altura : largura;
+      const pageAlturaPx  = rodado ? largura : altura;
+      const pageLarguraCm = rodado ? alturaCm : larguraCm;
+      const pageAlturaCm  = rodado ? larguraCm : alturaCm;
+
       const usedFamilies = getUsedFontFamilies(modeloPadrao.componentes);
       const fontFaceCSS  = buildFontFaceCSS(usedFamilies);
 
@@ -561,15 +571,17 @@ const PainelRecepcao: React.FC = () => {
             <title>Imprimir Crachá</title>
             <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
             <style>
-              @page { size: ${largura}px ${altura}px; margin: 0; }
+              @page { size: ${pageLarguraPx}px ${pageAlturaPx}px; margin: 0; }
               html, body { margin: 0; padding: 0; }
               * { -webkit-print-color-adjust: exact; print-color-adjust: exact; } /* força cores em print */
               ${fontFaceCSS}
             </style>
           </head>
           <body>
-            <div id="root" style="position:relative; width:${largura}px; height:${altura}px;">
-              ${htmlComponente}
+            <div id="page" style="position:relative; width:${pageLarguraPx}px; height:${pageAlturaPx}px; overflow:hidden;">
+              <div id="root" style="position:absolute; top:0; left:0; width:${largura}px; height:${altura}px; ${rodado ? 'transform-origin: top left; transform: rotate(90deg) translateY(-100%);' : ''}">
+                ${htmlComponente}
+              </div>
             </div>
             <script>
               (async function(){
@@ -595,10 +607,9 @@ const PainelRecepcao: React.FC = () => {
 
       if (qzConectado && impressoraPadrao) {
         const config = qz.configs.create(impressoraPadrao, {
-          size: { width: larguraCm, height: alturaCm },
+          size: { width: pageLarguraCm, height: pageAlturaCm },
           units: 'cm',
           colorType: 'color',
-          rotation: modeloPadrao.imprimirRodado ? 90 : 0,
         });
         await qz.print(config, [{ type: 'pixel', format: 'html', flavor: 'plain', data: html }]);
       } else {
