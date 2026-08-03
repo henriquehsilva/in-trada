@@ -57,7 +57,9 @@ const DragDropEditor: React.FC<DragDropEditorProps> = ({
   const modelosEtiqueta = [
     { id: '8x3', nome: 'Etiqueta 8x3cm', larguraCm: 8, alturaCm: 3 },
     { id: '6x4', nome: 'Etiqueta 6x4cm', larguraCm: 6, alturaCm: 4 },
-    { id: '10x5', nome: 'Etiqueta 10x5cm', larguraCm: 10, alturaCm: 5 }
+    { id: '10x5', nome: 'Etiqueta 10x5cm', larguraCm: 10, alturaCm: 5 },
+    { id: '8x2,9', nome: 'Etiqueta 8x2,9cm', larguraCm: 8, alturaCm: 2.9 },
+    { id: '10x6,2', nome: 'Etiqueta 10x6,2cm', larguraCm: 10, alturaCm: 6.2 }
   ].map(m => ({
     ...m,
     largura: cmToPx(m.larguraCm),
