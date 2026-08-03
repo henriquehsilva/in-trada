@@ -138,6 +138,159 @@ function buildFontFaceCSS(usedFamilies: string[]): string {
   return faces.join('\n');
 }
 
+/* ====== Impressão rotacionada (Brother): o motor HTML interno do QZ Tray não
+   suporta "transform: rotate()" do CSS de forma confiável, então para etiquetas
+   marcadas como "imprimirRodado" desenhamos tudo num <canvas> (renderizado pelo
+   próprio navegador) e giramos a imagem final via Canvas 2D antes de enviar ao QZ. */
+
+function loadImageEl(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = src;
+  });
+}
+
+async function registrarFonteCustomizadaSeNecessario(familia?: string) {
+  if (!familia || STD_FONTS.has(familia)) return;
+  const fontsSet = (document as any).fonts;
+  if (fontsSet && Array.from(fontsSet).some((f: any) => f.family === familia)) return;
+  try {
+    const saved = JSON.parse(localStorage.getItem(LS_KEY_FONTS) || '{}') as Record<string, string>;
+    const dataUrl = saved[familia];
+    if (!dataUrl) return;
+    const font = new FontFace(familia, `url(${dataUrl})`);
+    await font.load();
+    fontsSet.add(font);
+  } catch {}
+}
+
+function wrapCanvasText(ctx: CanvasRenderingContext2D, texto: string, maxWidth: number): string[] {
+  const linhas: string[] = [];
+  for (const paragrafo of String(texto).split('\n')) {
+    const palavras = paragrafo.split(' ');
+    let linhaAtual = '';
+    for (const palavra of palavras) {
+      const tentativa = linhaAtual ? `${linhaAtual} ${palavra}` : palavra;
+      if (linhaAtual && ctx.measureText(tentativa).width > maxWidth) {
+        linhas.push(linhaAtual);
+        linhaAtual = palavra;
+      } else {
+        linhaAtual = tentativa;
+      }
+    }
+    linhas.push(linhaAtual);
+  }
+  return linhas;
+}
+
+async function desenharComponenteNoCanvas(
+  ctx: CanvasRenderingContext2D,
+  comp: any,
+  valor: string,
+  qrDataUrl: string | undefined,
+  barcodeValue: string
+) {
+  const props: any = comp.propriedades || {};
+  const estilos: any = props.estilos || {};
+  const x = props.x || 0;
+  const y = props.y || 0;
+  const w = props.largura || 0;
+  const h = props.altura || 0;
+
+  if (estilos?.corFundo) {
+    ctx.fillStyle = estilos.corFundo;
+    const raio = estilos.raio || 0;
+    if (raio && typeof (ctx as any).roundRect === 'function') {
+      ctx.beginPath();
+      (ctx as any).roundRect(x, y, w, h, raio);
+      ctx.fill();
+    } else {
+      ctx.fillRect(x, y, w, h);
+    }
+  }
+
+  if (comp.tipo === 'qrcode') {
+    if (qrDataUrl) {
+      const img = await loadImageEl(qrDataUrl);
+      ctx.drawImage(img, x, y, w, h);
+    }
+    return;
+  }
+
+  if (comp.tipo === 'barcode') {
+    const barcodeCanvas = document.createElement('canvas');
+    try {
+      JsBarcode(barcodeCanvas, String(barcodeValue), {
+        format: 'CODE128', width: 2, height: h || 40, displayValue: false, margin: 0,
+      });
+      ctx.drawImage(barcodeCanvas, x, y, w, h);
+    } catch {}
+    return;
+  }
+
+  // texto / campo
+  if (!valor) return;
+  await registrarFonteCustomizadaSeNecessario(estilos?.fonte);
+  const tamanhoFonte = estilos?.tamanhoFonte || 14;
+  const peso = estilos?.negrito ? '700' : '400';
+  const familia = estilos?.fonte
+    ? `'${estilos.fonte}', ${STD_FONTS.has(estilos.fonte) ? estilos.fonte : 'sans-serif'}`
+    : 'sans-serif';
+  ctx.font = `${peso} ${tamanhoFonte}px ${familia}`;
+  ctx.fillStyle = estilos?.corFonte || '#000000';
+  const alinhamento: CanvasTextAlign = estilos?.alinhamento || 'left';
+  ctx.textAlign = alinhamento;
+  ctx.textBaseline = 'middle';
+
+  const lineHeight = tamanhoFonte * 1.1;
+  const linhas = wrapCanvasText(ctx, String(valor), w);
+  const totalH = linhas.length * lineHeight;
+  let linhaY = y + h / 2 - totalH / 2 + lineHeight / 2;
+  const linhaX = alinhamento === 'center' ? x + w / 2 : alinhamento === 'right' ? x + w : x;
+  for (const linha of linhas) {
+    ctx.fillText(linha, linhaX, linhaY, w);
+    linhaY += lineHeight;
+  }
+}
+
+async function renderEtiquetaParaCanvas(
+  componentes: any[],
+  larguraPx: number,
+  alturaPx: number,
+  participante: any,
+  qrCache: Record<string, string>,
+  barcodeValue: string
+): Promise<HTMLCanvasElement> {
+  const canvas = document.createElement('canvas');
+  canvas.width = larguraPx;
+  canvas.height = alturaPx;
+  const ctx = canvas.getContext('2d')!;
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, larguraPx, alturaPx);
+
+  for (const comp of componentes) {
+    const props: any = comp.propriedades || {};
+    const valor = props.campoVinculado ? (participante?.[props.campoVinculado] ?? '') : (props.texto ?? '');
+    await desenharComponenteNoCanvas(ctx, comp, String(valor ?? ''), qrCache[comp.id], barcodeValue);
+  }
+  return canvas;
+}
+
+function rotacionarCanvas90Esquerda(origem: HTMLCanvasElement): HTMLCanvasElement {
+  const w = origem.width;
+  const h = origem.height;
+  const destino = document.createElement('canvas');
+  destino.width = h;
+  destino.height = w;
+  const ctx = destino.getContext('2d')!;
+  ctx.translate(0, w);
+  ctx.rotate(-Math.PI / 2);
+  ctx.drawImage(origem, 0, 0, w, h);
+  return destino;
+}
+
 /* ===================== Componente ===================== */
 
 const PainelRecepcao: React.FC = () => {
@@ -611,7 +764,17 @@ const PainelRecepcao: React.FC = () => {
           units: 'cm',
           colorType: 'color',
         });
-        await qz.print(config, [{ type: 'pixel', format: 'html', flavor: 'plain', data: html }]);
+
+        if (rodado) {
+          const baseCanvas = await renderEtiquetaParaCanvas(
+            modeloPadrao.componentes, largura, altura, participanteSelecionado, qrCache, barcodeValue
+          );
+          const canvasRodado = rotacionarCanvas90Esquerda(baseCanvas);
+          const base64 = canvasRodado.toDataURL('image/png').split(',')[1];
+          await qz.print(config, [{ type: 'pixel', format: 'image', flavor: 'base64', data: base64 }]);
+        } else {
+          await qz.print(config, [{ type: 'pixel', format: 'html', flavor: 'plain', data: html }]);
+        }
       } else {
         if (qzConectado && !impressoraPadrao) {
           setShowSelecionarImpressora(true);
