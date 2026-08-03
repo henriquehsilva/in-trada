@@ -22,16 +22,20 @@ interface DragDropEditorProps {
   onSave: (componentes: ComponenteEditor[]) => void;
   tamanhoCracha?: { largura: number; altura: number };
   onChangeTamanhoCracha?: (dimensoes: { larguraCm: number; alturaCm: number }) => void;
+  imprimirRodado?: boolean;
+  onChangeImprimirRodado?: (imprimirRodado: boolean) => void;
   camposDisponiveis?: string[];
   fontesDisponiveis?: string[];
 }
 
 const DragDropEditor: React.FC<DragDropEditorProps> = ({
   componentes,
-  onSave,  
+  onSave,
   camposDisponiveis = [],
   fontesDisponiveis = [],
-  onChangeTamanhoCracha
+  onChangeTamanhoCracha,
+  imprimirRodado = false,
+  onChangeImprimirRodado
 }) => {
   const [componentesAtuais, setComponentesAtuais] = useState<ComponenteEditor[]>([]);
   
@@ -58,7 +62,7 @@ const DragDropEditor: React.FC<DragDropEditorProps> = ({
     { id: '8x3', nome: 'Etiqueta 8x3cm', larguraCm: 8, alturaCm: 3 },
     { id: '6x4', nome: 'Etiqueta 6x4cm', larguraCm: 6, alturaCm: 4 },
     { id: '10x5', nome: 'Etiqueta 10x5cm', larguraCm: 10, alturaCm: 5 },
-    { id: '8x2,9', nome: 'Etiqueta 8x2,9cm', larguraCm: 8, alturaCm: 2.9 },
+    { id: '9,3x2,9', nome: 'Etiqueta 9,3x2,9cm', larguraCm: 9.3, alturaCm: 2.9 },
     { id: '10x6,2', nome: 'Etiqueta 10x6,2cm', larguraCm: 10, alturaCm: 6.2 }
   ].map(m => ({
     ...m,
@@ -184,6 +188,14 @@ const DragDropEditor: React.FC<DragDropEditorProps> = ({
               <option key={m.id} value={m.id}>{m.nome}</option>
             ))}
           </select>
+          <label className="flex items-center gap-2 text-sm text-gray-700 mb-4">
+            <input
+              type="checkbox"
+              checked={imprimirRodado}
+              onChange={(e) => onChangeImprimirRodado?.(e.target.checked)}
+            />
+            Impressão rodada 90° (Brother)
+          </label>
           <h3 className="text-lg font-semibold mb-4">Editor</h3>
           <div
             className="relative border border-gray-300 rounded-lg mx-auto"

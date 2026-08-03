@@ -598,6 +598,7 @@ const PainelRecepcao: React.FC = () => {
           size: { width: larguraCm, height: alturaCm },
           units: 'cm',
           colorType: 'color',
+          rotation: modeloPadrao.imprimirRodado ? 90 : 0,
         });
         await qz.print(config, [{ type: 'pixel', format: 'html', flavor: 'plain', data: html }]);
       } else {

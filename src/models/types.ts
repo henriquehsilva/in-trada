@@ -80,7 +80,8 @@ export interface ModeloCracha {
   atualizadoEm: string;
   padrao?: boolean;
   larguraCm?: number;
-  alturaCm?: number; 
+  alturaCm?: number;
+  imprimirRodado?: boolean; // gira a impressão 90° (necessário em impressoras Brother)
 }
 
 export interface ModeloPainel {

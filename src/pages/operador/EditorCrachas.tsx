@@ -301,6 +301,7 @@ const EditorCrachas: React.FC = () => {
       componentes: sanitizeObjeto(componentes) as ComponenteEditor[],
       larguraCm: modelo?.larguraCm ?? 8,
       alturaCm: modelo?.alturaCm ?? 3,
+      imprimirRodado: modelo?.imprimirRodado ?? false,
       criadoPorId: currentUser?.uid || '',
       padrao: false,
     } as ModeloCrachaCreate;
@@ -315,6 +316,7 @@ const EditorCrachas: React.FC = () => {
       componentes: sanitizeObjeto(componentes) as ComponenteEditor[],
       larguraCm: modelo?.larguraCm ?? 8,
       alturaCm: modelo?.alturaCm ?? 3,
+      imprimirRodado: modelo?.imprimirRodado ?? false,
       atualizadoEm: new Date().toISOString(),
     };
   };
@@ -510,6 +512,13 @@ const EditorCrachas: React.FC = () => {
             componentes={componentes}
             onSave={setComponentes}
             tamanhoCracha={tamanhoCracha}
+            onChangeTamanhoCracha={(dimensoes) =>
+              setModelo(prev => prev ? { ...prev, ...dimensoes } : prev)
+            }
+            imprimirRodado={modelo?.imprimirRodado ?? false}
+            onChangeImprimirRodado={(imprimirRodado) =>
+              setModelo(prev => prev ? { ...prev, imprimirRodado } : prev)
+            }
             camposDisponiveis={camposDisponiveis}
             fontesDisponiveis={fontesDisponiveis} // 👈 inclui as fontes customizadas
           />
