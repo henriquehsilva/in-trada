@@ -579,7 +579,7 @@ const PainelRecepcao: React.FC = () => {
           </head>
           <body>
             <div id="page" style="position:relative; width:${pageLarguraPx}px; height:${pageAlturaPx}px; overflow:hidden;">
-              <div id="root" style="position:absolute; top:0; left:0; width:${largura}px; height:${altura}px; ${rodado ? 'transform-origin: top left; transform: rotate(90deg) translateY(-100%);' : ''}">
+              <div id="root" style="position:absolute; top:0; left:0; width:${largura}px; height:${altura}px; ${rodado ? 'transform-origin: top left; transform: rotate(-90deg) translateX(-100%);' : ''}">
                 ${htmlComponente}
               </div>
             </div>
