@@ -765,15 +765,35 @@ const PainelRecepcao: React.FC = () => {
           colorType: 'color',
         });
 
-        if (rodado) {
-          const baseCanvas = await renderEtiquetaParaCanvas(
-            modeloPadrao.componentes, largura, altura, participanteSelecionado, qrCache, barcodeValue
-          );
-          const canvasRodado = rotacionarCanvas90Esquerda(baseCanvas);
-          const base64 = canvasRodado.toDataURL('image/png').split(',')[1];
-          await qz.print(config, [{ type: 'pixel', format: 'image', flavor: 'base64', data: base64 }]);
-        } else {
-          await qz.print(config, [{ type: 'pixel', format: 'html', flavor: 'plain', data: html }]);
+        // eslint-disable-next-line no-console
+        console.log('[QZ][print]', {
+          impressoraPadrao,
+          rodado,
+          larguraCm, alturaCm,
+          pageLarguraCm, pageAlturaCm,
+          largura, altura,
+          pageLarguraPx, pageAlturaPx,
+        });
+
+        try {
+          if (rodado) {
+            const baseCanvas = await renderEtiquetaParaCanvas(
+              modeloPadrao.componentes, largura, altura, participanteSelecionado, qrCache, barcodeValue
+            );
+            const canvasRodado = rotacionarCanvas90Esquerda(baseCanvas);
+            // eslint-disable-next-line no-console
+            console.log('[QZ][print] canvas base', baseCanvas.width, baseCanvas.height,
+              '-> canvas rodado', canvasRodado.width, canvasRodado.height);
+            const base64 = canvasRodado.toDataURL('image/png').split(',')[1];
+            await qz.print(config, [{ type: 'pixel', format: 'image', flavor: 'base64', data: base64 }]);
+          } else {
+            await qz.print(config, [{ type: 'pixel', format: 'html', flavor: 'plain', data: html }]);
+          }
+          // eslint-disable-next-line no-console
+          console.log('[QZ][print] qz.print resolveu sem erro');
+        } catch (qzErr) {
+          console.error('[QZ][print] qz.print rejeitou:', qzErr);
+          throw qzErr;
         }
       } else {
         if (qzConectado && !impressoraPadrao) {
