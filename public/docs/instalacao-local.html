@@ -1,0 +1,497 @@
+<title>IN-TRADA Setup</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&family=Roboto+Mono:wght@400;500;600&display=swap">
+<style>
+  :root {
+    --bg: #ffffff;
+    --bg-raised: #fafafa;
+    --text: #111111;
+    --text-body: #1a1a1a;
+    --text-muted: #5c5c5c;
+    --border: #dcdcdc;
+    --border-strong: #b8b8b8;
+    --accent: #b45309;
+    --accent-ink: #7c3a08;
+    --accent-bg: #fdf3e7;
+    --code-bg: #f4f4f4;
+    --code-border: #e0e0e0;
+    --warn-bg: #fdf3e7;
+    --warn-border: #e3b47c;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    background: var(--bg);
+    color: var(--text-body);
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    font-family: "Roboto", -apple-system, "Segoe UI", sans-serif;
+    font-size: 16px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    max-width: 780px;
+    margin: 0 auto;
+    padding: 64px 24px 120px;
+  }
+
+  header.hero {
+    margin-bottom: 56px;
+  }
+
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: "Roboto Mono", monospace;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent-ink);
+    background: var(--accent-bg);
+    border: 1px solid var(--warn-border);
+    padding: 5px 12px;
+    border-radius: 999px;
+    margin-bottom: 20px;
+  }
+
+  h1 {
+    font-size: clamp(32px, 5vw, 42px);
+    font-weight: 900;
+    letter-spacing: -0.01em;
+    color: var(--text);
+    margin: 0 0 12px;
+    text-wrap: balance;
+  }
+
+  .subtitle {
+    font-size: 17px;
+    color: var(--text-muted);
+    max-width: 60ch;
+    margin: 0;
+  }
+
+  .meta-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 28px;
+  }
+
+  .meta-chip {
+    font-family: "Roboto Mono", monospace;
+    font-size: 12.5px;
+    color: var(--text-body);
+    background: var(--bg-raised);
+    border: 1px solid var(--border);
+    padding: 6px 11px;
+    border-radius: 6px;
+  }
+
+  .meta-chip b {
+    color: var(--accent-ink);
+    font-weight: 600;
+  }
+
+  nav.toc {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px 24px;
+    margin-bottom: 56px;
+    background: var(--bg-raised);
+  }
+
+  nav.toc p {
+    margin: 0 0 10px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  nav.toc ol {
+    margin: 0;
+    padding: 0 0 0 1.1em;
+    columns: 2;
+    column-gap: 32px;
+  }
+
+  nav.toc li { break-inside: avoid; margin-bottom: 6px; }
+
+  nav.toc a {
+    color: var(--text-body);
+    text-decoration: none;
+    font-size: 14.5px;
+    border-bottom: 1px solid transparent;
+  }
+
+  nav.toc a:hover, nav.toc a:focus-visible {
+    border-bottom-color: var(--accent);
+    color: var(--accent-ink);
+  }
+
+  section.step {
+    display: grid;
+    grid-template-columns: 44px 1fr;
+    gap: 20px;
+    padding-bottom: 44px;
+    margin-bottom: 44px;
+    border-bottom: 1px solid var(--border);
+    scroll-margin-top: 24px;
+  }
+
+  section.step:last-of-type {
+    border-bottom: none;
+  }
+
+  .step-num {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    background: var(--text);
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: "Roboto Mono", monospace;
+    font-weight: 600;
+    font-size: 16px;
+  }
+
+  .step-body h2 {
+    margin: 6px 0 6px;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--text);
+    text-wrap: balance;
+  }
+
+  .step-body > p.lead {
+    margin: 0 0 18px;
+    color: var(--text-muted);
+    max-width: 62ch;
+  }
+
+  .step-body p {
+    max-width: 68ch;
+  }
+
+  .step-body ul, .step-body ol.sub {
+    max-width: 68ch;
+    padding-left: 1.2em;
+    margin: 12px 0;
+  }
+
+  .step-body li { margin-bottom: 6px; }
+
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--code-border);
+    border-left: 3px solid var(--accent);
+    border-radius: 8px;
+    padding: 16px 18px;
+    overflow-x: auto;
+    margin: 14px 0;
+  }
+
+  code {
+    font-family: "Roboto Mono", monospace;
+    font-size: 13.5px;
+  }
+
+  pre code {
+    color: var(--text);
+    white-space: pre;
+  }
+
+  p code, li code {
+    background: var(--code-bg);
+    border: 1px solid var(--code-border);
+    border-radius: 4px;
+    padding: 1px 6px;
+    color: var(--accent-ink);
+    font-size: 13px;
+  }
+
+  .comment { color: #7a7a7a; }
+
+  table.env {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 14px 0;
+    font-size: 13.5px;
+    overflow-x: auto;
+    display: block;
+  }
+
+  table.env thead {
+    display: table;
+    width: 100%;
+    table-layout: fixed;
+  }
+  table.env tbody {
+    display: table;
+    width: 100%;
+    table-layout: fixed;
+  }
+
+  table.env th {
+    text-align: left;
+    font-family: "Roboto Mono", monospace;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border-strong);
+    padding: 8px 10px;
+  }
+
+  table.env td {
+    padding: 9px 10px;
+    border-bottom: 1px solid var(--border);
+    font-family: "Roboto Mono", monospace;
+    font-size: 12.5px;
+    vertical-align: top;
+    word-break: break-all;
+  }
+
+  table.env td.key {
+    color: var(--accent-ink);
+    font-weight: 600;
+    word-break: normal;
+  }
+
+  table.env tr:last-child td { border-bottom: none; }
+
+  .callout {
+    border: 1px solid var(--warn-border);
+    background: var(--warn-bg);
+    border-radius: 8px;
+    padding: 14px 18px;
+    margin: 16px 0;
+    font-size: 14.5px;
+    max-width: 68ch;
+  }
+
+  .callout .callout-label {
+    display: block;
+    font-family: "Roboto Mono", monospace;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--accent-ink);
+    margin-bottom: 6px;
+  }
+
+  .badge-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin: 10px 0 4px;
+  }
+
+  .port-badge {
+    font-family: "Roboto Mono", monospace;
+    font-size: 12px;
+    background: #ffffff;
+    border: 1px solid var(--border-strong);
+    border-radius: 6px;
+    padding: 4px 9px;
+  }
+
+  .port-badge b { color: var(--text); }
+
+  footer {
+    margin-top: 40px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+    color: var(--text-muted);
+    font-size: 13px;
+  }
+
+  footer a { color: var(--accent-ink); }
+
+  ::selection {
+    background: var(--accent);
+    color: #fff;
+  }
+
+  a { color: var(--accent-ink); }
+
+  @media (max-width: 560px) {
+    nav.toc ol { columns: 1; }
+    section.step { grid-template-columns: 36px 1fr; gap: 14px; }
+    .step-num { width: 36px; height: 36px; font-size: 14px; border-radius: 8px; }
+  }
+</style>
+
+<div class="page">
+
+  <header class="hero">
+    <span class="eyebrow">Guia de instalação · ambiente local</span>
+    <h1>Rodando o IN-TRADA na sua máquina</h1>
+    <p class="subtitle">Passo a passo para clonar, configurar as variáveis de ambiente e subir o Firebase local (emuladores) do sistema de credenciamento de eventos.</p>
+    <div class="meta-row">
+      <span class="meta-chip"><b>Stack</b> React + Vite + TypeScript</span>
+      <span class="meta-chip"><b>Backend</b> Firebase (Auth, Firestore, Storage)</span>
+      <span class="meta-chip"><b>Projeto Firebase</b> in-trada</span>
+    </div>
+  </header>
+
+  <nav class="toc">
+    <p>Nesta página</p>
+    <ol>
+      <li><a href="#pre-requisitos">Pré-requisitos</a></li>
+      <li><a href="#clonar">Clonar e instalar</a></li>
+      <li><a href="#env">Variáveis de ambiente</a></li>
+      <li><a href="#firebase-cli">Instalar o Firebase CLI</a></li>
+      <li><a href="#emuladores">Configurar os emuladores</a></li>
+      <li><a href="#rodar">Rodar tudo junto</a></li>
+      <li><a href="#verificar">Verificar se funcionou</a></li>
+    </ol>
+  </nav>
+
+  <section class="step" id="pre-requisitos">
+    <div class="step-num">1</div>
+    <div class="step-body">
+      <h2>Pré-requisitos</h2>
+      <p class="lead">Confirme essas ferramentas antes de começar. Os comandos abaixo mostram a versão instalada.</p>
+      <pre><code><span class="comment"># Node.js 18 ou superior</span>
+node -v
+
+<span class="comment"># npm (vem junto com o Node)</span>
+npm -v
+
+<span class="comment"># Git</span>
+git --version</code></pre>
+      <p>Se o <code>node -v</code> falhar ou mostrar uma versão abaixo de 18, instale o Node atual em <code>nodejs.org</code> antes de continuar.</p>
+    </div>
+  </section>
+
+  <section class="step" id="clonar">
+    <div class="step-num">2</div>
+    <div class="step-body">
+      <h2>Clonar o repositório e instalar dependências</h2>
+      <pre><code>git clone &lt;url-do-repositorio&gt; in-trada
+<span class="comment">cd</span> in-trada
+npm install</code></pre>
+      <p>Isso instala React, Firebase SDK, Tailwind e as demais dependências listadas em <code>package.json</code>.</p>
+    </div>
+  </section>
+
+  <section class="step" id="env">
+    <div class="step-num">3</div>
+    <div class="step-body">
+      <h2>Criar o arquivo <code>.env</code></h2>
+      <p class="lead">Na raiz do projeto, crie um arquivo chamado <code>.env</code> (ele já está no <code>.gitignore</code>, então nunca vai parar no Git) com estas variáveis:</p>
+      <pre><code>VITE_ADMIN_USER_ID=tsONeifT2JXfnQmQpJvv8kC5kxu1
+VITE_FIREBASE_API_KEY=AIzaSyBsoDA2nbqWQPjpqoMKVlV3_NX9mdMw4sI
+VITE_FIREBASE_APP_ID=1:32883437509:web:3208538f06791b2a7fa5ac
+VITE_FIREBASE_AUTH_DOMAIN=in-trada.firebaseapp.com
+VITE_FIREBASE_MEASUREMENT_ID=G-R2QC70GS68
+VITE_FIREBASE_MESSAGING_SENDER_ID=32883437509
+VITE_FIREBASE_PROJECT_ID=in-trada
+VITE_FIREBASE_STORAGE_BUCKET=in-trada.firebasestorage.app
+VITE_QZ_SIGN_URL=/.netlify/functions/qz-sign
+VITE_USE_EMULATORS=1</code></pre>
+      <table class="env">
+        <thead>
+          <tr><th style="width:38%">Variável</th><th>Para que serve</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="key">VITE_ADMIN_USER_ID</td><td>UID do usuário com papel de Admin, usado para liberar as telas administrativas.</td></tr>
+          <tr><td class="key">VITE_FIREBASE_API_KEY</td><td>Chave pública do app Firebase (in-trada).</td></tr>
+          <tr><td class="key">VITE_FIREBASE_APP_ID</td><td>Identificador do app registrado no Firebase.</td></tr>
+          <tr><td class="key">VITE_FIREBASE_AUTH_DOMAIN</td><td>Domínio usado pelo Firebase Authentication.</td></tr>
+          <tr><td class="key">VITE_FIREBASE_MEASUREMENT_ID</td><td>ID do Google Analytics vinculado ao projeto.</td></tr>
+          <tr><td class="key">VITE_FIREBASE_MESSAGING_SENDER_ID</td><td>Sender ID do Firebase Cloud Messaging.</td></tr>
+          <tr><td class="key">VITE_FIREBASE_PROJECT_ID</td><td>ID do projeto no Firebase (<code>in-trada</code>).</td></tr>
+          <tr><td class="key">VITE_FIREBASE_STORAGE_BUCKET</td><td>Bucket do Firebase Storage para upload de imagens/arquivos.</td></tr>
+          <tr><td class="key">VITE_QZ_SIGN_URL</td><td>Endpoint que assina os pacotes enviados ao QZ Tray (impressão de crachás).</td></tr>
+          <tr><td class="key">VITE_USE_EMULATORS</td><td>Quando igual a <code>1</code>, o app conecta no Firestore/Auth/Storage <b>locais</b> em vez do Firebase de produção.</td></tr>
+        </tbody>
+      </table>
+      <div class="callout">
+        <span class="callout-label">Importante</span>
+        A chave <code>VITE_FIREBASE_API_KEY</code> é pública por natureza (faz parte do código do app no navegador) — não é um segredo de servidor. Ainda assim, mantenha o arquivo <code>.env</code> fora do controle de versão.
+      </div>
+    </div>
+  </section>
+
+  <section class="step" id="firebase-cli">
+    <div class="step-num">4</div>
+    <div class="step-body">
+      <h2>Instalar o Firebase CLI</h2>
+      <p class="lead">A CLI é quem sobe os emuladores locais (Firestore, Auth, Storage).</p>
+      <pre><code>npm install -g firebase-tools
+firebase --version
+
+<span class="comment"># conecta a CLI com sua conta Google</span>
+firebase login</code></pre>
+      <p>O projeto já vem com um <code>.firebaserc</code> apontando para <code>in-trada</code>, então não é preciso rodar <code>firebase init</code> de novo — as regras (<code>firestore.rules</code>, <code>storage.rules</code>) e a config dos emuladores já estão em <code>firebase.json</code>.</p>
+    </div>
+  </section>
+
+  <section class="step" id="emuladores">
+    <div class="step-num">5</div>
+    <div class="step-body">
+      <h2>Configurar e subir os emuladores</h2>
+      <p class="lead">O arquivo <code>firebase.json</code> já define as portas de cada serviço:</p>
+      <div class="badge-row">
+        <span class="port-badge">Emulator UI · <b>4000</b></span>
+        <span class="port-badge">Firestore · <b>8080</b></span>
+        <span class="port-badge">Auth · <b>9099</b></span>
+        <span class="port-badge">Storage · <b>9199</b></span>
+        <span class="port-badge">Functions · <b>5001</b></span>
+      </div>
+      <p>Com <code>VITE_USE_EMULATORS=1</code> já setado no passo 3, suba os emuladores em um terminal separado:</p>
+      <pre><code>firebase emulators:start</code></pre>
+      <p>Deixe esse terminal aberto. Abra <code>http://127.0.0.1:4000</code> no navegador — essa é a Emulator UI, onde dá pra ver e editar os dados do Firestore, os usuários do Auth e os arquivos do Storage em tempo real, sem tocar em produção.</p>
+      <div class="callout">
+        <span class="callout-label">Dica</span>
+        Para manter dados entre reinicializações dos emuladores, use
+        <code>firebase emulators:start --export-on-exit=./firebase-data --import=./firebase-data</code>.
+        Isso salva o estado ao encerrar e recarrega no próximo <code>start</code>.
+      </div>
+    </div>
+  </section>
+
+  <section class="step" id="rodar">
+    <div class="step-num">6</div>
+    <div class="step-body">
+      <h2>Rodar o front-end</h2>
+      <p class="lead">Em outro terminal (com os emuladores já rodando), inicie o Vite:</p>
+      <pre><code>npm run dev</code></pre>
+      <p>O terminal vai mostrar o endereço local, normalmente <code>http://localhost:5173</code>. Abra essa URL no navegador.</p>
+    </div>
+  </section>
+
+  <section class="step" id="verificar">
+    <div class="step-num">7</div>
+    <div class="step-body">
+      <h2>Verificar se está tudo local</h2>
+      <ul>
+        <li>No console do navegador (F12) deve aparecer o log <code>🔥 Usando Firebase Emulators</code>.</li>
+        <li>Qualquer cadastro, login ou upload feito no app deve aparecer imediatamente na Emulator UI (<code>127.0.0.1:4000</code>), não no console do Firebase de produção.</li>
+        <li>Se o log não aparecer, confira se <code>VITE_USE_EMULATORS=1</code> está no <code>.env</code> e reinicie o <code>npm run dev</code> — variáveis de ambiente só são lidas na inicialização do Vite.</li>
+      </ul>
+      <div class="callout">
+        <span class="callout-label">Erro comum</span>
+        Se o app não conectar aos emuladores, confirme que o <code>firebase emulators:start</code> está rodando <b>antes</b> de abrir o app, e que nenhuma outra aplicação está usando as portas 8080, 9099 ou 9199.
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    Resumo dos comandos do dia a dia: <code>firebase emulators:start</code> em um terminal, <code>npm run dev</code> em outro.
+  </footer>
+
+</div>
