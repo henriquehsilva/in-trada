@@ -278,15 +278,17 @@ async function renderEtiquetaParaCanvas(
   return canvas;
 }
 
-function rotacionarCanvas90Esquerda(origem: HTMLCanvasElement): HTMLCanvasElement {
+// Girar para a esquerda (CCW) saía de cabeça para baixo nessa Brother — o sentido
+// correto é para a direita (CW), que é exatamente 180° em relação ao anterior.
+function rotacionarCanvas90Direita(origem: HTMLCanvasElement): HTMLCanvasElement {
   const w = origem.width;
   const h = origem.height;
   const destino = document.createElement('canvas');
   destino.width = h;
   destino.height = w;
   const ctx = destino.getContext('2d')!;
-  ctx.translate(0, w);
-  ctx.rotate(-Math.PI / 2);
+  ctx.translate(h, 0);
+  ctx.rotate(Math.PI / 2);
   ctx.drawImage(origem, 0, 0, w, h);
   return destino;
 }
@@ -780,7 +782,7 @@ const PainelRecepcao: React.FC = () => {
             const baseCanvas = await renderEtiquetaParaCanvas(
               modeloPadrao.componentes, largura, altura, participanteSelecionado, qrCache, barcodeValue
             );
-            const canvasRodado = rotacionarCanvas90Esquerda(baseCanvas);
+            const canvasRodado = rotacionarCanvas90Direita(baseCanvas);
             // eslint-disable-next-line no-console
             console.log('[QZ][print] canvas base', baseCanvas.width, baseCanvas.height,
               '-> canvas rodado', canvasRodado.width, canvasRodado.height);
