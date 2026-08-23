@@ -25,7 +25,7 @@ interface AuthContextType {
   currentUser: User | null;
   userData: UserData | null;
   login: (email: string, password: string) => Promise<void>;
-  signup: (email: string, password: string, name: string, role: UserRole) => Promise<void>;
+  signup: (email: string, password: string, name: string, role: UserRole, eventoId?: string) => Promise<void>;
   logout: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   loading: boolean;
@@ -85,7 +85,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     return unsubscribe;
   }, []);
 
-  const signup = async (email: string, password: string, name: string, role: UserRole) => {
+  const signup = async (email: string, password: string, name: string, role: UserRole, eventoId?: string) => {
     try {
       const { user } = await createUserWithEmailAndPassword(auth, email, password);
       
@@ -93,9 +93,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       await updateProfile(user, { displayName: name });
       
       // Armazena informações adicionais no Firestore
+      const now = new Date().toISOString();
       await setDoc(doc(db, 'usuarios', user.uid), {
+        nome: name,
+        email,
         role,
-        createdAt: new Date().toISOString()
+        ...(eventoId ? { eventoId } : {}),
+        criadoEm: now,
+        atualizadoEm: now,
       });
       
       setCurrentUser(user);
@@ -103,7 +108,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         uid: user.uid,
         email: user.email,
         displayName: name,
-        role
+        role,
+        ...(eventoId ? { eventoId } : {}),
       });
     } catch (error) {
       console.error('Erro ao criar usuário:', error);

@@ -1,11 +1,11 @@
 import { db } from '../firebase/config';
-import { collection, addDoc, getDocs, query, where, updateDoc, doc, Timestamp } from 'firebase/firestore';
+import { collection, addDoc, getDocs, query, where, updateDoc, doc } from 'firebase/firestore';
 import { ModeloRecepcionista } from '../models/types';
 
 const COLLECTION = 'modelosRecepcionista';
 
 export const criarModeloRecepcionista = async (modelo: Omit<ModeloRecepcionista, 'id' | 'criadoEm' | 'atualizadoEm'>): Promise<string> => {
-  const now = Timestamp.now();
+  const now = new Date().toISOString();
   const docRef = await addDoc(collection(db, COLLECTION), {
     ...modelo,
     criadoEm: now,
@@ -34,6 +34,6 @@ export const atualizarModeloRecepcionista = async (
   const ref = doc(db, COLLECTION, id);
   await updateDoc(ref, {
     ...dados,
-    atualizadoEm: Timestamp.now()
+    atualizadoEm: new Date().toISOString()
   });
 };

@@ -12,24 +12,16 @@ import {
 } from '../../services/participanteService';
 import { useAuth } from '../../contexts/AuthContext';
 import { Evento, Participante } from '../../models/types';
-import { Dialog } from '@headlessui/react';
 import qz from 'qz-tray';
 import { obterModelosCrachaPorEvento } from '../../services/modeloService';
-import { ModeloCracha } from '../../models/types';
-import QRCode from 'qrcode';
-import { buildQrValue } from '../../utils/qrcode';
-import DonutChart from '../../components/DonutChart';
 import { ChromePicker } from 'react-color';
 import { doc, updateDoc, getDoc, collection, query as fsQuery, where, getDocs } from 'firebase/firestore';
 import { db } from '../../firebase/config';
-import JsBarcode from 'jsbarcode';
+import { printBadge, detectPrinterCategory } from '../../utils/qzPrintUtils';
 
-/* ===================== QZ Tray: certificado e assinatura reais =====================
+/* ===================== QZ Tray: certificado e assinatura =====================
    O certificado público (gerado em qz.io/login) fica em public/qz/digital-certificate.txt.
-   Cada conexão é assinada por um endpoint no backend (VITE_QZ_SIGN_URL), que guarda a
-   chave privada e nunca a expõe ao frontend. O usuário ainda verá o aviso "Action
-   Required" do QZ Tray na primeira vez (agora mostrando a identidade do certificado) e
-   pode marcar "Remember this decision" para não ver novamente nesta máquina. */
+   A assinatura é feita via VITE_QZ_SIGN_URL (Netlify function com a chave privada). */
 qz.security.setCertificatePromise((resolve, reject) => {
   fetch('/qz/digital-certificate.txt', { cache: 'no-store' })
     .then((data) => (data.ok ? data.text().then(resolve) : data.text().then(reject)));
@@ -92,206 +84,6 @@ const stableColorFromString = (str: string) => {
   const hue = Math.abs(hash) % 360;
   return `hsl(${hue}, 55%, 75%)`;
 };
-
-/* ====== Impressão: suporte a fontes customizadas carregadas no Editor ====== */
-
-const LS_KEY_FONTS = 'editorCrachas.customFonts'; // { [family]: dataURL }
-const STD_FONTS = new Set([
-  'Arial','Verdana','Times New Roman','Courier New','Georgia','Tahoma','Trebuchet MS',
-  'sans-serif','serif','monospace'
-]);
-
-function getUsedFontFamilies(componentes: any[]): string[] {
-  const set = new Set<string>();
-  for (const c of componentes) {
-    const fam = c?.propriedades?.estilos?.fonte;
-    if (fam && typeof fam === 'string') set.add(fam);
-  }
-  return Array.from(set);
-}
-
-/** ⬇️ NOVA: gera @font-face (400 e 700) a partir do localStorage (dataURL) */
-function buildFontFaceCSS(usedFamilies: string[]): string {
-  const saved = JSON.parse(localStorage.getItem(LS_KEY_FONTS) || '{}') as Record<string,string>;
-  const faces: string[] = [];
-  for (const fam of usedFamilies) {
-    if (STD_FONTS.has(fam)) continue;
-    const dataUrl = saved[fam];
-    if (!dataUrl) continue;
-    const fmt = dataUrl.includes('font/otf') || /\.otf/i.test(dataUrl) ? 'opentype' : 'truetype';
-    faces.push(`
-@font-face{
-  font-family:'${fam}';
-  src:url('${dataUrl}') format('${fmt}');
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face{
-  font-family:'${fam}';
-  src:url('${dataUrl}') format('${fmt}');
-  font-weight: 700;
-  font-style: normal;
-  font-display: swap;
-}`);
-  }
-  return faces.join('\n');
-}
-
-/* ====== Impressão rotacionada (Brother): o motor HTML interno do QZ Tray não
-   suporta "transform: rotate()" do CSS de forma confiável, então para etiquetas
-   marcadas como "imprimirRodado" desenhamos tudo num <canvas> (renderizado pelo
-   próprio navegador) e giramos a imagem final via Canvas 2D antes de enviar ao QZ. */
-
-function loadImageEl(src: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => resolve(img);
-    img.onerror = reject;
-    img.src = src;
-  });
-}
-
-async function registrarFonteCustomizadaSeNecessario(familia?: string) {
-  if (!familia || STD_FONTS.has(familia)) return;
-  const fontsSet = (document as any).fonts;
-  if (fontsSet && Array.from(fontsSet).some((f: any) => f.family === familia)) return;
-  try {
-    const saved = JSON.parse(localStorage.getItem(LS_KEY_FONTS) || '{}') as Record<string, string>;
-    const dataUrl = saved[familia];
-    if (!dataUrl) return;
-    const font = new FontFace(familia, `url(${dataUrl})`);
-    await font.load();
-    fontsSet.add(font);
-  } catch {}
-}
-
-function wrapCanvasText(ctx: CanvasRenderingContext2D, texto: string, maxWidth: number): string[] {
-  const linhas: string[] = [];
-  for (const paragrafo of String(texto).split('\n')) {
-    const palavras = paragrafo.split(' ');
-    let linhaAtual = '';
-    for (const palavra of palavras) {
-      const tentativa = linhaAtual ? `${linhaAtual} ${palavra}` : palavra;
-      if (linhaAtual && ctx.measureText(tentativa).width > maxWidth) {
-        linhas.push(linhaAtual);
-        linhaAtual = palavra;
-      } else {
-        linhaAtual = tentativa;
-      }
-    }
-    linhas.push(linhaAtual);
-  }
-  return linhas;
-}
-
-async function desenharComponenteNoCanvas(
-  ctx: CanvasRenderingContext2D,
-  comp: any,
-  valor: string,
-  qrDataUrl: string | undefined,
-  barcodeValue: string
-) {
-  const props: any = comp.propriedades || {};
-  const estilos: any = props.estilos || {};
-  const x = props.x || 0;
-  const y = props.y || 0;
-  const w = props.largura || 0;
-  const h = props.altura || 0;
-
-  if (estilos?.corFundo) {
-    ctx.fillStyle = estilos.corFundo;
-    const raio = estilos.raio || 0;
-    if (raio && typeof (ctx as any).roundRect === 'function') {
-      ctx.beginPath();
-      (ctx as any).roundRect(x, y, w, h, raio);
-      ctx.fill();
-    } else {
-      ctx.fillRect(x, y, w, h);
-    }
-  }
-
-  if (comp.tipo === 'qrcode') {
-    if (qrDataUrl) {
-      const img = await loadImageEl(qrDataUrl);
-      ctx.drawImage(img, x, y, w, h);
-    }
-    return;
-  }
-
-  if (comp.tipo === 'barcode') {
-    const barcodeCanvas = document.createElement('canvas');
-    try {
-      JsBarcode(barcodeCanvas, String(barcodeValue), {
-        format: 'CODE128', width: 2, height: h || 40, displayValue: false, margin: 0,
-      });
-      ctx.drawImage(barcodeCanvas, x, y, w, h);
-    } catch {}
-    return;
-  }
-
-  // texto / campo
-  if (!valor) return;
-  await registrarFonteCustomizadaSeNecessario(estilos?.fonte);
-  const tamanhoFonte = estilos?.tamanhoFonte || 14;
-  const peso = estilos?.negrito ? '700' : '400';
-  const familia = estilos?.fonte
-    ? `'${estilos.fonte}', ${STD_FONTS.has(estilos.fonte) ? estilos.fonte : 'sans-serif'}`
-    : 'sans-serif';
-  ctx.font = `${peso} ${tamanhoFonte}px ${familia}`;
-  ctx.fillStyle = estilos?.corFonte || '#000000';
-  const alinhamento: CanvasTextAlign = estilos?.alinhamento || 'left';
-  ctx.textAlign = alinhamento;
-  ctx.textBaseline = 'middle';
-
-  const lineHeight = tamanhoFonte * 1.1;
-  const linhas = wrapCanvasText(ctx, String(valor), w);
-  const totalH = linhas.length * lineHeight;
-  let linhaY = y + h / 2 - totalH / 2 + lineHeight / 2;
-  const linhaX = alinhamento === 'center' ? x + w / 2 : alinhamento === 'right' ? x + w : x;
-  for (const linha of linhas) {
-    ctx.fillText(linha, linhaX, linhaY, w);
-    linhaY += lineHeight;
-  }
-}
-
-async function renderEtiquetaParaCanvas(
-  componentes: any[],
-  larguraPx: number,
-  alturaPx: number,
-  participante: any,
-  qrCache: Record<string, string>,
-  barcodeValue: string
-): Promise<HTMLCanvasElement> {
-  const canvas = document.createElement('canvas');
-  canvas.width = larguraPx;
-  canvas.height = alturaPx;
-  const ctx = canvas.getContext('2d')!;
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0, 0, larguraPx, alturaPx);
-
-  for (const comp of componentes) {
-    const props: any = comp.propriedades || {};
-    const valor = props.campoVinculado ? (participante?.[props.campoVinculado] ?? '') : (props.texto ?? '');
-    await desenharComponenteNoCanvas(ctx, comp, String(valor ?? ''), qrCache[comp.id], barcodeValue);
-  }
-  return canvas;
-}
-
-// Girar para a esquerda (CCW) saía de cabeça para baixo nessa Brother — o sentido
-// correto é para a direita (CW), que é exatamente 180° em relação ao anterior.
-function rotacionarCanvas90Direita(origem: HTMLCanvasElement): HTMLCanvasElement {
-  const w = origem.width;
-  const h = origem.height;
-  const destino = document.createElement('canvas');
-  destino.width = h;
-  destino.height = w;
-  const ctx = destino.getContext('2d')!;
-  ctx.translate(h, 0);
-  ctx.rotate(Math.PI / 2);
-  ctx.drawImage(origem, 0, 0, w, h);
-  return destino;
-}
 
 /* ===================== Componente ===================== */
 
@@ -379,11 +171,6 @@ const PainelRecepcao: React.FC = () => {
   }, [currentUser]);
 
   const isOperador = usuario?.role === 'operador';
-
-  const obterModeloPadrao = async (eventoId: string): Promise<ModeloCracha | null> => {
-    const modelos = await obterModelosCrachaPorEvento(eventoId);
-    return modelos.find((m) => m.padrao) || null;
-  };
 
   // ====== Carrega evento + participantes ======
   useEffect(() => {
@@ -475,16 +262,16 @@ const PainelRecepcao: React.FC = () => {
     return () => { try { if (qz.websocket.isActive()) qz.websocket.disconnect(); } catch {} };
   }, []);
 
+  const impressoraCategoria = useMemo(
+    () => (impressoraPadrao ? detectPrinterCategory(impressoraPadrao) : null),
+    [impressoraPadrao],
+  );
+
   // ====== Agregações e memos ======
   const statusCounts = participantes.reduce((acc, p) => {
     acc[p.status] = (acc[p.status] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
-
-  const chartData = Object.entries(statusCounts).map(([status, count]) => ({
-    name: status.charAt(0).toUpperCase() + status.slice(1),
-    value: count,
-  }));
 
   // Mapa Categoria -> Cor (aqui pode continuar derivando da lista carregada)
   const categoriaColorMap = useMemo(() => {
@@ -621,7 +408,7 @@ const PainelRecepcao: React.FC = () => {
     await updateDoc(ref, updatePayload);
   };
 
-  /* ===================== IMPRESSÃO (mantém fontes e usa codigoCliente) ===================== */
+  /* ===================== IMPRESSÃO ===================== */
   const handlePrintCredencial = async () => {
     if (!participanteSelecionado || !evento) return;
     try {
@@ -632,182 +419,17 @@ const PainelRecepcao: React.FC = () => {
         return;
       }
 
-      // usa codigoCliente (fallback id) no barcode
-      const barcodeValue = (participanteSelecionado as any)?.codigoCliente || participanteSelecionado.id;
-
-      // pré-gera QR por componente respeitando camposQrCode configurados
-      const qrCache: Record<string, string> = {};
-      for (const comp of modeloPadrao.componentes) {
-        if (comp.tipo === 'qrcode') {
-          const p: any = comp.propriedades || {};
-          const qrValor = buildQrValue(
-            participanteSelecionado as any,
-            p.camposQrCode,
-            p.separadorQrCode
-          ) || String(barcodeValue);
-          qrCache[comp.id] = await QRCode.toDataURL(qrValor);
-        }
+      if (qzConectado && !impressoraPadrao) {
+        setShowSelecionarImpressora(true);
+        return;
       }
 
-      const larguraCm = modeloPadrao.larguraCm || 8;
-      const alturaCm  = modeloPadrao.alturaCm  || 3;
-      const cmToZplPx = (cm: number) => Math.round((cm / 2.54) * 203);
-      const largura = cmToZplPx(larguraCm);
-      const altura  = cmToZplPx(alturaCm);
-
-      /* Impressoras Brother (ao contrário da Zebra) ejetam a etiqueta de lado.
-         Em vez de depender da opção "rotation" do QZ Tray (não confiável para
-         impressão pixel/html), giramos o conteúdo 90° via CSS e invertemos as
-         dimensões físicas informadas à impressora. */
-      const rodado = !!modeloPadrao.imprimirRodado;
-      const pageLarguraPx = rodado ? altura : largura;
-      const pageAlturaPx  = rodado ? largura : altura;
-      const pageLarguraCm = rodado ? alturaCm : larguraCm;
-      const pageAlturaCm  = rodado ? larguraCm : alturaCm;
-
-      const usedFamilies = getUsedFontFamilies(modeloPadrao.componentes);
-      const fontFaceCSS  = buildFontFaceCSS(usedFamilies);
-
-      const htmlComponente = modeloPadrao.componentes
-        .map((comp) => {
-          const props: any = comp.propriedades || {};
-          const estilos: any = props.estilos || {};
-          const valor = props.campoVinculado
-            ? (participanteSelecionado as any)[props.campoVinculado] ?? ''
-            : (props.texto ?? '');
-
-          // ⬇️ estilo base com fonte custom, weight coerente, line-height e pre-wrap
-          const baseStyle = `
-            position:absolute; top:${props.y}px; left:${props.x}px;
-            width:${props.largura}px; height:${props.altura}px;
-            display:flex; align-items:center; justify-content:center; overflow:hidden;
-            ${estilos?.tamanhoFonte ? `font-size:${estilos.tamanhoFonte}px;` : ''}
-            ${estilos?.negrito ? 'font-weight:700;' : 'font-weight:400;'}
-            ${estilos?.alinhamento ? `text-align:${estilos.alinhamento};` : ''}
-            ${estilos?.corFonte ? `color:${estilos.corFonte};` : ''}
-            ${estilos?.corFundo ? `background-color:${estilos.corFundo};` : ''}
-            ${estilos?.raio ? `border-radius:${estilos.raio}px;` : ''}
-            line-height:1.1; white-space:pre-wrap;
-            ${estilos?.fonte ? `font-family:'${String(estilos.fonte)}', ${STD_FONTS.has(estilos.fonte) ? estilos.fonte : 'sans-serif'};` : ''}
-          `;
-
-          if (comp.tipo === 'qrcode') {
-            return `
-              <div style="${baseStyle}">
-                <img src="${qrCache[comp.id]}" width="${props.largura}" height="${props.altura}" />
-              </div>
-            `;
-          }
-
-          if (comp.tipo === 'barcode') {
-            const idSvg = `barcode-${comp.id}`;
-            return `
-              <div style="${baseStyle}">
-                <svg id="${idSvg}"
-                    jsbarcode-value="${String(barcodeValue)}"
-                    jsbarcode-format="CODE128"
-                    jsbarcode-width="2"
-                    jsbarcode-height="${props.altura || 40}"
-                    jsbarcode-displayvalue="false">
-                </svg>
-              </div>
-            `;
-          }
-
-          // texto/campo
-          return `<div style="${baseStyle}">${valor}</div>`;
-        })
-        .join('');
-
-      const html = `
-        <html>
-          <head>
-            <meta charset="utf-8" />
-            <title>Imprimir Crachá</title>
-            <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
-            <style>
-              @page { size: ${pageLarguraPx}px ${pageAlturaPx}px; margin: 0; }
-              html, body { margin: 0; padding: 0; }
-              * { -webkit-print-color-adjust: exact; print-color-adjust: exact; } /* força cores em print */
-              ${fontFaceCSS}
-            </style>
-          </head>
-          <body>
-            <div id="page" style="position:relative; width:${pageLarguraPx}px; height:${pageAlturaPx}px; overflow:hidden;">
-              <div id="root" style="position:absolute; top:0; left:0; width:${largura}px; height:${altura}px; ${rodado ? 'transform-origin: top left; transform: rotate(-90deg) translateX(-100%);' : ''}">
-                ${htmlComponente}
-              </div>
-            </div>
-            <script>
-              (async function(){
-                try {
-                  if (document.fonts && document.fonts.ready) { await document.fonts.ready; }
-                  await new Promise(r => setTimeout(r, 150));
-                  if (typeof JsBarcode !== 'undefined') {
-                    JsBarcode("svg[id^='barcode-']").init();
-                  }
-                  await new Promise(r => setTimeout(r, 80));
-                  window.print();
-                  setTimeout(() => window.close(), 350);
-                } catch(e) {
-                  console.error('print error', e);
-                  window.print();
-                  setTimeout(() => window.close(), 500);
-                }
-              })();
-            </script>
-          </body>
-        </html>
-      `;
-
-      if (qzConectado && impressoraPadrao) {
-        const config = qz.configs.create(impressoraPadrao, {
-          size: { width: pageLarguraCm, height: pageAlturaCm },
-          units: 'cm',
-          colorType: 'color',
-        });
-
-        // eslint-disable-next-line no-console
-        console.log('[QZ][print]', {
-          impressoraPadrao,
-          rodado,
-          larguraCm, alturaCm,
-          pageLarguraCm, pageAlturaCm,
-          largura, altura,
-          pageLarguraPx, pageAlturaPx,
-        });
-
-        try {
-          if (rodado) {
-            const baseCanvas = await renderEtiquetaParaCanvas(
-              modeloPadrao.componentes, largura, altura, participanteSelecionado, qrCache, barcodeValue
-            );
-            const canvasRodado = rotacionarCanvas90Direita(baseCanvas);
-            // eslint-disable-next-line no-console
-            console.log('[QZ][print] canvas base', baseCanvas.width, baseCanvas.height,
-              '-> canvas rodado', canvasRodado.width, canvasRodado.height);
-            const base64 = canvasRodado.toDataURL('image/png').split(',')[1];
-            await qz.print(config, [{ type: 'pixel', format: 'image', flavor: 'base64', data: base64 }]);
-          } else {
-            await qz.print(config, [{ type: 'pixel', format: 'html', flavor: 'plain', data: html }]);
-          }
-          // eslint-disable-next-line no-console
-          console.log('[QZ][print] qz.print resolveu sem erro');
-        } catch (qzErr) {
-          console.error('[QZ][print] qz.print rejeitou:', qzErr);
-          throw qzErr;
-        }
-      } else {
-        if (qzConectado && !impressoraPadrao) {
-          setShowSelecionarImpressora(true);
-          return;
-        }
-        const printWindow = window.open('', '_blank', 'width=800,height=600');
-        if (!printWindow) return;
-        printWindow.document.open();
-        printWindow.document.write(html);
-        printWindow.document.close();
-      }
+      await printBadge({
+        modelo: modeloPadrao,
+        participante: participanteSelecionado as any,
+        printerName: impressoraPadrao,
+        qzConnected: qzConectado,
+      });
 
       setMensagem({ tipo: 'success', texto: 'Credencial enviada para impressão!' });
     } catch (err) {
@@ -1783,10 +1405,17 @@ const PainelRecepcao: React.FC = () => {
                     className="input-field"
                   >
                     <option value="">Usar diálogo do navegador</option>
-                    {impressorasDisponiveis.map((p) => (
-                      <option key={p} value={p}>{p}</option>
-                    ))}
+                    {impressorasDisponiveis.map((p) => {
+                      const cat = detectPrinterCategory(p);
+                      const label = cat !== 'unknown' ? ` (${cat})` : '';
+                      return <option key={p} value={p}>{p}{label}</option>;
+                    })}
                   </select>
+                  {impressoraCategoria && impressoraCategoria !== 'unknown' && (
+                    <p className="text-xs text-primary mt-1 font-medium">
+                      Tipo detectado: {impressoraCategoria}
+                    </p>
+                  )}
                   <p className="text-xs text-gray-400 mt-2">
                     A impressora selecionada será usada em todos os eventos neste dispositivo.
                   </p>

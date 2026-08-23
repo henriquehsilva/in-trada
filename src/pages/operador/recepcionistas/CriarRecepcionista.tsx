@@ -4,13 +4,13 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import LayoutDefault from '../../../components/layout/LayoutDefault';
 import { obterEventos } from '../../../services/eventoService';
-import { Evento, Usuario } from '../../../models/types';
+import { Evento } from '../../../models/types';
 import { auth, db } from '../../../firebase/config';
 import {
   createUserWithEmailAndPassword,
   updateProfile,
 } from 'firebase/auth';
-import { collection, setDoc, doc } from 'firebase/firestore';
+import { doc, setDoc } from 'firebase/firestore';
 import toast from 'react-hot-toast';
 
 const CriarRecepcionista: React.FC = () => {
@@ -49,26 +49,38 @@ const CriarRecepcionista: React.FC = () => {
     setErro('');
     setSucesso('');
 
+    if (form.senha.length < 6) {
+      setErro('A senha deve ter pelo menos 6 caracteres.');
+      setLoading(false);
+      return;
+    }
+
     try {
       const { user } = await createUserWithEmailAndPassword(auth, form.email, form.senha);
       await updateProfile(user, { displayName: form.nome });
 
-      const novoRecepcionista: Omit<Usuario, 'id'> = {
+      const now = new Date().toISOString();
+      await setDoc(doc(db, 'usuarios', user.uid), {
         nome: form.nome,
         email: form.email,
         role: 'recepcionista',
         eventoId: form.eventoId,
-        criadoEm: new Date().toISOString(),
-        atualizadoEm: new Date().toISOString(),
-      };
-
-      await setDoc(doc(db, 'usuarios', user.uid), novoRecepcionista);
+        criadoEm: now,
+        atualizadoEm: now,
+      });
 
       toast.success(`Recepcionista ${form.nome} criado com sucesso!`);
       setTimeout(() => navigate('/operador/recepcionistas'), 2000);
     } catch (err) {
       console.error(err);
-      setErro('Erro ao criar recepcionista. Verifique os dados e tente novamente.');
+      const code = (err as { code?: string }).code;
+      if (code === 'auth/email-already-in-use') {
+        setErro('Este e-mail já está em uso.');
+      } else if (code === 'auth/weak-password') {
+        setErro('A senha deve ter pelo menos 6 caracteres.');
+      } else {
+        setErro('Erro ao criar recepcionista. Verifique os dados e tente novamente.');
+      }
     } finally {
       setLoading(false);
     }
