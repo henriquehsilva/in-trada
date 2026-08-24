@@ -57,11 +57,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (user) {
         // Busca dados adicionais do usuário no Firestore
         const userDocRef = doc(db, 'usuarios', user.uid);
-        const userDoc = await getDoc(userDocRef);
-        
-        console.log('user:', user);
-        console.log('userDoc.exists:', userDoc.exists());
-        console.log('userDoc.data:', userDoc.data());
+        let userDoc = await getDoc(userDocRef);
+
+        // Se o documento não existe ainda, pode estar sendo criado por
+        // createUserWithEmailAndPassword em outro fluxo (ex: criar recepcionista).
+        // Espera brevemente antes de deslogar.
+        if (!userDoc.exists()) {
+          await new Promise(r => setTimeout(r, 1500));
+          userDoc = await getDoc(userDocRef);
+        }
 
         if (userDoc.exists()) {
           const userDataFromFirestore = userDoc.data() as Omit<UserData, 'uid' | 'email' | 'displayName'>;
