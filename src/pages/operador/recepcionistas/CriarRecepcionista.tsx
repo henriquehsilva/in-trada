@@ -60,6 +60,11 @@ const CriarRecepcionista: React.FC = () => {
     }
 
     try {
+      // Captura o email do operador ANTES de criar o usuário —
+      // createUserWithEmailAndPassword troca a sessão, e o onAuthStateChanged
+      // atualiza currentUser para o novo usuário antes do código prosseguir.
+      const operadorEmail = currentUser?.email;
+
       const { user } = await createUserWithEmailAndPassword(auth, form.email, form.senha);
       await updateProfile(user, { displayName: form.nome });
 
@@ -75,12 +80,10 @@ const CriarRecepcionista: React.FC = () => {
 
       // Reautentica o operador — createUserWithEmailAndPassword
       // substitui a sessão do operador pela da recepcionista.
-      if (currentUser?.email && form.senhaOperador) {
+      if (operadorEmail && form.senhaOperador) {
         try {
-          await signInWithEmailAndPassword(auth, currentUser.email, form.senhaOperador);
+          await signInWithEmailAndPassword(auth, operadorEmail, form.senhaOperador);
         } catch {
-          // Se a reautenticação falhar, o operador será deslogado ao navegar.
-          // Navega para o login em vez da listagem.
           toast.success(`Recepcionista ${form.nome} criado com sucesso!`);
           setTimeout(() => navigate('/login'), 2000);
           return;

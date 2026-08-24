@@ -52,6 +52,8 @@ const CriarOperador: React.FC = () => {
     setSucesso('');
 
     try {
+      const adminEmail = currentUser?.email;
+
       const { user } = await createUserWithEmailAndPassword(auth, form.email, form.senha);
       await updateProfile(user, { displayName: form.nome });
 
@@ -68,9 +70,9 @@ const CriarOperador: React.FC = () => {
 
       // Reautentica o admin — createUserWithEmailAndPassword
       // substitui a sessão do admin pela do operador.
-      if (currentUser?.email && form.senhaAdmin) {
+      if (adminEmail && form.senhaAdmin) {
         try {
-          await signInWithEmailAndPassword(auth, currentUser.email, form.senhaAdmin);
+          await signInWithEmailAndPassword(auth, adminEmail, form.senhaAdmin);
         } catch {
           toast.success(`Operador ${form.nome} criado com sucesso!`);
           setTimeout(() => navigate('/login'), 2000);
