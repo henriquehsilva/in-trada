@@ -222,17 +222,7 @@ const PainelRecepcao: React.FC = () => {
   const conectarQz = async () => {
     try {
       if (!qz.websocket.isActive()) {
-        /* O QZ Tray espera o usuário responder ao aviso "Action Required" antes
-           de confirmar a conexão. Se o aviso for ignorado/fechado sem resposta,
-           a promise do qz-tray nunca resolve nem rejeita e o app fica preso
-           "conectando" pra sempre, sem nenhum erro no console. Por isso força
-           um timeout aqui e limpa a conexão travada para permitir nova tentativa. */
-        await Promise.race([
-          qz.websocket.connect({ retries: 3, delay: 1 }),
-          new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('Tempo esgotado aguardando autorização no QZ Tray')), 15000)
-          ),
-        ]);
+        await qz.websocket.connect({ retries: 3, delay: 1 });
       }
       setQzConectado(true);
     } catch (err) {
@@ -240,11 +230,8 @@ const PainelRecepcao: React.FC = () => {
       setQzConectado(false);
       setMensagem({
         tipo: 'error',
-        texto: 'Não foi possível conectar ao QZ Tray. Verifique se o aplicativo está aberto e autorize a conexão no aviso "Action Required" (marque "Remember this decision").',
+        texto: 'Não foi possível conectar ao QZ Tray. Verifique se o aplicativo está aberto e autorize a conexão no aviso "Action Required" (marque "Remember this decision" para não ver novamente).',
       });
-      try {
-        if (qz.websocket.isActive()) await qz.websocket.disconnect();
-      } catch {}
       return;
     }
 
@@ -259,7 +246,6 @@ const PainelRecepcao: React.FC = () => {
 
   useEffect(() => {
     conectarQz();
-    return () => { try { if (qz.websocket.isActive()) qz.websocket.disconnect(); } catch {} };
   }, []);
 
   const impressoraCategoria = useMemo(

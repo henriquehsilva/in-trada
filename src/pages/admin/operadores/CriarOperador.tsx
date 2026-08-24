@@ -6,18 +6,22 @@ import { Evento, Usuario } from '../../../models/types';
 import { auth, db } from '../../../firebase/config';
 import {
   createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
   updateProfile,
 } from 'firebase/auth';
-import { collection, setDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { collection, setDoc, doc } from 'firebase/firestore';
+import { useAuth } from '../../../contexts/AuthContext';
 import toast from 'react-hot-toast';
 
 const CriarOperador: React.FC = () => {
+  const { currentUser } = useAuth();
   const [eventos, setEventos] = useState<Evento[]>([]);
   const [form, setForm] = useState({
     nome: '',
     email: '',
     senha: '',
     eventoId: '',
+    senhaAdmin: '',
   });
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState('');
@@ -61,6 +65,18 @@ const CriarOperador: React.FC = () => {
       };
 
       await setDoc(doc(db, 'usuarios', user.uid), novoOperador);
+
+      // Reautentica o admin — createUserWithEmailAndPassword
+      // substitui a sessão do admin pela do operador.
+      if (currentUser?.email && form.senhaAdmin) {
+        try {
+          await signInWithEmailAndPassword(auth, currentUser.email, form.senhaAdmin);
+        } catch {
+          toast.success(`Operador ${form.nome} criado com sucesso!`);
+          setTimeout(() => navigate('/login'), 2000);
+          return;
+        }
+      }
 
       toast.success(`Operador ${form.nome} criado com sucesso!`);
       setTimeout(() => navigate('/admin/operadores'), 2000);
@@ -125,6 +141,21 @@ const CriarOperador: React.FC = () => {
               </option>
             ))}
           </select>
+
+          <div className="border-t pt-4 mt-2">
+            <p className="text-sm text-gray-500 mb-2">
+              Confirme sua senha de admin para manter a sessão após a criação.
+            </p>
+            <input
+              type="password"
+              name="senhaAdmin"
+              placeholder="Sua senha de admin"
+              value={form.senhaAdmin}
+              onChange={handleChange}
+              required
+              className="w-full border px-4 py-2 rounded"
+            />
+          </div>
 
           <button
             type="submit"

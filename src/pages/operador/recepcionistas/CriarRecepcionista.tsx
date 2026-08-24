@@ -8,18 +8,22 @@ import { Evento } from '../../../models/types';
 import { auth, db } from '../../../firebase/config';
 import {
   createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
   updateProfile,
 } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
+import { useAuth } from '../../../contexts/AuthContext';
 import toast from 'react-hot-toast';
 
 const CriarRecepcionista: React.FC = () => {
+  const { currentUser } = useAuth();
   const [eventos, setEventos] = useState<Evento[]>([]);
   const [form, setForm] = useState({
     nome: '',
     email: '',
     senha: '',
     eventoId: '',
+    senhaOperador: '',
   });
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState('');
@@ -68,6 +72,20 @@ const CriarRecepcionista: React.FC = () => {
         criadoEm: now,
         atualizadoEm: now,
       });
+
+      // Reautentica o operador — createUserWithEmailAndPassword
+      // substitui a sessão do operador pela da recepcionista.
+      if (currentUser?.email && form.senhaOperador) {
+        try {
+          await signInWithEmailAndPassword(auth, currentUser.email, form.senhaOperador);
+        } catch {
+          // Se a reautenticação falhar, o operador será deslogado ao navegar.
+          // Navega para o login em vez da listagem.
+          toast.success(`Recepcionista ${form.nome} criado com sucesso!`);
+          setTimeout(() => navigate('/login'), 2000);
+          return;
+        }
+      }
 
       toast.success(`Recepcionista ${form.nome} criado com sucesso!`);
       setTimeout(() => navigate('/operador/recepcionistas'), 2000);
@@ -139,6 +157,21 @@ const CriarRecepcionista: React.FC = () => {
               </option>
             ))}
           </select>
+
+          <div className="border-t pt-4 mt-2">
+            <p className="text-sm text-gray-500 mb-2">
+              Confirme sua senha de operador para manter a sessão após a criação.
+            </p>
+            <input
+              type="password"
+              name="senhaOperador"
+              placeholder="Sua senha de operador"
+              value={form.senhaOperador}
+              onChange={handleChange}
+              required
+              className="w-full border px-4 py-2 rounded"
+            />
+          </div>
 
           <button
             type="submit"
