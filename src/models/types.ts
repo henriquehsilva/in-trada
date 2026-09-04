@@ -24,6 +24,7 @@ export interface Evento {
   camposPersonalizados: CampoPersonalizado[];
   quantidadeParticipantes?: number;
   labelsOpcoes?: Record<string, string>;
+  camposVisiveisRecepcao?: string[];
 }
 
 export interface CampoPersonalizado {

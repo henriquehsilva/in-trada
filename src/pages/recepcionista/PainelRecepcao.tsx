@@ -15,7 +15,7 @@ import { Evento, Participante } from '../../models/types';
 import qz from 'qz-tray';
 import { obterModelosCrachaPorEvento } from '../../services/modeloService';
 import { ChromePicker } from 'react-color';
-import { doc, updateDoc, getDoc, collection, query as fsQuery, where, getDocs } from 'firebase/firestore';
+import { doc, updateDoc, getDoc, collection, query as fsQuery, where, getDocs, onSnapshot } from 'firebase/firestore';
 import { db } from '../../firebase/config';
 import { printBadge, detectPrinterCategory } from '../../utils/qzPrintUtils';
 
@@ -186,6 +186,9 @@ const PainelRecepcao: React.FC = () => {
         const eventoDados = await obterEventoPorId(eventoId);
         if (eventoDados) {
           setEvento(eventoDados);
+          if (Array.isArray(eventoDados.camposVisiveisRecepcao)) {
+            setCamposVisiveis(eventoDados.camposVisiveisRecepcao);
+          }
           const participantesDados = await obterParticipantesPorEvento(eventoId);
           setParticipantes(
             participantesDados.map((p) => ({
@@ -202,6 +205,21 @@ const PainelRecepcao: React.FC = () => {
       }
     };
     carregarDados();
+  }, [eventoId]);
+
+  // Mantém a configuração de campos sincronizada entre todas as estações.
+  useEffect(() => {
+    if (!eventoId) return;
+
+    return onSnapshot(doc(db, 'eventos', eventoId), (snapshot) => {
+      if (!snapshot.exists()) return;
+      const camposRemotos = snapshot.data().camposVisiveisRecepcao;
+      if (Array.isArray(camposRemotos)) {
+        setCamposVisiveis(camposRemotos);
+      }
+    }, (err) => {
+      console.error('Erro ao sincronizar campos visíveis:', err);
+    });
   }, [eventoId]);
 
   // 🔹 NOVO: buscar TODAS as categorias do evento direto do Firestore (independente do state)
@@ -518,12 +536,24 @@ const PainelRecepcao: React.FC = () => {
 
   /* ===================== Campos visíveis ===================== */
 
-  const toggleCampoVisivel = (key: string, checked: boolean) => {
+  const toggleCampoVisivel = async (key: string, checked: boolean) => {
     const novos = checked
       ? [...camposVisiveis, key]
       : camposVisiveis.filter((c) => c !== key);
     setCamposVisiveis(novos);
-    if (eventoId) localStorage.setItem(`painel.campos.${eventoId}`, JSON.stringify(novos));
+
+    if (!eventoId) return;
+    try {
+      await atualizarEvento(eventoId, { camposVisiveisRecepcao: novos });
+      localStorage.removeItem(`painel.campos.${eventoId}`);
+    } catch (err) {
+      console.error('Erro ao salvar campos visíveis do evento:', err);
+      setCamposVisiveis(camposVisiveis);
+      setMensagem({
+        tipo: 'error',
+        texto: 'Não foi possível salvar os campos visíveis do evento.',
+      });
+    }
   };
 
   const getFieldValueInPanel = (p: Participante, key: string): string => {
@@ -1208,7 +1238,7 @@ const PainelRecepcao: React.FC = () => {
               <div>
                 <h3 className="text-lg font-semibold">Campos visíveis</h3>
                 <p className="text-sm text-gray-500 mt-0.5">
-                  Escolha quais dados aparecem nos detalhes do participante.
+                  Esta seleção será aplicada a todas as estações deste evento.
                 </p>
               </div>
               <button
