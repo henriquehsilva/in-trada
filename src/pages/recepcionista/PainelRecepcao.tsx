@@ -103,6 +103,7 @@ const PainelRecepcao: React.FC = () => {
   const [participanteSelecionado, setParticipanteSelecionado] = useState<Participante | null>(null);
   const [showQrScanner, setShowQrScanner] = useState(false);
   const [termoBusca, setTermoBusca] = useState('');
+  const [buscandoParticipantes, setBuscandoParticipantes] = useState(false);
   const [showFormNovoParticipante, setShowFormNovoParticipante] = useState(false);
   const [loading, setLoading] = useState(true);
   const [mensagem, setMensagem] = useState<{ tipo: 'success' | 'error' | 'info'; texto: string } | null>(null);
@@ -116,6 +117,8 @@ const PainelRecepcao: React.FC = () => {
   const emailRef = useRef<HTMLInputElement>(null);
   const telefoneRef = useRef<HTMLInputElement>(null);
   const categoriaSelectRef = useRef<HTMLSelectElement>(null);
+  const buscaSequenciaRef = useRef(0);
+  const ultimoTermoBuscaRef = useRef('');
 
   const [categoriaCor, setCategoriaCor] = useState<string>('');
   const [editandoCorId, setEditandoCorId] = useState<string | null>(null);
@@ -315,20 +318,53 @@ const PainelRecepcao: React.FC = () => {
 
   // ===================== Ações =====================
 
-  const handleSearch = async () => {
-    if (!eventoId || !termoBusca.trim()) return;
+  const handleSearch = async (termo = termoBusca) => {
+    if (!eventoId) return;
+    const termoNormalizado = termo.trim();
+    if (termoNormalizado.length > 0 && termoNormalizado.length < 3) {
+      setParticipantes([]);
+      setMensagem({ tipo: 'info', texto: 'Digite pelo menos 3 caracteres para buscar.' });
+      return;
+    }
+
+    const sequencia = ++buscaSequenciaRef.current;
     try {
-      setLoading(true);
-      const resultados = await buscarParticipantes(eventoId, termoBusca);
+      setBuscandoParticipantes(true);
+      const resultados = termoNormalizado
+        ? await buscarParticipantes(eventoId, termoNormalizado)
+        : await obterParticipantesPorEvento(eventoId);
+      if (sequencia !== buscaSequenciaRef.current) return;
       setParticipantes(resultados.map((p) => ({ ...p, categoria: normalizeCategory(p.categoria) })));
       setMensagem(resultados.length === 0 ? { tipo: 'info', texto: 'Nenhum participante encontrado. Deseja cadastrar um novo?' } : null);
     } catch (err) {
       console.error('Erro ao buscar participantes:', err);
       setMensagem({ tipo: 'error', texto: 'Erro ao buscar participantes. Tente novamente.' });
     } finally {
-      setLoading(false);
+      if (sequencia === buscaSequenciaRef.current) setBuscandoParticipantes(false);
     }
   };
+
+  useEffect(() => {
+    const termoNormalizado = termoBusca.trim();
+    const termoAnterior = ultimoTermoBuscaRef.current;
+    ultimoTermoBuscaRef.current = termoNormalizado;
+
+    if (termoNormalizado.length > 0 && termoNormalizado.length < 3) {
+      buscaSequenciaRef.current += 1;
+      setBuscandoParticipantes(false);
+      setParticipantes([]);
+      setMensagem({ tipo: 'info', texto: 'Digite pelo menos 3 caracteres para buscar.' });
+      return;
+    }
+
+    if (!termoNormalizado && !termoAnterior) return;
+
+    const timer = window.setTimeout(() => {
+      void handleSearch(termoNormalizado);
+    }, 350);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [termoBusca, eventoId]);
 
   // Busca EXCLUSIVAMENTE por eventoId + codigoCliente (sem JSON, sem fallback por id)
   const handleQrCodeScan = async (data: string) => {
@@ -715,11 +751,17 @@ const PainelRecepcao: React.FC = () => {
                 value={termoBusca}
                 onChange={(e) => setTermoBusca(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                placeholder="Nome, email ou empresa"
+                placeholder="Digite ao menos 3 caracteres"
                 className="input-field flex-grow mr-2"
               />
-              <button onClick={handleSearch} className="btn btn-primary flex items-center justify-center">
-                <Search className="w-5 h-5" />
+              <button
+                onClick={() => handleSearch()}
+                disabled={buscandoParticipantes}
+                className="btn btn-primary flex items-center justify-center disabled:opacity-60"
+              >
+                {buscandoParticipantes
+                  ? <Loader2 className="w-5 h-5 animate-spin" />
+                  : <Search className="w-5 h-5" />}
               </button>
             </div>
 
