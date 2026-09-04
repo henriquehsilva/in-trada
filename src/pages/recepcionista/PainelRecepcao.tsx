@@ -132,6 +132,7 @@ const PainelRecepcao: React.FC = () => {
 
   // 🔹 NOVO: categorias do evento (buscadas do banco, independentes do state de participantes)
   const [categoriasEvento, setCategoriasEvento] = useState<string[]>([]);
+  const [coresCategoriasBanco, setCoresCategoriasBanco] = useState<Record<string, string>>({});
 
   // Campos visíveis configuráveis (persistidos por evento)
   const [camposVisiveis, setCamposVisiveis] = useState<string[]>(() => {
@@ -213,9 +214,15 @@ const PainelRecepcao: React.FC = () => {
 
     return onSnapshot(doc(db, 'eventos', eventoId), (snapshot) => {
       if (!snapshot.exists()) return;
-      const camposRemotos = snapshot.data().camposVisiveisRecepcao;
+      const dadosEvento = snapshot.data();
+      const camposRemotos = dadosEvento.camposVisiveisRecepcao;
       if (Array.isArray(camposRemotos)) {
         setCamposVisiveis(camposRemotos);
+      }
+      if (dadosEvento.coresCategorias) {
+        setEvento((atual) => atual
+          ? { ...atual, coresCategorias: dadosEvento.coresCategorias }
+          : atual);
       }
     }, (err) => {
       console.error('Erro ao sincronizar campos visíveis:', err);
@@ -231,11 +238,17 @@ const PainelRecepcao: React.FC = () => {
         const q = fsQuery(ref, where('eventoId', '==', eventoId));
         const qs = await getDocs(q);
         const setCats = new Set<string>();
+        const mapaCores: Record<string, string> = {};
         qs.forEach((d) => {
-          const cat = normalizeCategory((d.data() as any)?.categoria || '');
+          const dados = d.data() as Partial<Participante>;
+          const cat = normalizeCategory(dados.categoria || '');
           if (cat) setCats.add(cat);
+          if (cat && dados.corCategoria && !mapaCores[cat]) {
+            mapaCores[cat] = dados.corCategoria;
+          }
         });
         setCategoriasEvento(Array.from(setCats).sort((a, b) => a.localeCompare(b)));
+        setCoresCategoriasBanco(mapaCores);
       } catch (e) {
         console.error('Erro ao carregar categorias do evento:', e);
       }
@@ -290,15 +303,15 @@ const PainelRecepcao: React.FC = () => {
 
   // Mapa Categoria -> Cor (aqui pode continuar derivando da lista carregada)
   const categoriaColorMap = useMemo(() => {
-    const map: Record<string, string> = {};
+    const map: Record<string, string> = { ...coresCategoriasBanco };
     for (const p of participantes) {
       const cat = normalizeCategory(p.categoria);
       if (cat && p.corCategoria && !map[cat]) {
         map[cat] = p.corCategoria;
       }
     }
-    return map;
-  }, [participantes]);
+    return { ...map, ...(evento?.coresCategorias || {}) };
+  }, [participantes, coresCategoriasBanco, evento?.coresCategorias]);
 
   // ===================== Ações =====================
 
@@ -419,7 +432,6 @@ const PainelRecepcao: React.FC = () => {
   const atualizarParticipante = async (id: string, dados: Partial<Participante>) => {
     const ref = doc(db, 'participantes', id);
     const updatePayload: any = { ...dados, atualizadoEm: new Date().toISOString() };
-    if (!('corCategoria' in dados)) updatePayload.corCategoria = '#cccccc';
     await updateDoc(ref, updatePayload);
   };
 
@@ -465,10 +477,9 @@ const PainelRecepcao: React.FC = () => {
       setLoading(true);
       const catRaw = categoriaSelectRef.current?.value || '';
       const categoriaUpper = normalizeCategory(catRaw);
-      const corExistente = participantes.find(
-        (p) => p.eventoId === eventoId && normalizeCategory(p.categoria) === categoriaUpper && p.corCategoria,
-      )?.corCategoria;
-      const corParaCategoria = corExistente || categoriaCor || stableColorFromString(categoriaUpper);
+      const corParaCategoria = categoriaColorMap[categoriaUpper]
+        || categoriaCor
+        || stableColorFromString(categoriaUpper);
 
       const novoParticipante: Omit<Participante, 'id' | 'criadoEm' | 'atualizadoEm'> = {
         eventoId,
@@ -786,13 +797,28 @@ const PainelRecepcao: React.FC = () => {
                                   const categoriaAlvo = normalizeCategory(participante.categoria);
                                   const eventoAlvo = participante.eventoId;
 
-                                  const participantesMesmoGrupo = participantes.filter(
-                                    (p) => normalizeCategory(p.categoria) === categoriaAlvo && p.eventoId === eventoAlvo,
+                                  const snapshotEvento = await getDocs(
+                                    fsQuery(collection(db, 'participantes'), where('eventoId', '==', eventoAlvo)),
+                                  );
+                                  const participantesMesmoGrupo = snapshotEvento.docs.filter(
+                                    (documento) => normalizeCategory(documento.data().categoria || '') === categoriaAlvo,
                                   );
 
                                   await Promise.all(
-                                    participantesMesmoGrupo.map((p) => atualizarParticipante(p.id, { corCategoria: novaCor })),
+                                    participantesMesmoGrupo.map((documento) =>
+                                      atualizarParticipante(documento.id, { corCategoria: novaCor }),
+                                    ),
                                   );
+
+                                  const novasCoresCategorias = {
+                                    ...(evento?.coresCategorias || {}),
+                                    [categoriaAlvo]: novaCor,
+                                  };
+                                  await atualizarEvento(eventoAlvo, { coresCategorias: novasCoresCategorias });
+                                  setEvento((atual) => atual
+                                    ? { ...atual, coresCategorias: novasCoresCategorias }
+                                    : atual);
+                                  setCoresCategoriasBanco((atual) => ({ ...atual, [categoriaAlvo]: novaCor }));
 
                                   setParticipantes((prev) =>
                                     prev.map((p) =>
