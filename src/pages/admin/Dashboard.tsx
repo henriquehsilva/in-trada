@@ -1,18 +1,20 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CalendarCheck, Users, Clock, Calendar } from 'lucide-react';
+import { Download } from 'lucide-react';
 import LayoutDefault from '../../components/layout/LayoutDefault';
 import { obterEventos } from '../../services/eventoService';
 import { Evento } from '../../models/types';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import DonutChart from '../../components/DonutChart';
+import toast from 'react-hot-toast';
+import { baixarFirestoreParaEmulator } from '../../services/emulatorSyncService';
 
 
 const AdminDashboard: React.FC = () => {
   const [eventos, setEventos] = useState<Evento[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [sincronizando, setSincronizando] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -31,27 +33,38 @@ const AdminDashboard: React.FC = () => {
     carregarEventos();
   }, []);
 
-  const eventosAtivos = eventos.filter(evento => {
-    const dataFim = new Date(evento.dataFim);
-    return dataFim >= new Date();
-  });
-
-  const eventosPassados = eventos.filter(evento => {
-    const dataFim = new Date(evento.dataFim);
-    return dataFim < new Date();
-  });
-
   const formatarData = (dataString: string) => {
     try {
       const data = new Date(dataString);
       return format(data, 'dd/MM/yyyy', { locale: ptBR });
-    } catch (e) {
+    } catch {
       return dataString;
     }
   };
 
   const navegarParaNovoEvento = () => {
     navigate('/admin/eventos/novo');
+  };
+
+  const baixarDadosOnline = async () => {
+    const confirmado = window.confirm(
+      'Baixar os dados do Firestore online para o emulador local? Documentos com o mesmo ID serão sobrescritos.',
+    );
+    if (!confirmado) return;
+
+    setSincronizando(true);
+    try {
+      const resultado = await baixarFirestoreParaEmulator();
+      const eventosData = await obterEventos();
+      setEventos(eventosData);
+      toast.success(`${resultado.total} documentos baixados para o emulador.`);
+    } catch (err) {
+      console.error('Erro ao baixar dados para o emulador:', err);
+      const mensagem = err instanceof Error ? err.message : 'Erro desconhecido';
+      toast.error(`Não foi possível atualizar a base local: ${mensagem}`);
+    } finally {
+      setSincronizando(false);
+    }
   };
 
   return (
@@ -107,6 +120,18 @@ const AdminDashboard: React.FC = () => {
               >
                 Ver Todos os Eventos
               </button>
+              {import.meta.env.VITE_USE_EMULATORS === '1' && (
+                <button
+                  type="button"
+                  onClick={baixarDadosOnline}
+                  disabled={sincronizando}
+                  className="btn btn-outline inline-flex items-center gap-2 disabled:cursor-not-allowed disabled:opacity-60"
+                  title="Copia os dados do Firestore online para o emulador local"
+                >
+                  <Download className={`h-4 w-4 ${sincronizando ? 'animate-bounce' : ''}`} />
+                  {sincronizando ? 'Atualizando base local...' : 'Atualizar base local'}
+                </button>
+              )}
             </div>
           </div>
 
