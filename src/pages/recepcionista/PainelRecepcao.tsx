@@ -19,19 +19,25 @@ import { doc, updateDoc, getDoc, collection, query as fsQuery, where, getDocs } 
 import { db } from '../../firebase/config';
 import { printBadge, detectPrinterCategory } from '../../utils/qzPrintUtils';
 
+// Temporariamente desativado por padrão. Para reativar, defina
+// VITE_ENABLE_QZ_TRAY=1 no ambiente e reinicie a aplicação.
+const QZ_TRAY_ENABLED = import.meta.env.VITE_ENABLE_QZ_TRAY === '1';
+
 /* ===================== QZ Tray: certificado e assinatura =====================
    O certificado público (gerado em qz.io/login) fica em public/qz/digital-certificate.txt.
    A assinatura é feita via VITE_QZ_SIGN_URL (Netlify function com a chave privada). */
-qz.security.setCertificatePromise((resolve, reject) => {
-  fetch('/qz/digital-certificate.txt', { cache: 'no-store' })
-    .then((data) => (data.ok ? data.text().then(resolve) : data.text().then(reject)));
-});
+if (QZ_TRAY_ENABLED) {
+  qz.security.setCertificatePromise((resolve, reject) => {
+    fetch('/qz/digital-certificate.txt', { cache: 'no-store' })
+      .then((data) => (data.ok ? data.text().then(resolve) : data.text().then(reject)));
+  });
 
-qz.security.setSignatureAlgorithm('SHA512');
-qz.security.setSignaturePromise((toSign) => (resolve, reject) => {
-  fetch(`${import.meta.env.VITE_QZ_SIGN_URL}?request=${encodeURIComponent(toSign)}`, { cache: 'no-store' })
-    .then((data) => (data.ok ? data.text().then(resolve) : data.text().then(reject)));
-});
+  qz.security.setSignatureAlgorithm('SHA512');
+  qz.security.setSignaturePromise((toSign) => (resolve, reject) => {
+    fetch(`${import.meta.env.VITE_QZ_SIGN_URL}?request=${encodeURIComponent(toSign)}`, { cache: 'no-store' })
+      .then((data) => (data.ok ? data.text().then(resolve) : data.text().then(reject)));
+  });
+}
 
 /* ===================== Helpers & Types ===================== */
 
@@ -220,6 +226,11 @@ const PainelRecepcao: React.FC = () => {
 
   // ====== QZ Tray: tenta conectar ao iniciar ======
   const conectarQz = async () => {
+    if (!QZ_TRAY_ENABLED) {
+      setQzConectado(false);
+      return;
+    }
+
     try {
       if (!qz.websocket.isActive()) {
         await qz.websocket.connect({ retries: 3, delay: 1 });
@@ -245,7 +256,7 @@ const PainelRecepcao: React.FC = () => {
   };
 
   useEffect(() => {
-    conectarQz();
+    if (QZ_TRAY_ENABLED) conectarQz();
   }, []);
 
   const impressoraCategoria = useMemo(
@@ -417,7 +428,12 @@ const PainelRecepcao: React.FC = () => {
         qzConnected: qzConectado,
       });
 
-      setMensagem({ tipo: 'success', texto: 'Credencial enviada para impressão!' });
+      setMensagem({
+        tipo: 'success',
+        texto: QZ_TRAY_ENABLED
+          ? 'Credencial enviada para impressão!'
+          : 'Janela de impressão aberta no navegador!',
+      });
     } catch (err) {
       console.error('Erro ao imprimir:', err);
       setMensagem({ tipo: 'error', texto: 'Erro ao imprimir credencial.' });
@@ -1125,20 +1141,22 @@ const PainelRecepcao: React.FC = () => {
                     <div className="flex items-center">
                       <button
                         onClick={handlePrintCredencial}
-                        className="btn btn-outline flex items-center rounded-r-none border-r-0"
+                        className={`btn btn-outline flex items-center ${QZ_TRAY_ENABLED ? 'rounded-r-none border-r-0' : ''}`}
                       >
                         {qzConectado && impressoraPadrao
                           ? <Wifi className="w-5 h-5 mr-2 text-green-500" />
                           : <Printer className="w-5 h-5 mr-2" />}
                         Imprimir Credencial
                       </button>
-                      <button
-                        onClick={() => setShowSelecionarImpressora(true)}
-                        className="btn btn-outline rounded-l-none px-2"
-                        title="Configurar impressora"
-                      >
-                        <Settings className="w-4 h-4" />
-                      </button>
+                      {QZ_TRAY_ENABLED && (
+                        <button
+                          onClick={() => setShowSelecionarImpressora(true)}
+                          className="btn btn-outline rounded-l-none px-2"
+                          title="Configurar impressora"
+                        >
+                          <Settings className="w-4 h-4" />
+                        </button>
+                      )}
                     </div>
                   </>
                 )}
