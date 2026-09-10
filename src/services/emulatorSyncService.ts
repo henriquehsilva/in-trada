@@ -1,4 +1,5 @@
 import { deleteApp, getApps, initializeApp } from 'firebase/app'
+import { getAuth, signInWithEmailAndPassword } from 'firebase/auth'
 import {
   collection,
   doc,
@@ -26,7 +27,10 @@ export interface ResultadoSincronizacao {
   porColecao: Record<string, number>
 }
 
-export async function baixarFirestoreParaEmulator(): Promise<ResultadoSincronizacao> {
+export async function baixarFirestoreParaEmulator(
+  email: string,
+  senha: string,
+): Promise<ResultadoSincronizacao> {
   if (import.meta.env.VITE_USE_EMULATORS !== '1') {
     throw new Error('A sincronização só pode ser executada no ambiente de emuladores.')
   }
@@ -52,6 +56,12 @@ export async function baixarFirestoreParaEmulator(): Promise<ResultadoSincroniza
   const porColecao: Record<string, number> = {}
 
   try {
+    try {
+      await signInWithEmailAndPassword(getAuth(productionApp), email, senha)
+    } catch {
+      throw new Error('Não foi possível autenticar na produção. Verifique o e-mail e a senha.')
+    }
+
     for (const collectionName of COLLECTIONS) {
       let snapshot
 

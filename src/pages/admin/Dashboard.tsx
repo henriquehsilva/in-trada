@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Download } from 'lucide-react';
 import LayoutDefault from '../../components/layout/LayoutDefault';
@@ -8,6 +8,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import toast from 'react-hot-toast';
 import { baixarFirestoreParaEmulator } from '../../services/emulatorSyncService';
+import { useAuth } from '../../contexts/AuthContext';
 
 
 const AdminDashboard: React.FC = () => {
@@ -15,7 +16,11 @@ const AdminDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sincronizando, setSincronizando] = useState(false);
+  const [modalSincronizacaoAberto, setModalSincronizacaoAberto] = useState(false);
+  const [emailProducao, setEmailProducao] = useState('');
+  const [senhaProducao, setSenhaProducao] = useState('');
   const navigate = useNavigate();
+  const { currentUser } = useAuth();
 
   useEffect(() => {
     const carregarEventos = async () => {
@@ -46,17 +51,25 @@ const AdminDashboard: React.FC = () => {
     navigate('/admin/eventos/novo');
   };
 
-  const baixarDadosOnline = async () => {
-    const confirmado = window.confirm(
-      'Baixar os dados do Firestore online para o emulador local? Documentos com o mesmo ID serão sobrescritos.',
-    );
-    if (!confirmado) return;
+  const abrirSincronizacao = () => {
+    setEmailProducao(currentUser?.email ?? '');
+    setSenhaProducao('');
+    setModalSincronizacaoAberto(true);
+  };
+
+  const baixarDadosOnline = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
 
     setSincronizando(true);
     try {
-      const resultado = await baixarFirestoreParaEmulator();
+      const resultado = await baixarFirestoreParaEmulator(
+        emailProducao.trim(),
+        senhaProducao,
+      );
       const eventosData = await obterEventos();
       setEventos(eventosData);
+      setModalSincronizacaoAberto(false);
+      setSenhaProducao('');
       toast.success(`${resultado.total} documentos baixados para o emulador.`);
     } catch (err) {
       console.error('Erro ao baixar dados para o emulador:', err);
@@ -123,7 +136,7 @@ const AdminDashboard: React.FC = () => {
               {import.meta.env.VITE_USE_EMULATORS === '1' && (
                 <button
                   type="button"
-                  onClick={baixarDadosOnline}
+                  onClick={abrirSincronizacao}
                   disabled={sincronizando}
                   className="btn btn-outline inline-flex items-center gap-2 disabled:cursor-not-allowed disabled:opacity-60"
                   title="Copia os dados do Firestore online para o emulador local"
@@ -217,6 +230,65 @@ const AdminDashboard: React.FC = () => {
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {modalSincronizacaoAberto && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <form
+            onSubmit={baixarDadosOnline}
+            className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl"
+          >
+            <h2 className="text-lg font-semibold text-gray-900">
+              Atualizar base local
+            </h2>
+            <p className="mt-2 text-sm text-gray-600">
+              Entre com um administrador da produção. Documentos locais com o
+              mesmo ID serão sobrescritos.
+            </p>
+
+            <label className="mt-5 block text-sm font-medium text-gray-700">
+              E-mail da produção
+              <input
+                type="email"
+                required
+                autoComplete="username"
+                value={emailProducao}
+                onChange={(event) => setEmailProducao(event.target.value)}
+                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2"
+              />
+            </label>
+
+            <label className="mt-4 block text-sm font-medium text-gray-700">
+              Senha da produção
+              <input
+                type="password"
+                required
+                autoComplete="current-password"
+                value={senhaProducao}
+                onChange={(event) => setSenhaProducao(event.target.value)}
+                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2"
+              />
+            </label>
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                disabled={sincronizando}
+                onClick={() => setModalSincronizacaoAberto(false)}
+                className="btn btn-outline"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={sincronizando}
+                className="btn btn-primary disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {sincronizando ? 'Atualizando...' : 'Baixar dados'}
+              </button>
+            </div>
+          </form>
         </div>
       )}
     </LayoutDefault>
