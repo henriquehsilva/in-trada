@@ -2,8 +2,9 @@ import { deleteApp, getApps, initializeApp } from 'firebase/app'
 import {
   collection,
   doc,
-  getDocs,
-  getFirestore,
+  getDocsFromServer,
+  initializeFirestore,
+  memoryLocalCache,
   writeBatch,
 } from 'firebase/firestore'
 import { db } from '../firebase/config'
@@ -31,7 +32,9 @@ export async function baixarFirestoreParaEmulator(): Promise<ResultadoSincroniza
   }
 
   const existingApp = getApps().find(app => app.name === PRODUCTION_APP_NAME)
-  const productionApp = existingApp ?? initializeApp({
+  if (existingApp) await deleteApp(existingApp)
+
+  const productionApp = initializeApp({
     apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
     authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
     projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
@@ -39,12 +42,27 @@ export async function baixarFirestoreParaEmulator(): Promise<ResultadoSincroniza
     messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
     appId: import.meta.env.VITE_FIREBASE_APP_ID,
   }, PRODUCTION_APP_NAME)
-  const productionDb = getFirestore(productionApp)
+  // Esta instância nunca deve reutilizar o cache do emulador. Além disso, a
+  // detecção de long polling evita falhas do canal WebSocket em alguns
+  // navegadores, proxies e ambientes locais.
+  const productionDb = initializeFirestore(productionApp, {
+    localCache: memoryLocalCache(),
+    experimentalAutoDetectLongPolling: true,
+  })
   const porColecao: Record<string, number> = {}
 
   try {
     for (const collectionName of COLLECTIONS) {
-      const snapshot = await getDocs(collection(productionDb, collectionName))
+      let snapshot
+
+      try {
+        snapshot = await getDocsFromServer(
+          collection(productionDb, collectionName),
+        )
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'erro desconhecido'
+        throw new Error(`Falha ao baixar a coleção "${collectionName}": ${message}`)
+      }
       porColecao[collectionName] = snapshot.size
 
       for (let start = 0; start < snapshot.docs.length; start += BATCH_SIZE) {
@@ -67,6 +85,6 @@ export async function baixarFirestoreParaEmulator(): Promise<ResultadoSincroniza
       porColecao,
     }
   } finally {
-    if (!existingApp) await deleteApp(productionApp)
+    await deleteApp(productionApp)
   }
 }

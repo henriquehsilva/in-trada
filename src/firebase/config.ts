@@ -5,7 +5,6 @@ import {
   persistentMultipleTabManager,
   persistentSingleTabManager,
   memoryLocalCache,
-  getFirestore,
   connectFirestoreEmulator,
   disableNetwork,
   enableNetwork,
@@ -73,9 +72,9 @@ export const goOnline = () => enableNetwork(db)
 
 // 🔹 Conectar emuladores se variável ativada
 if (import.meta.env.VITE_USE_EMULATORS === '1') {
-  console.log('🔥 Usando Firebase Emulators')
-
   connectFirestoreEmulator(db, '127.0.0.1', 8080)
-  connectAuthEmulator(auth, 'http://127.0.0.1:9099')
+  connectAuthEmulator(auth, 'http://127.0.0.1:9099', {
+    disableWarnings: true,
+  })
   connectStorageEmulator(storage, '127.0.0.1', 9199)
 }
