@@ -453,12 +453,12 @@ firebase login</code></pre>
         <span class="port-badge">Functions · <b>5001</b></span>
       </div>
       <p>Com <code>VITE_USE_EMULATORS=1</code> já setado no passo 3, suba os emuladores em um terminal separado:</p>
-      <pre><code>firebase emulators:start</code></pre>
+      <pre><code>npm run emulators</code></pre>
       <p>Deixe esse terminal aberto. Abra <code>http://127.0.0.1:4000</code> no navegador — essa é a Emulator UI, onde dá pra ver e editar os dados do Firestore, os usuários do Auth e os arquivos do Storage em tempo real, sem tocar em produção.</p>
       <div class="callout">
         <span class="callout-label">Dica</span>
         Para manter dados entre reinicializações dos emuladores, use
-        <code>firebase emulators:start --export-on-exit=./firebase-data --import=./firebase-data</code>.
+        O comando acima salva os dados em <code>firebase-data/</code> ao encerrar com <code>Ctrl+C</code> e os restaura automaticamente na próxima execução.
         Isso salva o estado ao encerrar e recarrega no próximo <code>start</code>.
       </div>
     </div>
@@ -491,7 +491,7 @@ firebase login</code></pre>
   </section>
 
   <footer>
-    Resumo dos comandos do dia a dia: <code>firebase emulators:start</code> em um terminal, <code>npm run dev</code> em outro.
+    Resumo dos comandos do dia a dia: <code>npm run emulators</code> em um terminal, <code>npm run dev</code> em outro.
   </footer>
 
 </div>

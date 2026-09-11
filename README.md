@@ -91,6 +91,19 @@ src/
    - Substitua as credenciais no arquivo `src/firebase/config.ts`
 4. Execute o projeto com `npm run dev`
 
+### Emuladores locais com dados persistentes
+
+Inicie os emuladores em outro terminal com:
+
+```bash
+npm run emulators
+```
+
+Ao encerrar com `Ctrl+C`, os dados são exportados para `firebase-data/`. Na
+próxima execução do mesmo comando, eles são importados automaticamente. Pare os
+emuladores com `Ctrl+C` antes de desligar ou reiniciar a máquina para garantir
+que as alterações mais recentes sejam gravadas.
+
 ## Deploy
 
 Realize o deploy usando Firebase Hosting:

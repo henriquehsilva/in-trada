@@ -24,3 +24,6 @@ dist-ssr
 *.sw?
 
 .env
+
+# Dados locais dos Firebase Emulators (persistem entre execuções)
+firebase-data/
