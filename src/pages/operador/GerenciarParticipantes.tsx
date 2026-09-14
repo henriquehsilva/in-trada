@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Plus, Search, Download, Filter, Trash2, Edit, FileSpreadsheet } from 'lucide-react';
+import { Plus, Search, Download, Trash2, Edit, FileSpreadsheet, RefreshCw } from 'lucide-react';
 import LayoutDefault from '../../components/layout/LayoutDefault';
 import { useAuth } from '../../contexts/AuthContext';
 import { Evento, Participante } from '../../models/types';
@@ -27,6 +27,7 @@ const GerenciarParticipantes: React.FC = () => {
   const [termoBusca, setTermoBusca] = useState('');
   const [statusFiltro, setStatusFiltro] = useState('todos');
   const [loading, setLoading] = useState(true);
+  const [atualizandoGraficos, setAtualizandoGraficos] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const eventoAtual = eventos.find(e => e.id === eventoSelecionado);
 
@@ -44,9 +45,14 @@ const GerenciarParticipantes: React.FC = () => {
 
         const isRecepcionista = userData?.role === 'recepcionista' || window.location.pathname.includes('/recepcionista');
 
-        const listaFiltrada = isRecepcionista && userData?.eventoId
+        const listaFiltrada = (isRecepcionista && userData?.eventoId
           ? listaTodos.filter(e => e.id === userData.eventoId)
-          : listaTodos;
+          : listaTodos)
+          .sort((a, b) => {
+            const dataA = new Date(a.criadoEm || 0).getTime() || 0;
+            const dataB = new Date(b.criadoEm || 0).getTime() || 0;
+            return dataB - dataA;
+          });
 
         setEventos(listaFiltrada);
 
@@ -96,6 +102,21 @@ const GerenciarParticipantes: React.FC = () => {
       setError('Erro ao buscar participantes.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleAtualizarGraficos = async () => {
+    if (!eventoSelecionado) return;
+    try {
+      setAtualizandoGraficos(true);
+      setError(null);
+      const participantesDados = await obterParticipantesPorEvento(eventoSelecionado);
+      setParticipantes(participantesDados);
+    } catch (err) {
+      console.error('Erro ao atualizar os gráficos:', err);
+      setError('Erro ao atualizar os gráficos.');
+    } finally {
+      setAtualizandoGraficos(false);
     }
   };
 
@@ -217,6 +238,20 @@ const GerenciarParticipantes: React.FC = () => {
               <Plus className="w-5 h-5 mr-2" /> Novo Participante
             </button>
           </div>
+        </div>
+
+        <div className="flex items-center justify-between gap-4">
+          <h2 className="text-base font-semibold text-gray-800">Gráficos por status</h2>
+          <button
+            type="button"
+            onClick={handleAtualizarGraficos}
+            disabled={atualizandoGraficos || !eventoSelecionado}
+            className="btn btn-outline flex items-center"
+            title="Atualizar gráficos"
+          >
+            <RefreshCw className={`w-4 h-4 mr-2 ${atualizandoGraficos ? 'animate-spin' : ''}`} />
+            {atualizandoGraficos ? 'Atualizando...' : 'Atualizar gráficos'}
+          </button>
         </div>
 
         <div className="flex flex-wrap gap-8 justify-center md:justify-start">

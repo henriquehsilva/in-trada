@@ -17,6 +17,7 @@ import {
   subscribeParticipantesDoEvento,
 } from '../../services/participanteService';
 import { obterModelosCrachaPorEvento } from '../../services/modeloService';
+import { normalizeText } from '../../utils/textUtils';
 import QRCode from 'qrcode';
 import { buildQrValue } from '../../utils/qrcode';
 import { collection, query as fsQuery, where, getDocs } from 'firebase/firestore';
@@ -137,11 +138,11 @@ const AutoAtendimento: React.FC = () => {
         unsubscribe = subscribeParticipantesDoEvento(eventId, (arr) => {
           setBaseParticipantes(arr || []);
           if (termo.trim()) {
-            const q = termo.trim().toLowerCase();
+            const q = normalizeText(termo.trim());
             setParticipantes(
               (arr || []).filter((p: any) =>
                 [p.nome, p.empresa, p.email1, p.email2, p.id]
-                  .map((v: any) => (v || '').toString().toLowerCase())
+                  .map(normalizeText)
                   .some((v: string) => v.includes(q))
               )
             );
@@ -163,13 +164,13 @@ const AutoAtendimento: React.FC = () => {
   // ===== Busca =====
   const executarBusca = async () => {
     if (!eventId) return;
-    const q = termo.trim().toLowerCase();
+    const q = normalizeText(termo.trim());
     if (!q) { setParticipantes([]); setMsg(null); return; }
     try {
       setBuscando(true);
       const local = baseParticipantes.filter((p) =>
         [p.nome, p.empresa, (p as any).email1, (p as any).email2, p.id, (p as any).codigoCliente]
-          .map((v) => (v || '').toString().toLowerCase())
+          .map(normalizeText)
           .some((v) => v.includes(q))
       );
       let remotos: Participante[] = [];
