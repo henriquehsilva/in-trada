@@ -76,7 +76,7 @@ export const buscarParticipantes = async (eventoId: string, termo: string): Prom
   const t = normalizeText(termo.trim())
   if (!t) return base
   return base.filter((p: any) => {
-    const arr = [p.nome, p.email1, p.email2, p.empresa, p.categoria, p.id].map((v: any) =>
+    const arr = [p.nome, p.email1, p.email2, p.empresa, p.categoria, p.id, p.codigoCliente].map((v: any) =>
       normalizeText(v)
     )
     return arr.some((v: string) => v.includes(t))

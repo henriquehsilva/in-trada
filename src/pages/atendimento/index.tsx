@@ -141,7 +141,7 @@ const AutoAtendimento: React.FC = () => {
             const q = normalizeText(termo.trim());
             setParticipantes(
               (arr || []).filter((p: any) =>
-                [p.nome, p.empresa, p.email1, p.email2, p.id]
+                [p.nome, p.empresa, p.email1, p.email2, p.id, p.codigoCliente]
                   .map(normalizeText)
                   .some((v: string) => v.includes(q))
               )
