@@ -139,8 +139,11 @@ const AutoAtendimento: React.FC = () => {
           setBaseParticipantes(arr || []);
           if (termo.trim()) {
             const q = normalizeText(termo.trim());
+            const codigosExatos = (arr || []).filter(
+              (p: any) => normalizeText(p.codigoCliente) === q
+            );
             setParticipantes(
-              (arr || []).filter((p: any) =>
+              codigosExatos.length > 0 ? codigosExatos : (arr || []).filter((p: any) =>
                 [p.nome, p.empresa, p.email1, p.email2, p.id, p.codigoCliente]
                   .map(normalizeText)
                   .some((v: string) => v.includes(q))
@@ -168,11 +171,16 @@ const AutoAtendimento: React.FC = () => {
     if (!q) { setParticipantes([]); setMsg(null); return; }
     try {
       setBuscando(true);
-      const local = baseParticipantes.filter((p) =>
-        [p.nome, p.empresa, (p as any).email1, (p as any).email2, p.id, (p as any).codigoCliente]
-          .map(normalizeText)
-          .some((v) => v.includes(q))
+      const codigosExatos = baseParticipantes.filter(
+        (p) => normalizeText((p as any).codigoCliente) === q
       );
+      const local = codigosExatos.length > 0
+        ? codigosExatos
+        : baseParticipantes.filter((p) =>
+            [p.nome, p.empresa, (p as any).email1, (p as any).email2, p.id, (p as any).codigoCliente]
+              .map(normalizeText)
+              .some((v) => v.includes(q))
+          );
       let remotos: Participante[] = [];
       if (online) {
         try { remotos = await buscarParticipantes(eventId, q); }

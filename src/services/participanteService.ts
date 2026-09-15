@@ -75,6 +75,10 @@ export const buscarParticipantes = async (eventoId: string, termo: string): Prom
   const base = await obterParticipantesPorEvento(eventoId)
   const t = normalizeText(termo.trim())
   if (!t) return base
+
+  const codigosExatos = base.filter((p: any) => normalizeText(p.codigoCliente) === t)
+  if (codigosExatos.length > 0) return codigosExatos
+
   return base.filter((p: any) => {
     const arr = [p.nome, p.email1, p.email2, p.empresa, p.categoria, p.id, p.codigoCliente].map((v: any) =>
       normalizeText(v)
