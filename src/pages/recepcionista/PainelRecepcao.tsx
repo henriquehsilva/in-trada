@@ -18,26 +18,12 @@ import { ChromePicker } from 'react-color';
 import { doc, updateDoc, getDoc, collection, query as fsQuery, where, getDocs, onSnapshot } from 'firebase/firestore';
 import { db } from '../../firebase/config';
 import { printBadge, detectPrinterCategory } from '../../utils/qzPrintUtils';
-
-// Temporariamente desativado por padrão. Para reativar, defina
-// VITE_ENABLE_QZ_TRAY=1 no ambiente e reinicie a aplicação.
-const QZ_TRAY_ENABLED = import.meta.env.VITE_ENABLE_QZ_TRAY === '1';
+import { configureQzSecurity, QZ_TRAY_ENABLED } from '../../utils/qzConnection';
 
 /* ===================== QZ Tray: certificado e assinatura =====================
    O certificado público (gerado em qz.io/login) fica em public/qz/digital-certificate.txt.
    A assinatura é feita via VITE_QZ_SIGN_URL (Netlify function com a chave privada). */
-if (QZ_TRAY_ENABLED) {
-  qz.security.setCertificatePromise((resolve, reject) => {
-    fetch('/qz/digital-certificate.txt', { cache: 'no-store' })
-      .then((data) => (data.ok ? data.text().then(resolve) : data.text().then(reject)));
-  });
-
-  qz.security.setSignatureAlgorithm('SHA512');
-  qz.security.setSignaturePromise((toSign) => (resolve, reject) => {
-    fetch(`${import.meta.env.VITE_QZ_SIGN_URL}?request=${encodeURIComponent(toSign)}`, { cache: 'no-store' })
-      .then((data) => (data.ok ? data.text().then(resolve) : data.text().then(reject)));
-  });
-}
+configureQzSecurity();
 
 /* ===================== Helpers & Types ===================== */
 

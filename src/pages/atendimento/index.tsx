@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   Search, QrCode, Printer, CheckCircle2, BadgeCheck,
-  Loader2, X, AlertTriangle, Settings, Pencil, Save, UserCog,
+  Loader2, X, AlertTriangle, Settings, Pencil, Save, UserCog, Wifi, WifiOff,
 } from 'lucide-react';
 import QrCodeScanner from '../../components/qrcode/QrCodeScanner';
 import { useAuth } from '../../contexts/AuthContext';
@@ -18,10 +18,10 @@ import {
 } from '../../services/participanteService';
 import { obterModelosCrachaPorEvento } from '../../services/modeloService';
 import { normalizeText } from '../../utils/textUtils';
-import QRCode from 'qrcode';
-import { buildQrValue } from '../../utils/qrcode';
 import { collection, query as fsQuery, where, getDocs } from 'firebase/firestore';
 import { db } from '../../firebase/config';
+import { printBadge } from '../../utils/qzPrintUtils';
+import { connectQz, isQzConnected, QZ_TRAY_ENABLED } from '../../utils/qzConnection';
 
 const STATUS_LABEL: Record<string, string> = {
   credenciado: 'Credenciado',
@@ -81,6 +81,13 @@ const AutoAtendimento: React.FC = () => {
   const [showScanner, setShowScanner] = useState(false);
   const [confirmando, setConfirmando] = useState<Participante | null>(null);
   const [online, setOnline] = useState<boolean>(isOnline());
+  const [qzConectado, setQzConectado] = useState(false);
+  const [impressoras, setImpressoras] = useState<string[]>([]);
+  const [impressoraPadrao, setImpressoraPadrao] = useState(
+    () => localStorage.getItem('impressora.padrao') || '',
+  );
+  const [showImpressora, setShowImpressora] = useState(false);
+  const [conectandoQz, setConectandoQz] = useState(false);
 
   // Campos configuráveis
   const [camposCustom, setCamposCustom] = useState<string[]>([]);
@@ -109,6 +116,31 @@ const AutoAtendimento: React.FC = () => {
     window.addEventListener('online', on);
     window.addEventListener('offline', off);
     return () => { window.removeEventListener('online', on); window.removeEventListener('offline', off); };
+  }, []);
+
+  const conectarImpressora = async () => {
+    if (!QZ_TRAY_ENABLED) return;
+    try {
+      setConectandoQz(true);
+      const lista = await connectQz();
+      setImpressoras(lista);
+      setQzConectado(isQzConnected());
+      setImpressoraPadrao((atual) => {
+        if (atual && lista.includes(atual)) return atual;
+        const selecionada = lista[0] || '';
+        if (selecionada) localStorage.setItem('impressora.padrao', selecionada);
+        return selecionada;
+      });
+    } catch (error) {
+      console.error('Erro ao conectar ao QZ Tray:', error);
+      setQzConectado(false);
+    } finally {
+      setConectandoQz(false);
+    }
+  };
+
+  useEffect(() => {
+    conectarImpressora();
   }, []);
 
   // ===== Carregar evento + lista inicial =====
@@ -210,8 +242,8 @@ const AutoAtendimento: React.FC = () => {
 
   const handleImprimir = async (p: Participante) => {
     try {
-      await reservarImpressao(p);
       await imprimirCracha(p);
+      await reservarImpressao(p);
       setMsg({ tipo: 'success', texto: online ? 'Etiqueta enviada para impressão!' : 'Etiqueta registrada offline.' });
     } catch (e: any) {
       console.error(e);
@@ -280,36 +312,12 @@ const AutoAtendimento: React.FC = () => {
     const modeloPadrao = modelos.find((m) => m.padrao);
     if (!modeloPadrao) throw new Error('Modelo padrão não definido.');
 
-    const cmToZplPx = (cm: number) => Math.round((cm / 2.54) * 203);
-    const largura = cmToZplPx(modeloPadrao.larguraCm || 8);
-    const altura = cmToZplPx(modeloPadrao.alturaCm || 3);
-
-    const qrCache: Record<string, string> = {};
-    for (const comp of (modeloPadrao.componentes || []) as any[]) {
-      if (comp.tipo === 'qrcode') {
-        const props = comp.propriedades || {};
-        const qrValor = buildQrValue(participante as any, props.camposQrCode, props.separadorQrCode) || JSON.stringify(participante);
-        qrCache[comp.id] = await QRCode.toDataURL(qrValor);
-      }
-    }
-
-    const htmlComponente = (modeloPadrao.componentes || []).map((comp: any) => {
-      const props = comp.propriedades || {};
-      const valor = props.campoVinculado ? (participante as any)[props.campoVinculado] || '' : props.texto || '';
-      if (comp.tipo === 'qrcode') {
-        return `<div style="position:absolute;top:${props.y}px;left:${props.x}px;width:${props.largura}px;height:${props.altura}px;"><img src="${qrCache[comp.id]}" width="${props.largura}" height="${props.altura}"/></div>`;
-      }
-      if (comp.tipo === 'barcode') {
-        return `<div style="position:absolute;top:${props.y}px;left:${props.x}px;"><svg id="barcode-${props.campoVinculado}" jsbarcode-value="${valor}" jsbarcode-format="CODE128" jsbarcode-width="2" jsbarcode-height="${props.altura}" jsbarcode-displayvalue="false"></svg></div>`;
-      }
-      return `<div style="position:absolute;top:${props.y}px;left:${props.x}px;width:${props.largura}px;height:${props.altura}px;font-size:${props.estilos?.tamanhoFonte || 14}px;font-weight:${props.estilos?.negrito ? 'bold' : 'normal'};font-family:${props.estilos?.fonte || 'Arial'};text-align:${props.estilos?.alinhamento || 'left'};color:${props.estilos?.corFonte || '#000'};background-color:${props.estilos?.corFundo || 'transparent'};border-radius:${props.estilos?.raio || 0}px;display:flex;align-items:center;justify-content:center;overflow:hidden;">${valor}</div>`;
-    }).join('');
-
-    const html = `<!doctype html><html><head><meta charset="utf-8"/><title>Imprimir</title><script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script><style>@page{size:${largura}px ${altura}px;margin:0}body{margin:0;padding:0}</style></head><body><div style="position:relative;width:${largura}px;height:${altura}px;">${htmlComponente}</div><script>window.onload=function(){if(window.JsBarcode){JsBarcode("svg[id^='barcode-']").init()}window.print();setTimeout(()=>window.close(),300)}</script></body></html>`;
-    const w = window.open('', '_blank', 'width=800,height=600');
-    if (!w) throw new Error('Pop-up bloqueado.');
-    w.document.write(html);
-    w.document.close();
+    await printBadge({
+      modelo: modeloPadrao,
+      participante: participante as any,
+      printerName: impressoraPadrao,
+      qzConnected: qzConectado,
+    });
   };
 
   // ===== Edição inline =====
@@ -388,6 +396,18 @@ const AutoAtendimento: React.FC = () => {
           <div className="flex items-center gap-2">
             {!online && (
               <span className="text-xs px-2 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200">Offline</span>
+            )}
+            {QZ_TRAY_ENABLED && (
+              <button
+                onClick={() => setShowImpressora(true)}
+                className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 hover:bg-gray-50 text-sm"
+                title="Configurar impressão direta"
+              >
+                {qzConectado && impressoraPadrao
+                  ? <Wifi className="w-4 h-4 text-green-500" />
+                  : <WifiOff className="w-4 h-4 text-gray-400" />}
+                <span className="hidden sm:inline">Impressora</span>
+              </button>
             )}
             <button
               onClick={() => setShowConfigurarCampos(true)}
@@ -634,6 +654,63 @@ const AutoAtendimento: React.FC = () => {
         >
           <QrCode className="w-6 h-6" />
         </button>
+      )}
+
+      {/* Modal: Configurar campos visíveis */}
+      {showImpressora && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-xl">
+            <div className="flex items-center justify-between px-6 pt-6 pb-3 border-b border-gray-100">
+              <div>
+                <h3 className="text-lg font-semibold">Impressão direta</h3>
+                <p className="text-sm text-gray-500 mt-0.5">
+                  {qzConectado ? 'QZ Tray conectado' : 'QZ Tray não disponível'}
+                </p>
+              </div>
+              <button onClick={() => setShowImpressora(false)} className="p-2 rounded-full hover:bg-gray-100">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="px-6 py-4">
+              {qzConectado ? (
+                <>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Impressora padrão</label>
+                  <select
+                    value={impressoraPadrao}
+                    onChange={(e) => {
+                      setImpressoraPadrao(e.target.value);
+                      localStorage.setItem('impressora.padrao', e.target.value);
+                    }}
+                    className="w-full rounded-xl border border-gray-300 px-3 py-2"
+                  >
+                    {impressoras.map((nome) => <option key={nome} value={nome}>{nome}</option>)}
+                  </select>
+                  <p className="text-xs text-gray-500 mt-2">
+                    Esta impressora será usada diretamente, sem abrir a caixa de diálogo do navegador.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Abra o QZ Tray neste computador e autorize a conexão. Sem ele, será usada a impressão do navegador.
+                  </p>
+                  <button
+                    onClick={conectarImpressora}
+                    disabled={conectandoQz}
+                    className="rounded-xl border px-4 py-2 hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    {conectandoQz ? 'Conectando...' : 'Tentar novamente'}
+                  </button>
+                </>
+              )}
+            </div>
+            <div className="px-6 py-4 border-t border-gray-100 flex justify-end">
+              <button onClick={() => setShowImpressora(false)} className="rounded-xl bg-blue-600 text-white px-5 py-2">
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Modal: Configurar campos visíveis */}
