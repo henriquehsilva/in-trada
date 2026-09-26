@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { QrCode, Search, UserPlus, CheckCircle, Printer, Edit, Settings, Pencil, Save, X, Loader2, Wifi, WifiOff, Tag } from 'lucide-react';
+import { QrCode, Search, UserPlus, CheckCircle, Printer, Edit, Settings, Pencil, Save, X, Loader2, Wifi, WifiOff, Tag, Monitor } from 'lucide-react';
 import LayoutDefault from '../../components/layout/LayoutDefault';
 import QrCodeScanner from '../../components/qrcode/QrCodeScanner';
 import { obterEventoPorId, atualizarEvento } from '../../services/eventoService';
@@ -18,6 +18,7 @@ import { doc, updateDoc, getDoc, collection, query as fsQuery, where, getDocs, o
 import { db } from '../../firebase/config';
 import { printBadge, detectPrinterCategory } from '../../utils/qzPrintUtils';
 import { connectQz, QZ_TRAY_ENABLED, selectQzPrinter } from '../../utils/qzConnection';
+import { obterNomeTelaAutoAtendimento } from '../../config/telasAutoAtendimento';
 
 /* ===================== Helpers & Types ===================== */
 
@@ -718,6 +719,18 @@ const PainelRecepcao: React.FC = () => {
 
   return (
     <LayoutDefault title={`Recepção: ${evento.nome}`} backUrl="/recepcionista">
+      {evento.telaAutoAtendimento && (
+        <div className="mb-4 flex justify-end">
+          <button
+            type="button"
+            onClick={() => navigate(`/autoatendimento/${evento.id}`)}
+            className="btn btn-primary inline-flex items-center"
+          >
+            <Monitor className="w-5 h-5 mr-2" />
+            Abrir autoatendimento {obterNomeTelaAutoAtendimento(evento.telaAutoAtendimento)}
+          </button>
+        </div>
+      )}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Coluna 1: Busca e Lista */}
         <div className="lg:col-span-1 space-y-4">

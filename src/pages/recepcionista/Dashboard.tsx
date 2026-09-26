@@ -144,13 +144,12 @@ const RecepcionistaDashboard: React.FC = () => {
                   </p>
                 </div>
 
-                {/* Botão Autoatendimento */}
-                <div className="pt-3">
+                {evento.telaAutoAtendimento && <div className="pt-3">
                   <button
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
-                      navigate(`/AutoAtendimento/${evento.id}`); // mantém o casing existente da sua rota
+                      navigate(`/autoatendimento/${evento.id}`);
                     }}
                     className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-gray-200 hover:bg-gray-100 text-sm font-medium"
                     title="Abrir autoatendimento deste evento"
@@ -158,7 +157,7 @@ const RecepcionistaDashboard: React.FC = () => {
                     <QrCode className="w-4 h-4" />
                     Autoatendimento
                   </button>
-                </div>
+                </div>}
               </div>
             ))}
           </div>

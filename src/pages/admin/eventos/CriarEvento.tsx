@@ -5,6 +5,7 @@ import { Evento } from '../../../models/types';
 import { useAuth } from '../../../contexts/AuthContext';
 import LayoutDefault from '../../../components/layout/LayoutDefault';
 import toast from 'react-hot-toast';
+import { TELAS_AUTOATENDIMENTO } from '../../../config/telasAutoAtendimento';
 
 const CriarEvento: React.FC = () => {
   const { userData, currentUser } = useAuth();
@@ -18,6 +19,7 @@ const CriarEvento: React.FC = () => {
     dataFim: '',
     criadoPorId: userData?.uid || '',
     camposPersonalizados: [],
+    telaAutoAtendimento: null,
   });
 
   const [loading, setLoading] = useState(false);
@@ -95,6 +97,32 @@ const CriarEvento: React.FC = () => {
             required
             className="w-full border px-4 py-2 rounded"
           />
+
+          <div>
+            <label htmlFor="telaAutoAtendimento" className="block text-sm font-medium text-gray-700 mb-1">
+              Tela de autoatendimento
+            </label>
+            <select
+              id="telaAutoAtendimento"
+              name="telaAutoAtendimento"
+              value={form.telaAutoAtendimento || ''}
+              onChange={(e) => setForm((prev) => ({
+                ...prev,
+                telaAutoAtendimento: TELAS_AUTOATENDIMENTO.find(
+                  (tela) => tela.id === e.target.value,
+                )?.id || null,
+              }))}
+              className="w-full border px-4 py-2 rounded bg-white"
+            >
+              <option value="">Nenhuma tela</option>
+              {TELAS_AUTOATENDIMENTO.map((tela) => (
+                <option key={tela.id} value={tela.id}>{tela.nome}</option>
+              ))}
+            </select>
+            <p className="text-xs text-gray-500 mt-1">
+              Ao selecionar uma tela, a recepção poderá abrir o autoatendimento deste evento.
+            </p>
+          </div>
 
           {erro && <p className="text-red-600 text-sm">{erro}</p>}
 

@@ -4,6 +4,7 @@ import LayoutDefault from '../../../components/layout/LayoutDefault';
 import { obterEventoPorId, atualizarEvento } from '../../../services/eventoService';
 import { Evento } from '../../../models/types';
 import toast from 'react-hot-toast';
+import { TELAS_AUTOATENDIMENTO } from '../../../config/telasAutoAtendimento';
 
 const EditarEvento: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -17,6 +18,7 @@ const EditarEvento: React.FC = () => {
     dataFim: '',
     criadoPorId: '',
     camposPersonalizados: [],
+    telaAutoAtendimento: null,
   });
 
   const [loading, setLoading] = useState(true);
@@ -37,6 +39,7 @@ const EditarEvento: React.FC = () => {
             dataFim: evento.dataFim,
             criadoPorId: evento.criadoPorId,
             camposPersonalizados: evento.camposPersonalizados || [],
+            telaAutoAtendimento: evento.telaAutoAtendimento || null,
           });
         } else {
           setErro('Evento não encontrado');
@@ -123,6 +126,28 @@ const EditarEvento: React.FC = () => {
               required
               className="w-full border px-4 py-2 rounded"
             />
+
+            <div>
+              <label htmlFor="telaAutoAtendimento" className="block text-sm font-medium text-gray-700 mb-1">
+                Tela de autoatendimento
+              </label>
+              <select
+                id="telaAutoAtendimento"
+                value={form.telaAutoAtendimento || ''}
+                onChange={(e) => setForm((prev) => ({
+                  ...prev,
+                  telaAutoAtendimento: TELAS_AUTOATENDIMENTO.find(
+                    (tela) => tela.id === e.target.value,
+                  )?.id || null,
+                }))}
+                className="w-full border px-4 py-2 rounded bg-white"
+              >
+                <option value="">Nenhuma tela</option>
+                {TELAS_AUTOATENDIMENTO.map((tela) => (
+                  <option key={tela.id} value={tela.id}>{tela.nome}</option>
+                ))}
+              </select>
+            </div>
 
             {erro && <p className="text-red-600 text-sm">{erro}</p>}
 

@@ -88,6 +88,7 @@ const AutoAtendimento: React.FC = () => {
   );
   const [showImpressora, setShowImpressora] = useState(false);
   const [conectandoQz, setConectandoQz] = useState(false);
+  const isWake = evento?.telaAutoAtendimento === 'wake';
 
   // Campos configuráveis
   const [camposCustom, setCamposCustom] = useState<string[]>([]);
@@ -388,16 +389,24 @@ const AutoAtendimento: React.FC = () => {
   // ===== Header =====
   const Header = () => (
     <div className="sticky top-0 z-20 bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60 border-b border-gray-100">
-      <div className="max-w-6xl mx-auto px-4 py-4">
+      <div className={`max-w-6xl mx-auto px-4 ${isWake ? 'pt-5 pb-6' : 'py-4'}`}>
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl md:text-3xl font-bold truncate">
-            {evento ? evento.nome : 'Autoatendimento'}
-          </h1>
+          {isWake ? (
+            <img
+              src="/brands/wake-logo.png"
+              alt="Wake"
+              className="h-14 md:h-20 w-auto rounded-md bg-black object-contain"
+            />
+          ) : (
+            <h1 className="text-2xl md:text-3xl font-bold truncate">
+              {evento ? evento.nome : 'Autoatendimento'}
+            </h1>
+          )}
           <div className="flex items-center gap-2">
             {!online && (
               <span className="text-xs px-2 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200">Offline</span>
             )}
-            {QZ_TRAY_ENABLED && (
+            {QZ_TRAY_ENABLED && !isWake && (
               <button
                 onClick={() => setShowImpressora(true)}
                 className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 hover:bg-gray-50 text-sm"
@@ -411,7 +420,7 @@ const AutoAtendimento: React.FC = () => {
             )}
             <button
               onClick={() => setShowConfigurarCampos(true)}
-              className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 hover:bg-gray-50 text-sm"
+              className={`inline-flex items-center gap-2 rounded-xl border hover:bg-gray-50 ${isWake ? 'px-2.5 py-1.5 text-xs' : 'px-3 py-2 text-sm'}`}
               title="Configurar campos visíveis"
             >
               <Settings className="w-4 h-4" />
@@ -420,7 +429,7 @@ const AutoAtendimento: React.FC = () => {
             {evento && (
               <button
                 onClick={() => setShowScanner(true)}
-                className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 hover:bg-gray-50"
+                className={`inline-flex items-center gap-2 rounded-xl border hover:bg-gray-50 ${isWake ? 'px-2.5 py-1.5 text-xs' : 'px-3 py-2'}`}
                 title="Ler QR Code"
               >
                 <QrCode className="w-5 h-5" /> <span className="hidden md:inline">QR Code</span>
@@ -429,7 +438,7 @@ const AutoAtendimento: React.FC = () => {
           </div>
         </div>
 
-        <div className="mt-4">
+        <div className={isWake ? 'mt-7' : 'mt-4'}>
           <div className="relative">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-6 h-6 text-gray-400" />
             <input
@@ -453,7 +462,7 @@ const AutoAtendimento: React.FC = () => {
                 }
               }}
               placeholder="Digite e pressione Enter ou Tab para buscar..."
-              className="w-full pl-14 pr-12 py-4 rounded-2xl border border-gray-200 shadow-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-400 text-lg"
+              className={`w-full pl-14 pr-12 py-4 rounded-2xl shadow-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-400 text-lg ${isWake ? 'border-2 border-gray-900' : 'border border-gray-200'}`}
             />
             {!!termo && (
               <button
@@ -489,8 +498,8 @@ const AutoAtendimento: React.FC = () => {
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: (p as any).corCategoria || '#9CA3AF' }} />
-              <span className="text-xs uppercase tracking-wide text-gray-500">{p.categoria || '—'}</span>
+              <div className={`${isWake ? 'w-5 h-5' : 'w-3 h-3'} rounded-full shrink-0`} style={{ backgroundColor: (p as any).corCategoria || '#9CA3AF' }} />
+              <span className={`${isWake ? 'text-sm font-semibold' : 'text-xs'} uppercase tracking-wide text-gray-500`}>{p.categoria || '—'}</span>
             </div>
             <h3 className="mt-1 text-lg md:text-xl font-semibold">{p.nome}</h3>
           </div>
@@ -516,16 +525,18 @@ const AutoAtendimento: React.FC = () => {
                 >
                   <X className="w-4 h-4" /> Cancelar
                 </button>
-                <button
-                  onClick={() => navigate(`/operador/participantes/${p.eventoId}/${p.id}/editar`)}
-                  className="inline-flex items-center gap-1.5 rounded-xl border border-blue-200 text-blue-700 px-3 py-2 text-sm hover:bg-blue-50"
-                >
-                  <UserCog className="w-4 h-4" /> Editar Cadastro
-                </button>
+                {!isWake && (
+                  <button
+                    onClick={() => navigate(`/operador/participantes/${p.eventoId}/${p.id}/editar`)}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-blue-200 text-blue-700 px-3 py-2 text-sm hover:bg-blue-50"
+                  >
+                    <UserCog className="w-4 h-4" /> Editar Cadastro
+                  </button>
+                )}
               </>
             ) : (
               <>
-                {p.status !== 'credenciado' && (
+                {!isWake && p.status !== 'credenciado' && (
                   <button
                     onClick={() => handleCheckin(p)}
                     className="inline-flex items-center gap-2 rounded-xl bg-blue-600 text-white px-3 py-2 hover:bg-blue-700"
@@ -533,14 +544,16 @@ const AutoAtendimento: React.FC = () => {
                     <CheckCircle2 className="w-4 h-4" /> Check-in
                   </button>
                 )}
-                <button
-                  onClick={() => setConfirmando(p)}
-                  disabled={!podeImprimir(p)}
-                  className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 ${podeImprimir(p) ? 'hover:bg-gray-50' : 'opacity-60 cursor-not-allowed'}`}
-                  title={podeImprimir(p) ? 'Imprimir etiqueta' : 'Etiqueta já impressa'}
-                >
-                  <Printer className="w-4 h-4" /> Etiqueta
-                </button>
+                {!isWake && (
+                  <button
+                    onClick={() => setConfirmando(p)}
+                    disabled={!podeImprimir(p)}
+                    className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 ${podeImprimir(p) ? 'hover:bg-gray-50' : 'opacity-60 cursor-not-allowed'}`}
+                    title={podeImprimir(p) ? 'Imprimir etiqueta' : 'Etiqueta já impressa'}
+                  >
+                    <Printer className="w-4 h-4" /> Etiqueta
+                  </button>
+                )}
                 <button
                   onClick={() => iniciarEdicao(p)}
                   className="inline-flex items-center gap-2 rounded-xl border border-amber-200 text-amber-700 px-3 py-2 hover:bg-amber-50"
@@ -614,6 +627,24 @@ const AutoAtendimento: React.FC = () => {
               </div>
             </div>
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!evento || !isWake) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+        <div className="max-w-md w-full rounded-2xl border bg-white p-8 text-center shadow-sm">
+          <AlertTriangle className="w-10 h-10 text-amber-500 mx-auto mb-3" />
+          <h1 className="text-xl font-semibold text-gray-900">
+            {evento ? 'Autoatendimento não configurado' : 'Evento não encontrado'}
+          </h1>
+          <p className="mt-2 text-sm text-gray-600">
+            {evento
+              ? 'Este evento não possui uma tela de autoatendimento selecionada.'
+              : 'Não foi possível localizar o evento informado.'}
+          </p>
         </div>
       </div>
     );

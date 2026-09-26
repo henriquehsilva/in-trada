@@ -11,6 +11,8 @@ export interface Usuario {
 export interface Usuario extends User {
   eventosPermitidos?: string[];
 }
+export type TelaAutoAtendimento = 'wake';
+
 export interface Evento {
   id: string;
   nome: string;
@@ -26,6 +28,7 @@ export interface Evento {
   labelsOpcoes?: Record<string, string>;
   camposVisiveisRecepcao?: string[];
   coresCategorias?: Record<string, string>;
+  telaAutoAtendimento?: TelaAutoAtendimento | null;
 }
 
 export interface CampoPersonalizado {

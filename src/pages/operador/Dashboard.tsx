@@ -146,17 +146,16 @@ const OperadorDashboard: React.FC = () => {
                   </p>
                 </div>
 
-                {/* ⭐ Botão de Autoatendimento por evento */}
-                <div className="pt-2">
+                {evento.telaAutoAtendimento && <div className="pt-2">
                   <button
-                    onClick={() => navigate(`/AutoAtendimento/${evento.id}`)}
+                    onClick={() => navigate(`/autoatendimento/${evento.id}`)}
                     className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-gray-200 hover:bg-gray-100 text-sm font-medium"
                     title="Abrir autoatendimento deste evento"
                   >
                     <QrCode className="w-4 h-4" />
                     Autoatendimento
                   </button>
-                </div>
+                </div>}
               </div>
             ))}
 
