@@ -442,7 +442,9 @@ export async function printBadge(opts: PrintBadgeOptions): Promise<{ method: str
   const category = detectPrinterCategory(printerName);
   const isThermalLabel = category === 'thermal-label';
 
-  if (qzConnected && printerName) {
+  // O estado React pode ficar desatualizado se o QZ Tray for fechado depois da conexão.
+  // Nesse caso, usa o fallback do navegador em vez de enviar para um socket encerrado.
+  if (qzConnected && qz.websocket.isActive() && printerName) {
     const config = buildPrintConfig({
       printerName,
       larguraCm,

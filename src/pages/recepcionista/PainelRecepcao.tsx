@@ -12,18 +12,12 @@ import {
 } from '../../services/participanteService';
 import { useAuth } from '../../contexts/AuthContext';
 import { Evento, Participante } from '../../models/types';
-import qz from 'qz-tray';
 import { obterModelosCrachaPorEvento } from '../../services/modeloService';
 import { ChromePicker } from 'react-color';
 import { doc, updateDoc, getDoc, collection, query as fsQuery, where, getDocs, onSnapshot } from 'firebase/firestore';
 import { db } from '../../firebase/config';
 import { printBadge, detectPrinterCategory } from '../../utils/qzPrintUtils';
-import { configureQzSecurity, QZ_TRAY_ENABLED } from '../../utils/qzConnection';
-
-/* ===================== QZ Tray: certificado e assinatura =====================
-   O certificado público (gerado em qz.io/login) fica em public/qz/digital-certificate.txt.
-   A assinatura é feita via VITE_QZ_SIGN_URL (Netlify function com a chave privada). */
-configureQzSecurity();
+import { connectQz, QZ_TRAY_ENABLED, selectQzPrinter } from '../../utils/qzConnection';
 
 /* ===================== Helpers & Types ===================== */
 
@@ -252,26 +246,25 @@ const PainelRecepcao: React.FC = () => {
     }
 
     try {
-      if (!qz.websocket.isActive()) {
-        await qz.websocket.connect({ retries: 3, delay: 1 });
-      }
+      const lista = await connectQz();
       setQzConectado(true);
+      setImpressorasDisponiveis(lista);
+      setImpressoraPadrao((atual) => {
+        const selecionada = selectQzPrinter(lista, atual);
+        if (selecionada) localStorage.setItem('impressora.padrao', selecionada);
+        else localStorage.removeItem('impressora.padrao');
+        return selecionada;
+      });
     } catch (err) {
       console.error('Erro ao conectar ao QZ Tray:', err);
       setQzConectado(false);
+      setImpressorasDisponiveis([]);
       setMensagem({
         tipo: 'error',
-        texto: 'Não foi possível conectar ao QZ Tray. Verifique se o aplicativo está aberto e autorize a conexão no aviso "Action Required" (marque "Remember this decision" para não ver novamente).',
+        texto: err instanceof Error
+          ? err.message
+          : 'Não foi possível conectar ao QZ Tray. Verifique se o aplicativo está aberto e autorize a conexão.',
       });
-      return;
-    }
-
-    try {
-      const result = await qz.printers.find() as string | string[];
-      const lista = Array.isArray(result) ? result : result ? [result] : [];
-      setImpressorasDisponiveis(lista);
-    } catch (err) {
-      console.error('QZ Tray conectado, mas falhou ao listar impressoras:', err);
     }
   };
 
@@ -473,7 +466,7 @@ const PainelRecepcao: React.FC = () => {
         return;
       }
 
-      await printBadge({
+      const resultado = await printBadge({
         modelo: modeloPadrao,
         participante: participanteSelecionado as any,
         printerName: impressoraPadrao,
@@ -482,7 +475,7 @@ const PainelRecepcao: React.FC = () => {
 
       setMensagem({
         tipo: 'success',
-        texto: QZ_TRAY_ENABLED
+        texto: resultado.method !== 'browser-window'
           ? 'Credencial enviada para impressão!'
           : 'Janela de impressão aberta no navegador!',
       });

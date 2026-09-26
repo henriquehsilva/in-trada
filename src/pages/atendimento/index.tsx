@@ -21,7 +21,7 @@ import { normalizeText } from '../../utils/textUtils';
 import { collection, query as fsQuery, where, getDocs } from 'firebase/firestore';
 import { db } from '../../firebase/config';
 import { printBadge } from '../../utils/qzPrintUtils';
-import { connectQz, isQzConnected, QZ_TRAY_ENABLED } from '../../utils/qzConnection';
+import { connectQz, isQzConnected, QZ_TRAY_ENABLED, selectQzPrinter } from '../../utils/qzConnection';
 
 const STATUS_LABEL: Record<string, string> = {
   credenciado: 'Credenciado',
@@ -126,9 +126,9 @@ const AutoAtendimento: React.FC = () => {
       setImpressoras(lista);
       setQzConectado(isQzConnected());
       setImpressoraPadrao((atual) => {
-        if (atual && lista.includes(atual)) return atual;
-        const selecionada = lista[0] || '';
+        const selecionada = selectQzPrinter(lista, atual);
         if (selecionada) localStorage.setItem('impressora.padrao', selecionada);
+        else localStorage.removeItem('impressora.padrao');
         return selecionada;
       });
     } catch (error) {
@@ -683,6 +683,7 @@ const AutoAtendimento: React.FC = () => {
                     }}
                     className="w-full rounded-xl border border-gray-300 px-3 py-2"
                   >
+                    {impressoras.length === 0 && <option value="">Nenhuma impressora encontrada</option>}
                     {impressoras.map((nome) => <option key={nome} value={nome}>{nome}</option>)}
                   </select>
                   <p className="text-xs text-gray-500 mt-2">
