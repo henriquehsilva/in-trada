@@ -9,7 +9,6 @@ import { useAuth } from '../../contexts/AuthContext';
 import { Evento, Participante } from '../../models/types';
 import { obterEventoPorId } from '../../services/eventoService';
 import {
-  buscarParticipantes,
   fazerCheckin,
   atualizarParticipante,
   obterParticipantesPorEvento,
@@ -62,6 +61,23 @@ const CAMPOS_PADRAO_LISTA = [
 const CAMPOS_VISIVEIS_DEFAULT = ['nome', 'empresa', 'email1', 'celular', 'categoria'];
 
 const isOnline = () => (typeof navigator === 'undefined' ? true : navigator.onLine);
+
+const filtrarParticipantesPorEmail = (lista: Participante[], termo: string) => {
+  const q = normalizeText(termo.trim());
+  if (!q) return [];
+
+  const codigosExatos = lista.filter((p) => normalizeText(p.codigoCliente) === q);
+  if (codigosExatos.length > 0) return codigosExatos;
+
+  return lista.filter((p) =>
+    [p.email1, p.email2].map(normalizeText).some((email) => email.includes(q)),
+  );
+};
+
+const emailCorrespondeExatamente = (p: Participante, termo: string) => {
+  const q = normalizeText(termo.trim());
+  return [p.email1, p.email2].map(normalizeText).some((email) => email === q);
+};
 
 const AutoAtendimento: React.FC = () => {
   const navigate = useNavigate();
@@ -170,19 +186,6 @@ const AutoAtendimento: React.FC = () => {
 
         unsubscribe = subscribeParticipantesDoEvento(eventId, (arr) => {
           setBaseParticipantes(arr || []);
-          if (termo.trim()) {
-            const q = normalizeText(termo.trim());
-            const codigosExatos = (arr || []).filter(
-              (p: any) => normalizeText(p.codigoCliente) === q
-            );
-            setParticipantes(
-              codigosExatos.length > 0 ? codigosExatos : (arr || []).filter((p: any) =>
-                [p.nome, p.empresa, p.email1, p.email2, p.id, p.codigoCliente]
-                  .map(normalizeText)
-                  .some((v: string) => v.includes(q))
-              )
-            );
-          }
         });
       } catch (e) {
         console.error(e);
@@ -204,22 +207,7 @@ const AutoAtendimento: React.FC = () => {
     if (!q) { setParticipantes([]); setMsg(null); return; }
     try {
       setBuscando(true);
-      const codigosExatos = baseParticipantes.filter(
-        (p) => normalizeText((p as any).codigoCliente) === q
-      );
-      const local = codigosExatos.length > 0
-        ? codigosExatos
-        : baseParticipantes.filter((p) =>
-            [p.nome, p.empresa, (p as any).email1, (p as any).email2, p.id, (p as any).codigoCliente]
-              .map(normalizeText)
-              .some((v) => v.includes(q))
-          );
-      let remotos: Participante[] = [];
-      if (online) {
-        try { remotos = await buscarParticipantes(eventId, q); }
-        catch (err) { console.warn('Busca remota falhou:', err); }
-      }
-      const res = remotos?.length ? remotos : local;
+      const res = filtrarParticipantesPorEmail(baseParticipantes, q);
       setParticipantes(res);
       if (res.length > 0) setTermo('');
       setMsg(res.length ? null : { tipo: 'info', texto: online ? 'Nenhum participante encontrado.' : 'Sem rede: exibindo resultados locais.' });
@@ -230,6 +218,24 @@ const AutoAtendimento: React.FC = () => {
       setBuscando(false);
     }
   };
+
+  useEffect(() => {
+    const valor = termo.trim();
+    if (!valor) return;
+
+    const timeoutId = window.setTimeout(() => {
+      const resultados = filtrarParticipantesPorEmail(baseParticipantes, valor);
+      const emailsExatos = resultados.filter((p) => emailCorrespondeExatamente(p, valor));
+
+      setParticipantes(emailsExatos.length > 0 ? emailsExatos : resultados);
+      setMsg(null);
+      setBuscando(false);
+
+      if (emailsExatos.length > 0) setTermo('');
+    }, 300);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [termo, baseParticipantes]);
 
   // ===== Ações =====
   const podeImprimir = (p: Participante) => !(p as any).etiquetaImpressaEm;
@@ -451,7 +457,11 @@ const AutoAtendimento: React.FC = () => {
               autoFocus
               value={termo}
               onChange={(e) => {
-                setTermo(e.target.value);
+                const valor = e.target.value;
+                setTermo(valor);
+                setParticipantes([]);
+                setMsg(null);
+                setBuscando(Boolean(valor.trim()));
                 requestAnimationFrame(() => searchRef.current?.focus({ preventScroll: true }));
               }}
               onKeyDown={(e) => {
