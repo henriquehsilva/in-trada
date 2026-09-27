@@ -4,6 +4,7 @@ export const QZ_TRAY_ENABLED = import.meta.env.VITE_ENABLE_QZ_TRAY === '1';
 const QZ_CONNECTION_TIMEOUT_MS = 15_000;
 
 let securityConfigured = false;
+let connectionPromise: Promise<void> | null = null;
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -44,11 +45,19 @@ export async function connectQz(): Promise<string[]> {
   if (!QZ_TRAY_ENABLED) return [];
 
   if (!qz.websocket.isActive()) {
-    await withTimeout(
-      qz.websocket.connect({ retries: 3, delay: 1 }),
-      QZ_CONNECTION_TIMEOUT_MS,
-      'O QZ Tray não respondeu em 15 segundos. Confirme se o aplicativo está aberto e autorizado.',
-    );
+    // React StrictMode pode disparar o efeito de conexão duas vezes. Compartilhar a
+    // tentativa em andamento evita dois diálogos de autorização do QZ Tray.
+    if (!connectionPromise) {
+      connectionPromise = withTimeout(
+        qz.websocket.connect({ retries: 3, delay: 1 }),
+        QZ_CONNECTION_TIMEOUT_MS,
+        'O QZ Tray não respondeu em 15 segundos. Confirme se o aplicativo está aberto e autorizado.',
+      ).finally(() => {
+        connectionPromise = null;
+      });
+    }
+
+    await connectionPromise;
   }
 
   const result = await qz.printers.find() as string | string[];
