@@ -390,19 +390,22 @@ const AutoAtendimento: React.FC = () => {
   const Header = () => (
     <div className="sticky top-0 z-20 bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60 border-b border-gray-100">
       <div className={`max-w-6xl mx-auto px-4 ${isWake ? 'pt-5 pb-6' : 'py-4'}`}>
-        <div className="flex items-center justify-between">
+        <div className={isWake ? 'grid grid-cols-[1fr_auto_1fr] items-center' : 'flex items-center justify-between'}>
           {isWake ? (
-            <img
-              src="/brands/wake-logo.png"
-              alt="Wake"
-              className="h-14 md:h-20 w-auto rounded-md bg-black object-contain"
-            />
+            <>
+              <span aria-hidden="true" />
+              <img
+                src="/brands/novo-wake-logo.jpeg"
+                alt="Wake Lab"
+                className="h-14 md:h-20 w-auto object-contain justify-self-center"
+              />
+            </>
           ) : (
             <h1 className="text-2xl md:text-3xl font-bold truncate">
               {evento ? evento.nome : 'Autoatendimento'}
             </h1>
           )}
-          <div className="flex items-center gap-2">
+          <div className={`flex items-center gap-2 ${isWake ? 'justify-self-end' : ''}`}>
             {!online && (
               <span className="text-xs px-2 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200">Offline</span>
             )}
