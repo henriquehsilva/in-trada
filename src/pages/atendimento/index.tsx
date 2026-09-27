@@ -221,6 +221,7 @@ const AutoAtendimento: React.FC = () => {
       }
       const res = remotos?.length ? remotos : local;
       setParticipantes(res);
+      if (res.length > 0) setTermo('');
       setMsg(res.length ? null : { tipo: 'info', texto: online ? 'Nenhum participante encontrado.' : 'Sem rede: exibindo resultados locais.' });
     } catch (e) {
       console.error(e);
@@ -349,6 +350,7 @@ const AutoAtendimento: React.FC = () => {
       let hasCustom = false;
 
       for (const [campo, valor] of Object.entries(editValues)) {
+        if (!camposVisiveis.includes(campo)) continue;
         if (camposCustom.includes(campo)) {
           novosCamposPersonalizados[campo] = valor;
           hasCustom = true;
@@ -464,7 +466,7 @@ const AutoAtendimento: React.FC = () => {
                   });
                 }
               }}
-              placeholder="Digite e pressione Enter ou Tab para buscar..."
+              placeholder="DIGITE SEU E-MAIL OU ESCANEIE SEU QR-CODE"
               className={`w-full pl-14 pr-12 py-4 rounded-2xl shadow-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-400 text-lg ${isWake ? 'border-2 border-gray-900' : 'border border-gray-200'}`}
             />
             {!!termo && (
@@ -539,12 +541,16 @@ const AutoAtendimento: React.FC = () => {
               </>
             ) : (
               <>
-                {!isWake && p.status !== 'credenciado' && (
+                {p.status !== 'credenciado' && (
                   <button
                     onClick={() => handleCheckin(p)}
-                    className="inline-flex items-center gap-2 rounded-xl bg-blue-600 text-white px-3 py-2 hover:bg-blue-700"
+                    className={`inline-flex items-center justify-center gap-2 text-white transition-colors ${
+                      isWake
+                        ? 'w-full sm:w-auto rounded-2xl bg-green-600 px-8 py-4 text-lg font-bold shadow-lg ring-4 ring-green-100 hover:bg-green-700'
+                        : 'rounded-xl bg-blue-600 px-3 py-2 hover:bg-blue-700'
+                    }`}
                   >
-                    <CheckCircle2 className="w-4 h-4" /> Check-in
+                    <CheckCircle2 className={isWake ? 'w-6 h-6' : 'w-4 h-4'} /> Check-in
                   </button>
                 )}
                 {!isWake && (
@@ -557,12 +563,14 @@ const AutoAtendimento: React.FC = () => {
                     <Printer className="w-4 h-4" /> Etiqueta
                   </button>
                 )}
-                <button
-                  onClick={() => iniciarEdicao(p)}
-                  className="inline-flex items-center gap-2 rounded-xl border border-amber-200 text-amber-700 px-3 py-2 hover:bg-amber-50"
-                >
-                  <Pencil className="w-4 h-4" /> Editar
-                </button>
+                {camposVisiveis.length > 0 && (
+                  <button
+                    onClick={() => iniciarEdicao(p)}
+                    className="inline-flex items-center gap-2 rounded-xl border border-amber-200 text-amber-700 px-3 py-2 hover:bg-amber-50"
+                  >
+                    <Pencil className="w-4 h-4" /> Editar
+                  </button>
+                )}
               </>
             )}
           </div>
