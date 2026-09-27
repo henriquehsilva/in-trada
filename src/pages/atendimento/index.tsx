@@ -265,6 +265,7 @@ const AutoAtendimento: React.FC = () => {
       const up = { ...p, status: 'credenciado' as const };
       setParticipantes((prev) => prev.map((x) => (x.id === p.id ? up : x)));
       setBaseParticipantes((prev) => prev.map((x) => (x.id === p.id ? up : x)));
+      setTermo('');
       setMsg({ tipo: 'success', texto: online ? 'Check-in realizado!' : 'Check-in registrado offline.' });
     } catch (e) {
       console.error(e);
