@@ -687,11 +687,7 @@ const AutoAtendimento: React.FC = () => {
           </div>
         )}
 
-        {participantes.length === 0 ? (
-          <div className="rounded-2xl border border-dashed text-center p-14 text-gray-500 bg-white">
-            Nenhum participante para exibir. Digite e pressione Enter/Tab para buscar.
-          </div>
-        ) : (
+        {participantes.length > 0 && (
           <div className="grid gap-3 md:gap-4">
             {participantes.map((p) => <Linha key={p.id} p={p} />)}
           </div>
