@@ -8,7 +8,15 @@ export const handler = async (event) => {
   // Guarda a chave em base64 (uma linha só) pra evitar que a UI do Netlify corrompa as quebras de linha do PEM.
   const privateKey = Buffer.from(privateKeyB64, 'base64').toString('utf8');
 
-  const request = event.queryStringParameters?.request || '';
+  // POST evita o limite de tamanho da URL para trabalhos que contêm imagens
+  // Base64. O parâmetro GET continua aceito para clientes antigos.
+  const request = event.httpMethod === 'POST'
+    ? (event.isBase64Encoded ? Buffer.from(event.body || '', 'base64').toString('utf8') : event.body || '')
+    : event.queryStringParameters?.request || '';
+
+  if (!request) {
+    return { statusCode: 400, body: 'Conteúdo para assinatura não informado' };
+  }
 
   const signer = crypto.createSign('RSA-SHA512');
   signer.update(request);
@@ -17,7 +25,10 @@ export const handler = async (event) => {
 
   return {
     statusCode: 200,
-    headers: { 'Content-Type': 'text/plain' },
+    headers: {
+      'Content-Type': 'text/plain',
+      'Cache-Control': 'no-store',
+    },
     body: signature,
   };
 };

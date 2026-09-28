@@ -33,7 +33,15 @@ export function configureQzSecurity() {
   qz.security.setSignatureAlgorithm('SHA512');
   qz.security.setSignaturePromise((toSign) => (resolve, reject) => {
     const signUrl = import.meta.env.VITE_QZ_SIGN_URL || '/.netlify/functions/qz-sign';
-    fetch(`${signUrl}?request=${encodeURIComponent(toSign)}`, { cache: 'no-store' })
+    // O conteúdo assinado pode incluir a etiqueta em Base64. Enviá-lo na query
+    // string ultrapassa o limite de URL e faz o QZ tratar a assinatura como
+    // inválida, impedindo que "Remember this decision" seja persistido.
+    fetch(signUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+      body: toSign,
+      cache: 'no-store',
+    })
       .then((response) => (response.ok ? response.text().then(resolve) : response.text().then(reject)));
   });
 
