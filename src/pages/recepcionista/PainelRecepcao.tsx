@@ -88,7 +88,6 @@ const PainelRecepcao: React.FC = () => {
   const [showFormNovoParticipante, setShowFormNovoParticipante] = useState(false);
   const [loading, setLoading] = useState(true);
   const [mensagem, setMensagem] = useState<{ tipo: 'success' | 'error' | 'info'; texto: string } | null>(null);
-  const [confirmarImpressao, setConfirmarImpressao] = useState(false);
 
   // ====== Refs novo participante ======
   const nomeRef = useRef<HTMLInputElement>(null);
@@ -427,22 +426,13 @@ const PainelRecepcao: React.FC = () => {
       const participanteAtualizado = { ...participanteSelecionado, status: 'credenciado' as const };
       setParticipanteSelecionado(participanteAtualizado);
       setParticipantes((prev) => prev.map((p) => (p.id === participanteAtualizado.id ? participanteAtualizado : p)));
-      setMensagem({ tipo: 'success', texto: 'Check-in realizado com sucesso!' });
-      setTimeout(() => setMensagem(null), 3000);
+      await handlePrintCredencial(participanteAtualizado, true);
     } catch (err) {
       console.error('Erro ao fazer check-in:', err);
       setMensagem({ tipo: 'error', texto: 'Erro ao fazer check-in. Tente novamente.' });
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleCheckinComConfirmacao = () => setConfirmarImpressao(true);
-
-  const confirmarCheckin = async (imprimir: boolean) => {
-    setConfirmarImpressao(false);
-    await handleCheckin();
-    if (imprimir) handlePrintCredencial();
   };
 
   const atualizarParticipante = async (id: string, dados: Partial<Participante>) => {
@@ -452,24 +442,35 @@ const PainelRecepcao: React.FC = () => {
   };
 
   /* ===================== IMPRESSÃO ===================== */
-  const handlePrintCredencial = async () => {
-    if (!participanteSelecionado || !evento) return;
+  const handlePrintCredencial = async (
+    participante: Participante | null = participanteSelecionado,
+    aposCheckin = false,
+  ) => {
+    if (!participante || !evento) return;
     try {
       const modelos = await obterModelosCrachaPorEvento(evento.id);
       const modeloPadrao = modelos.find((m) => m.padrao);
       if (!modeloPadrao) {
-        setMensagem({ tipo: 'error', texto: 'Nenhum modelo de crachá padrão definido para este evento.' });
+        setMensagem({
+          tipo: 'error',
+          texto: aposCheckin
+            ? 'Check-in realizado, mas nenhum modelo de crachá padrão está definido para este evento.'
+            : 'Nenhum modelo de crachá padrão definido para este evento.',
+        });
         return;
       }
 
       if (qzConectado && !impressoraPadrao) {
         setShowSelecionarImpressora(true);
+        if (aposCheckin) {
+          setMensagem({ tipo: 'info', texto: 'Check-in realizado. Selecione uma impressora para imprimir a credencial.' });
+        }
         return;
       }
 
       const resultado = await printBadge({
         modelo: modeloPadrao,
-        participante: participanteSelecionado as any,
+        participante: participante as any,
         printerName: impressoraPadrao,
         qzConnected: qzConectado,
       });
@@ -477,12 +478,17 @@ const PainelRecepcao: React.FC = () => {
       setMensagem({
         tipo: 'success',
         texto: resultado.method !== 'browser-window'
-          ? 'Credencial enviada para impressão!'
-          : 'Janela de impressão aberta no navegador!',
+          ? (aposCheckin ? 'Check-in realizado e credencial enviada para impressão!' : 'Credencial enviada para impressão!')
+          : (aposCheckin ? 'Check-in realizado e janela de impressão aberta no navegador!' : 'Janela de impressão aberta no navegador!'),
       });
     } catch (err) {
       console.error('Erro ao imprimir:', err);
-      setMensagem({ tipo: 'error', texto: 'Erro ao imprimir credencial.' });
+      setMensagem({
+        tipo: 'error',
+        texto: aposCheckin
+          ? 'Check-in realizado, mas ocorreu um erro ao imprimir a credencial.'
+          : 'Erro ao imprimir credencial.',
+      });
     }
   };
 
@@ -1220,7 +1226,7 @@ const PainelRecepcao: React.FC = () => {
                     </button>
                     {participanteSelecionado.status !== 'credenciado' && (
                       <button
-                        onClick={handleCheckinComConfirmacao}
+                        onClick={handleCheckin}
                         disabled={loading}
                         className="btn btn-primary flex items-center"
                       >
@@ -1230,7 +1236,7 @@ const PainelRecepcao: React.FC = () => {
                     )}
                     <div className="flex items-center">
                       <button
-                        onClick={handlePrintCredencial}
+                        onClick={() => handlePrintCredencial()}
                         className={`btn btn-outline flex items-center ${QZ_TRAY_ENABLED ? 'rounded-r-none border-r-0' : ''}`}
                       >
                         {qzConectado && impressoraPadrao
@@ -1273,21 +1279,6 @@ const PainelRecepcao: React.FC = () => {
             </div>
           )}
 
-          {confirmarImpressao && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-              <div className="bg-white rounded-lg shadow-lg p-6 max-w-md w-full">
-                <h2 className="text-lg font-semibold mb-4">Deseja imprimir a credencial?</h2>
-                <div className="flex justify-end gap-4">
-                  <button onClick={() => confirmarCheckin(false)} className="btn btn-outline">
-                    Não
-                  </button>
-                  <button onClick={() => confirmarCheckin(true)} className="btn btn-primary">
-                    Sim
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       </div>
       {/* Modal: Configurar campos visíveis */}

@@ -264,9 +264,32 @@ const AutoAtendimento: React.FC = () => {
       await fazerCheckin(p.id);
       const up = { ...p, status: 'credenciado' as const };
       setBaseParticipantes((prev) => prev.map((x) => (x.id === p.id ? up : x)));
+
+      if (podeImprimir(p)) {
+        try {
+          await imprimirCracha(up);
+          await reservarImpressao(up);
+        } catch (e: unknown) {
+          console.error(e);
+          const detalhe = e instanceof Error ? e.message : 'erro desconhecido.';
+          setTermo('');
+          setParticipantes([]);
+          setMsg({
+            tipo: 'error',
+            texto: `Check-in realizado, mas não foi possível imprimir a etiqueta: ${detalhe}`,
+          });
+          return;
+        }
+      }
+
       setTermo('');
       setParticipantes([]);
-      setMsg({ tipo: 'success', texto: online ? 'Check-in realizado!' : 'Check-in registrado offline.' });
+      setMsg({
+        tipo: 'success',
+        texto: podeImprimir(p)
+          ? 'Check-in realizado e etiqueta enviada para impressão!'
+          : (online ? 'Check-in realizado!' : 'Check-in registrado offline.'),
+      });
     } catch (e) {
       console.error(e);
       setMsg({ tipo: 'error', texto: 'Erro no check-in.' });
