@@ -104,6 +104,7 @@ const AutoAtendimento: React.FC = () => {
   );
   const [showImpressora, setShowImpressora] = useState(false);
   const [conectandoQz, setConectandoQz] = useState(false);
+  const [checkinEmAndamento, setCheckinEmAndamento] = useState<string | null>(null);
   const isWake = evento?.telaAutoAtendimento === 'wake';
 
   // Campos configuráveis
@@ -260,39 +261,72 @@ const AutoAtendimento: React.FC = () => {
   };
 
   const handleCheckin = async (p: Participante) => {
+    if (checkinEmAndamento) return;
+
+    let checkinRealizado = false;
     try {
+      setCheckinEmAndamento(p.id);
+
+      if (!QZ_TRAY_ENABLED) {
+        throw new Error('A impressão direta pelo QZ Tray não está habilitada neste ambiente.');
+      }
+
+      let listaImpressoras = impressoras;
+      if (!isQzConnected() || listaImpressoras.length === 0) {
+        setConectandoQz(true);
+        listaImpressoras = await connectQz();
+        setImpressoras(listaImpressoras);
+        setQzConectado(isQzConnected());
+      }
+
+      const impressora = selectQzPrinter(listaImpressoras, impressoraPadrao);
+      if (!isQzConnected() || !impressora) {
+        throw new Error('Abra o QZ Tray e selecione uma impressora antes de realizar o check-in.');
+      }
+
+      setImpressoraPadrao(impressora);
+      localStorage.setItem('impressora.padrao', impressora);
+
       await fazerCheckin(p.id);
+      checkinRealizado = true;
       const up = { ...p, status: 'credenciado' as const };
       setBaseParticipantes((prev) => prev.map((x) => (x.id === p.id ? up : x)));
 
-      if (podeImprimir(p)) {
-        try {
-          await imprimirCracha(up);
+      try {
+        await imprimirCracha(up, impressora, true);
+        if (podeImprimir(p)) {
           await reservarImpressao(up);
-        } catch (e: unknown) {
-          console.error(e);
-          const detalhe = e instanceof Error ? e.message : 'erro desconhecido.';
-          setTermo('');
-          setParticipantes([]);
-          setMsg({
-            tipo: 'error',
-            texto: `Check-in realizado, mas não foi possível imprimir a etiqueta: ${detalhe}`,
-          });
-          return;
         }
+      } catch (e: unknown) {
+        console.error(e);
+        const detalhe = e instanceof Error ? e.message : 'erro desconhecido.';
+        setTermo('');
+        setParticipantes([]);
+        setMsg({
+          tipo: 'error',
+          texto: `Check-in realizado, mas não foi possível imprimir a credencial pelo QZ Tray: ${detalhe}`,
+        });
+        return;
       }
 
       setTermo('');
       setParticipantes([]);
       setMsg({
         tipo: 'success',
-        texto: podeImprimir(p)
-          ? 'Check-in realizado e etiqueta enviada para impressão!'
-          : (online ? 'Check-in realizado!' : 'Check-in registrado offline.'),
+        texto: 'CHECK-IN REALIZADO COM SUCESSO! DESEJAMOS UM EXCELENTE EVENTO!',
       });
-    } catch (e) {
+    } catch (e: unknown) {
       console.error(e);
-      setMsg({ tipo: 'error', texto: 'Erro no check-in.' });
+      const detalhe = e instanceof Error ? e.message : 'Erro desconhecido.';
+      setMsg({
+        tipo: 'error',
+        texto: checkinRealizado
+          ? `Check-in realizado, mas não foi possível imprimir a credencial pelo QZ Tray: ${detalhe}`
+          : detalhe,
+      });
+    } finally {
+      setConectandoQz(false);
+      setCheckinEmAndamento(null);
     }
   };
 
@@ -338,7 +372,11 @@ const AutoAtendimento: React.FC = () => {
     }
   };
 
-  const imprimirCracha = async (participante: Participante) => {
+  const imprimirCracha = async (
+    participante: Participante,
+    printerName = impressoraPadrao,
+    directOnly = false,
+  ) => {
     if (!evento) return;
     const modelos = await obterModelosCrachaPorEvento(evento.id);
     const modeloPadrao = modelos.find((m) => m.padrao);
@@ -347,8 +385,9 @@ const AutoAtendimento: React.FC = () => {
     await printBadge({
       modelo: modeloPadrao,
       participante: participante as any,
-      printerName: impressoraPadrao,
-      qzConnected: qzConectado,
+      printerName,
+      qzConnected: directOnly ? isQzConnected() : qzConectado,
+      directOnly,
     });
   };
 
@@ -578,13 +617,17 @@ const AutoAtendimento: React.FC = () => {
                 {p.status !== 'credenciado' && (
                   <button
                     onClick={() => handleCheckin(p)}
+                    disabled={checkinEmAndamento !== null}
                     className={`inline-flex items-center justify-center gap-2 text-white transition-colors ${
                       isWake
-                        ? 'w-full sm:w-auto rounded-2xl bg-green-600 px-8 py-4 text-lg font-bold shadow-lg ring-4 ring-green-100 hover:bg-green-700'
-                        : 'rounded-xl bg-blue-600 px-3 py-2 hover:bg-blue-700'
+                        ? 'w-full sm:w-auto rounded-2xl bg-green-600 px-8 py-4 text-lg font-bold shadow-lg ring-4 ring-green-100 hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60'
+                        : 'rounded-xl bg-blue-600 px-3 py-2 hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60'
                     }`}
                   >
-                    <CheckCircle2 className={isWake ? 'w-6 h-6' : 'w-4 h-4'} /> Check-in
+                    {checkinEmAndamento === p.id
+                      ? <Loader2 className={`${isWake ? 'w-6 h-6' : 'w-4 h-4'} animate-spin`} />
+                      : <CheckCircle2 className={isWake ? 'w-6 h-6' : 'w-4 h-4'} />}
+                    {checkinEmAndamento === p.id ? 'Realizando check-in...' : 'Check-in'}
                   </button>
                 )}
                 {!isWake && (

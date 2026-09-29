@@ -418,10 +418,11 @@ export interface PrintBadgeOptions {
   participante: Record<string, any>;
   printerName: string;
   qzConnected: boolean;
+  directOnly?: boolean;
 }
 
 export async function printBadge(opts: PrintBadgeOptions): Promise<{ method: string }> {
-  const { modelo, participante, printerName, qzConnected } = opts;
+  const { modelo, participante, printerName, qzConnected, directOnly = false } = opts;
 
   const barcodeValue = (participante as any)?.codigoCliente || (participante as any)?.id || '';
   const qrCache = await preGenerateQRCodes(modelo.componentes, participante, barcodeValue);
@@ -483,6 +484,10 @@ export async function printBadge(opts: PrintBadgeOptions): Promise<{ method: str
 
     await qz.print(config, [{ type: 'pixel', format: 'html', flavor: 'plain', data: html }]);
     return { method: 'html' };
+  }
+
+  if (directOnly) {
+    throw new Error('O QZ Tray não está conectado ou nenhuma impressora foi selecionada.');
   }
 
   // Fallback: browser print window
