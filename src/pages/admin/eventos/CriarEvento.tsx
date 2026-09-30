@@ -5,7 +5,10 @@ import { Evento } from '../../../models/types';
 import { useAuth } from '../../../contexts/AuthContext';
 import LayoutDefault from '../../../components/layout/LayoutDefault';
 import toast from 'react-hot-toast';
-import { TELAS_AUTOATENDIMENTO } from '../../../config/telasAutoAtendimento';
+import {
+  TELAS_AUTOATENDIMENTO,
+  TELA_AUTOATENDIMENTO_PADRAO,
+} from '../../../config/telasAutoAtendimento';
 
 const CriarEvento: React.FC = () => {
   const { userData, currentUser } = useAuth();
@@ -19,7 +22,7 @@ const CriarEvento: React.FC = () => {
     dataFim: '',
     criadoPorId: userData?.uid || '',
     camposPersonalizados: [],
-    telaAutoAtendimento: null,
+    telaAutoAtendimento: TELA_AUTOATENDIMENTO_PADRAO,
   });
 
   const [loading, setLoading] = useState(false);

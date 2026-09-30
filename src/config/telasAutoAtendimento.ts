@@ -5,7 +5,10 @@ export interface OpcaoTelaAutoAtendimento {
   nome: string;
 }
 
+export const TELA_AUTOATENDIMENTO_PADRAO: TelaAutoAtendimento = 'default';
+
 export const TELAS_AUTOATENDIMENTO: OpcaoTelaAutoAtendimento[] = [
+  { id: 'default', nome: 'IN-TRADA (padrão)' },
   { id: 'wake', nome: 'Wake' },
 ];
 

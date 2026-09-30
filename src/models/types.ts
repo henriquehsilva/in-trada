@@ -11,7 +11,7 @@ export interface Usuario {
 export interface Usuario extends User {
   eventosPermitidos?: string[];
 }
-export type TelaAutoAtendimento = 'wake';
+export type TelaAutoAtendimento = 'default' | 'wake';
 
 export interface Evento {
   id: string;
