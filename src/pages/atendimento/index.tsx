@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   Search, QrCode, Printer, CheckCircle2, BadgeCheck,
-  Loader2, X, AlertTriangle, Settings, Pencil, Save, UserCog, Wifi, WifiOff,
+  Loader2, X, AlertTriangle, Settings, Pencil, Save, UserCog, Wifi, WifiOff, UserPlus,
+  MessageSquareText,
 } from 'lucide-react';
 import QrCodeScanner from '../../components/qrcode/QrCodeScanner';
 import { useAuth } from '../../contexts/AuthContext';
@@ -11,13 +12,14 @@ import { obterEventoPorId } from '../../services/eventoService';
 import {
   fazerCheckin,
   atualizarParticipante,
+  criarParticipante,
   obterParticipantesPorEvento,
   reservarEtiquetaUmaVez,
   subscribeParticipantesDoEvento,
 } from '../../services/participanteService';
 import { obterModelosCrachaPorEvento } from '../../services/modeloService';
 import { normalizeText } from '../../utils/textUtils';
-import { collection, query as fsQuery, where, getDocs } from 'firebase/firestore';
+import { collection, doc, query as fsQuery, where, getDocs, updateDoc } from 'firebase/firestore';
 import { db } from '../../firebase/config';
 import { printBadge } from '../../utils/qzPrintUtils';
 import { connectQz, isQzConnected, QZ_TRAY_ENABLED, selectQzPrinter } from '../../utils/qzConnection';
@@ -62,7 +64,7 @@ const CAMPOS_VISIVEIS_DEFAULT = ['nome', 'empresa', 'email1', 'celular', 'catego
 
 const isOnline = () => (typeof navigator === 'undefined' ? true : navigator.onLine);
 
-const filtrarParticipantesPorEmail = (lista: Participante[], termo: string) => {
+const filtrarParticipantes = (lista: Participante[], termo: string) => {
   const q = normalizeText(termo.trim());
   if (!q) return [];
 
@@ -70,8 +72,30 @@ const filtrarParticipantesPorEmail = (lista: Participante[], termo: string) => {
   if (codigosExatos.length > 0) return codigosExatos;
 
   return lista.filter((p) =>
-    [p.email1, p.email2].map(normalizeText).some((email) => email.includes(q)),
+    [p.nome, p.nomeCracha, p.email1, p.email2]
+      .map(normalizeText)
+      .some((valor) => valor.includes(q)),
   );
+};
+
+const normalizeCategory = (valor: string) => valor.trim().toUpperCase();
+
+const stableColorFromString = (valor: string) => {
+  if (!valor) return '#cccccc';
+  let hash = 0;
+  for (let i = 0; i < valor.length; i += 1) {
+    hash = valor.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return `hsl(${Math.abs(hash) % 360}, 55%, 75%)`;
+};
+
+const NOVO_PARTICIPANTE_INICIAL = {
+  nome: '',
+  nomeCracha: '',
+  empresa: '',
+  email1: '',
+  telefone: '',
+  categoria: '',
 };
 
 const emailCorrespondeExatamente = (p: Participante, termo: string) => {
@@ -105,6 +129,11 @@ const AutoAtendimento: React.FC = () => {
   const [showImpressora, setShowImpressora] = useState(false);
   const [conectandoQz, setConectandoQz] = useState(false);
   const [checkinEmAndamento, setCheckinEmAndamento] = useState<string | null>(null);
+  const [impressaoEmAndamento, setImpressaoEmAndamento] = useState<string | null>(null);
+  const [showNovoParticipante, setShowNovoParticipante] = useState(false);
+  const [novoParticipante, setNovoParticipante] = useState(NOVO_PARTICIPANTE_INICIAL);
+  const [salvandoNovoParticipante, setSalvandoNovoParticipante] = useState(false);
+  const [participanteObservacao, setParticipanteObservacao] = useState<Participante | null>(null);
   const isWake = evento?.telaAutoAtendimento === 'wake';
   const usaTemaAutoAtendimento = evento?.telaAutoAtendimento === 'default' || isWake;
 
@@ -127,6 +156,11 @@ const AutoAtendimento: React.FC = () => {
   const [salvando, setSalvando] = useState(false);
 
   const searchRef = useRef<HTMLInputElement>(null);
+
+  const categoriasEvento = useMemo(() => Array.from(new Set([
+    ...Object.keys(evento?.coresCategorias || {}),
+    ...baseParticipantes.map((p) => normalizeCategory(p.categoria || '')).filter(Boolean),
+  ])).sort((a, b) => a.localeCompare(b)), [evento?.coresCategorias, baseParticipantes]);
 
   // ===== Rede =====
   useEffect(() => {
@@ -209,7 +243,7 @@ const AutoAtendimento: React.FC = () => {
     if (!q) { setParticipantes([]); setMsg(null); return; }
     try {
       setBuscando(true);
-      const res = filtrarParticipantesPorEmail(baseParticipantes, q);
+      const res = filtrarParticipantes(baseParticipantes, q);
       setParticipantes(res);
       if (res.length > 0) setTermo('');
       setMsg(res.length ? null : { tipo: 'info', texto: online ? 'Nenhum participante encontrado.' : 'Sem rede: exibindo resultados locais.' });
@@ -226,7 +260,7 @@ const AutoAtendimento: React.FC = () => {
     if (!valor) return;
 
     const timeoutId = window.setTimeout(() => {
-      const resultados = filtrarParticipantesPorEmail(baseParticipantes, valor);
+      const resultados = filtrarParticipantes(baseParticipantes, valor);
       const emailsExatos = resultados.filter((p) => emailCorrespondeExatamente(p, valor));
 
       setParticipantes(emailsExatos.length > 0 ? emailsExatos : resultados);
@@ -258,6 +292,106 @@ const AutoAtendimento: React.FC = () => {
     } catch (e: any) {
       console.error(e);
       setMsg({ tipo: 'error', texto: e?.message || 'Erro ao imprimir etiqueta.' });
+    }
+  };
+
+  const handleReimprimir = async (p: Participante) => {
+    if (impressaoEmAndamento) return;
+
+    try {
+      setImpressaoEmAndamento(p.id);
+      let listaImpressoras = impressoras;
+
+      if (QZ_TRAY_ENABLED && (!isQzConnected() || listaImpressoras.length === 0)) {
+        setConectandoQz(true);
+        listaImpressoras = await connectQz();
+        setImpressoras(listaImpressoras);
+        setQzConectado(isQzConnected());
+      }
+
+      const impressora = QZ_TRAY_ENABLED
+        ? selectQzPrinter(listaImpressoras, impressoraPadrao)
+        : impressoraPadrao;
+
+      if (QZ_TRAY_ENABLED && (!isQzConnected() || !impressora)) {
+        throw new Error('Abra o QZ Tray e selecione uma impressora para reimprimir a credencial.');
+      }
+
+      if (impressora) {
+        setImpressoraPadrao(impressora);
+        localStorage.setItem('impressora.padrao', impressora);
+      }
+
+      await imprimirCracha(p, impressora, QZ_TRAY_ENABLED);
+      setMsg({ tipo: 'success', texto: 'Credencial enviada novamente para impressão!' });
+    } catch (e: unknown) {
+      console.error(e);
+      setMsg({
+        tipo: 'error',
+        texto: e instanceof Error ? e.message : 'Erro ao reimprimir credencial.',
+      });
+    } finally {
+      setConectandoQz(false);
+      setImpressaoEmAndamento(null);
+    }
+  };
+
+  const handleCadastrarParticipante = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!eventId || !currentUser?.uid || salvandoNovoParticipante) return;
+
+    try {
+      setSalvandoNovoParticipante(true);
+      const categoria = normalizeCategory(novoParticipante.categoria);
+      const participante: Omit<Participante, 'id' | 'criadoEm' | 'atualizadoEm'> = {
+        eventoId: eventId,
+        nome: novoParticipante.nome.trim(),
+        nomeCracha: novoParticipante.nomeCracha.trim() || novoParticipante.nome.trim(),
+        empresa: novoParticipante.empresa.trim(),
+        empresaCracha: novoParticipante.empresa.trim(),
+        cargo: '',
+        email1: novoParticipante.email1.trim(),
+        email2: '',
+        celular: novoParticipante.telefone.trim(),
+        telefone: novoParticipante.telefone.trim(),
+        categoria,
+        observacao: '',
+        cpf: '',
+        rg: '',
+        cnpj: '',
+        codigoCliente: '',
+        opcao1: '', opcao2: '', opcao3: '', opcao4: '', opcao5: '',
+        opcao6: '', opcao7: '', opcao8: '', opcao9: '', opcao10: '',
+        status: 'pendente',
+        criadoPorId: currentUser.uid,
+        camposPersonalizados: {},
+        corCategoria: evento?.coresCategorias?.[categoria]
+          || baseParticipantes.find((p) => normalizeCategory(p.categoria) === categoria)?.corCategoria
+          || stableColorFromString(categoria),
+      };
+
+      const participanteId = await criarParticipante(participante);
+      await updateDoc(doc(db, 'participantes', participanteId), { codigoCliente: participanteId });
+
+      const participanteCriado: Participante = {
+        ...participante,
+        id: participanteId,
+        codigoCliente: participanteId,
+        criadoEm: new Date().toISOString(),
+        atualizadoEm: new Date().toISOString(),
+      };
+
+      setBaseParticipantes((prev) => [participanteCriado, ...prev]);
+      setParticipantes([participanteCriado]);
+      setNovoParticipante(NOVO_PARTICIPANTE_INICIAL);
+      setShowNovoParticipante(false);
+      setTermo('');
+      setMsg({ tipo: 'success', texto: 'Participante cadastrado com sucesso! Agora você pode realizar o check-in.' });
+    } catch (e) {
+      console.error(e);
+      setMsg({ tipo: 'error', texto: 'Erro ao cadastrar participante. Tente novamente.' });
+    } finally {
+      setSalvandoNovoParticipante(false);
     }
   };
 
@@ -467,7 +601,7 @@ const AutoAtendimento: React.FC = () => {
             <>
               <span aria-hidden="true" />
               <img
-                src={isWake ? '/brands/novo-wake-logo.jpeg' : '/logo_completa.png'}
+                src={isWake ? '/brands/novo-wake-logo.jpeg' : '/brands/in-trada-autoatendimento.png'}
                 alt={isWake ? 'Wake Lab' : 'IN-TRADA'}
                 className="h-14 md:h-20 w-auto object-contain justify-self-center"
               />
@@ -540,7 +674,7 @@ const AutoAtendimento: React.FC = () => {
                   });
                 }
               }}
-              placeholder="DIGITE SEU E-MAIL OU ESCANEIE SEU QR-CODE"
+              placeholder="DIGITE SEU NOME OU E-MAIL, OU ESCANEIE SEU QR-CODE"
               className={`w-full pl-14 pr-12 py-4 rounded-2xl shadow-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-400 text-lg ${usaTemaAutoAtendimento ? 'border-2 border-gray-900' : 'border border-gray-200'}`}
             />
             {!!termo && (
@@ -557,6 +691,15 @@ const AutoAtendimento: React.FC = () => {
             {buscando && <><Loader2 className="w-4 h-4 animate-spin" /> <span>Buscando...</span></>}
             {!buscando && termo.trim() && participantes.length > 0 && <span>{participantes.length} resultado(s)</span>}
           </div>
+          {!isWake && evento && (
+            <button
+              type="button"
+              onClick={() => setShowNovoParticipante(true)}
+              className="mt-3 inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-white px-4 py-2 text-sm font-semibold text-blue-700 shadow-sm hover:bg-blue-50"
+            >
+              <UserPlus className="w-5 h-5" /> Novo participante
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -631,6 +774,18 @@ const AutoAtendimento: React.FC = () => {
                     {checkinEmAndamento === p.id ? 'Realizando check-in...' : 'Check-in'}
                   </button>
                 )}
+                {!isWake && p.status === 'credenciado' && (
+                  <button
+                    onClick={() => handleReimprimir(p)}
+                    disabled={impressaoEmAndamento !== null}
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-600 px-6 py-3 text-base font-bold text-white shadow-md hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {impressaoEmAndamento === p.id
+                      ? <Loader2 className="w-5 h-5 animate-spin" />
+                      : <Printer className="w-5 h-5" />}
+                    {impressaoEmAndamento === p.id ? 'Reimprimindo...' : 'Imprimir novamente'}
+                  </button>
+                )}
                 {!usaTemaAutoAtendimento && (
                   <button
                     onClick={() => setConfirmando(p)}
@@ -649,6 +804,13 @@ const AutoAtendimento: React.FC = () => {
                     <Pencil className="w-4 h-4" /> Editar
                   </button>
                 )}
+                <button
+                  type="button"
+                  onClick={() => setParticipanteObservacao(p)}
+                  className="inline-flex items-center gap-2 rounded-xl border border-violet-200 px-3 py-2 text-violet-700 hover:bg-violet-50"
+                >
+                  <MessageSquareText className="w-4 h-4" /> Observação
+                </button>
               </>
             )}
           </div>
@@ -903,6 +1065,152 @@ const AutoAtendimento: React.FC = () => {
               </button>
             </div>
             <QrCodeScanner onScan={onScan} />
+          </div>
+        </div>
+      )}
+
+      {/* Modal: novo participante */}
+      {showNovoParticipante && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-2xl shadow-xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-gray-100">
+              <div>
+                <h3 className="text-xl font-semibold">Novo participante</h3>
+                <p className="mt-1 text-sm text-gray-500">Cadastre o participante e faça o check-in em seguida.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowNovoParticipante(false)}
+                className="p-2 rounded-full hover:bg-gray-100"
+                aria-label="Fechar"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCadastrarParticipante} className="p-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <label className="sm:col-span-2 text-sm font-medium text-gray-700">
+                  Nome completo *
+                  <input
+                    required
+                    autoFocus
+                    value={novoParticipante.nome}
+                    onChange={(e) => setNovoParticipante((prev) => ({ ...prev, nome: e.target.value }))}
+                    className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2.5 font-normal"
+                  />
+                </label>
+                <label className="text-sm font-medium text-gray-700">
+                  Nome no crachá
+                  <input
+                    value={novoParticipante.nomeCracha}
+                    onChange={(e) => setNovoParticipante((prev) => ({ ...prev, nomeCracha: e.target.value }))}
+                    placeholder="Se vazio, usa o nome completo"
+                    className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2.5 font-normal"
+                  />
+                </label>
+                <label className="text-sm font-medium text-gray-700">
+                  Empresa
+                  <input
+                    value={novoParticipante.empresa}
+                    onChange={(e) => setNovoParticipante((prev) => ({ ...prev, empresa: e.target.value }))}
+                    className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2.5 font-normal"
+                  />
+                </label>
+                <label className="text-sm font-medium text-gray-700">
+                  E-mail (opcional)
+                  <input
+                    type="email"
+                    value={novoParticipante.email1}
+                    onChange={(e) => setNovoParticipante((prev) => ({ ...prev, email1: e.target.value }))}
+                    className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2.5 font-normal"
+                  />
+                </label>
+                <label className="text-sm font-medium text-gray-700">
+                  Telefone
+                  <input
+                    type="tel"
+                    value={novoParticipante.telefone}
+                    onChange={(e) => setNovoParticipante((prev) => ({ ...prev, telefone: e.target.value }))}
+                    className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2.5 font-normal"
+                  />
+                </label>
+                <label className="sm:col-span-2 text-sm font-medium text-gray-700">
+                  Categoria *
+                  <input
+                    required
+                    list="categorias-autoatendimento"
+                    value={novoParticipante.categoria}
+                    onChange={(e) => setNovoParticipante((prev) => ({ ...prev, categoria: e.target.value.toUpperCase() }))}
+                    className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2.5 font-normal uppercase"
+                  />
+                  <datalist id="categorias-autoatendimento">
+                    {categoriasEvento.map((categoria) => <option key={categoria} value={categoria} />)}
+                  </datalist>
+                </label>
+              </div>
+
+              <div className="mt-6 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowNovoParticipante(false)}
+                  className="rounded-xl border px-4 py-2.5 hover:bg-gray-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={salvandoNovoParticipante}
+                  className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+                >
+                  {salvandoNovoParticipante
+                    ? <Loader2 className="w-5 h-5 animate-spin" />
+                    : <UserPlus className="w-5 h-5" />}
+                  {salvandoNovoParticipante ? 'Cadastrando...' : 'Cadastrar participante'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: observação do participante */}
+      {participanteObservacao && (
+        <div
+          className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="titulo-observacao-autoatendimento"
+        >
+          <div className="bg-white rounded-2xl w-full max-w-lg shadow-xl">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <div>
+                <h3 id="titulo-observacao-autoatendimento" className="text-lg font-semibold">Observação</h3>
+                <p className="mt-0.5 text-sm text-gray-500">{participanteObservacao.nome}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setParticipanteObservacao(null)}
+                className="p-2 rounded-full hover:bg-gray-100"
+                aria-label="Fechar observação"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="px-6 py-5">
+              <p className="whitespace-pre-wrap break-words text-gray-700">
+                {participanteObservacao.observacao?.trim() || 'Nenhuma observação cadastrada.'}
+              </p>
+            </div>
+            <div className="px-6 py-4 border-t border-gray-100 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setParticipanteObservacao(null)}
+                className="rounded-xl bg-blue-600 px-5 py-2 text-white hover:bg-blue-700"
+              >
+                Fechar
+              </button>
+            </div>
           </div>
         </div>
       )}

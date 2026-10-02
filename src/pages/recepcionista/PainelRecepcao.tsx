@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { QrCode, Search, UserPlus, CheckCircle, Printer, Edit, Settings, Pencil, Save, X, Loader2, Wifi, WifiOff, Tag, Monitor } from 'lucide-react';
+import { QrCode, Search, UserPlus, CheckCircle, Printer, Edit, Settings, Pencil, Save, X, Loader2, Wifi, WifiOff, Tag, Monitor, MessageSquareText } from 'lucide-react';
 import LayoutDefault from '../../components/layout/LayoutDefault';
 import QrCodeScanner from '../../components/qrcode/QrCodeScanner';
 import { obterEventoPorId, atualizarEvento } from '../../services/eventoService';
@@ -88,6 +88,7 @@ const PainelRecepcao: React.FC = () => {
   const [showFormNovoParticipante, setShowFormNovoParticipante] = useState(false);
   const [loading, setLoading] = useState(true);
   const [mensagem, setMensagem] = useState<{ tipo: 'success' | 'error' | 'info'; texto: string } | null>(null);
+  const [participanteObservacao, setParticipanteObservacao] = useState<Participante | null>(null);
 
   // ====== Refs novo participante ======
   const nomeRef = useRef<HTMLInputElement>(null);
@@ -415,7 +416,7 @@ const PainelRecepcao: React.FC = () => {
 
   const handleSelectParticipante = (participante: Participante) => {
     setParticipanteSelecionado({ ...participante, categoria: normalizeCategory(participante.categoria) });
-    setMensagem((participante as any).observacao?.trim() ? { tipo: 'info', texto: `Observação: ${(participante as any).observacao}` } : null);
+    setMensagem(null);
   };
 
   const handleCheckin = async () => {
@@ -1224,6 +1225,13 @@ const PainelRecepcao: React.FC = () => {
                     >
                       <Edit className="w-5 h-5 mr-2" />Editar Cadastro
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => setParticipanteObservacao(participanteSelecionado)}
+                      className="btn btn-outline flex items-center"
+                    >
+                      <MessageSquareText className="w-5 h-5 mr-2" />Observação
+                    </button>
                     {participanteSelecionado.status !== 'credenciado' && (
                       <button
                         onClick={handleCheckin}
@@ -1429,6 +1437,47 @@ const PainelRecepcao: React.FC = () => {
                 {salvandoNomesOpcoes
                   ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Salvando...</>
                   : <><Save className="w-4 h-4 mr-2" />Salvar</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: observação do participante */}
+      {participanteObservacao && (
+        <div
+          className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="titulo-observacao-recepcao"
+        >
+          <div className="bg-white rounded-xl w-full max-w-lg shadow-xl">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <div>
+                <h3 id="titulo-observacao-recepcao" className="text-lg font-semibold">Observação</h3>
+                <p className="mt-0.5 text-sm text-gray-500">{participanteObservacao.nome}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setParticipanteObservacao(null)}
+                className="p-2 rounded-full hover:bg-gray-100"
+                aria-label="Fechar observação"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="px-6 py-5">
+              <p className="whitespace-pre-wrap break-words text-gray-700">
+                {participanteObservacao.observacao?.trim() || 'Nenhuma observação cadastrada.'}
+              </p>
+            </div>
+            <div className="px-6 py-4 border-t border-gray-100 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setParticipanteObservacao(null)}
+                className="btn btn-primary"
+              >
+                Fechar
               </button>
             </div>
           </div>
