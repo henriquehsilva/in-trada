@@ -600,11 +600,21 @@ const AutoAtendimento: React.FC = () => {
           {usaTemaAutoAtendimento ? (
             <>
               <span aria-hidden="true" />
-              <img
-                src={isWake ? '/brands/novo-wake-logo.jpeg' : '/brands/in-trada-autoatendimento.png'}
-                alt={isWake ? 'Wake Lab' : 'IN-TRADA'}
-                className="h-14 md:h-20 w-auto object-contain justify-self-center"
-              />
+              {isWake ? (
+                <img
+                  src="/brands/novo-wake-logo.jpeg"
+                  alt="Wake Lab"
+                  className="h-14 md:h-20 w-auto object-contain justify-self-center"
+                />
+              ) : (
+                <div className="relative h-20 w-52 sm:h-24 sm:w-72 md:h-32 md:w-96 overflow-hidden justify-self-center">
+                  <img
+                    src="/brands/in-trada-autoatendimento.png"
+                    alt="IN-TRADA"
+                    className="absolute left-1/2 top-1/2 w-full max-w-none -translate-x-1/2 -translate-y-1/2 scale-125"
+                  />
+                </div>
+              )}
             </>
           ) : (
             <h1 className="text-2xl md:text-3xl font-bold truncate">
