@@ -173,6 +173,8 @@ const AutoAtendimento: React.FC = () => {
   const [salvando, setSalvando] = useState(false);
 
   const searchRef = useRef<HTMLInputElement>(null);
+  const novoParticipanteModalRef = useRef<HTMLDivElement>(null);
+  const camposCadastroModalRef = useRef<HTMLDivElement>(null);
 
   const fecharNovoParticipante = () => {
     setShowConfigurarCamposCadastro(false);
@@ -184,20 +186,66 @@ const AutoAtendimento: React.FC = () => {
     if (!showNovoParticipante) return;
 
     const handleEscape = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
-      event.preventDefault();
-      event.stopPropagation();
-      if (showConfigurarCamposCadastro) {
-        setShowConfigurarCamposCadastro(false);
-      } else {
-        setShowNovoParticipante(false);
-        window.setTimeout(() => searchRef.current?.focus({ preventScroll: true }), 0);
+      const modalAtivo = showConfigurarCamposCadastro
+        ? camposCadastroModalRef.current
+        : novoParticipanteModalRef.current;
+
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        event.stopPropagation();
+        if (showConfigurarCamposCadastro) {
+          setShowConfigurarCamposCadastro(false);
+          window.setTimeout(() => {
+            novoParticipanteModalRef.current
+              ?.querySelector<HTMLElement>('[data-abrir-campos-cadastro]')
+              ?.focus();
+          }, 0);
+        } else {
+          setShowNovoParticipante(false);
+          window.setTimeout(() => searchRef.current?.focus({ preventScroll: true }), 0);
+        }
+        return;
+      }
+
+      if (event.key !== 'Tab' || !modalAtivo) return;
+      const elementos = Array.from(modalAtivo.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      )).filter((elemento) => elemento.offsetParent !== null);
+      if (elementos.length === 0) return;
+
+      const primeiro = elementos[0];
+      const ultimo = elementos[elementos.length - 1];
+      if (!modalAtivo.contains(document.activeElement)) {
+        event.preventDefault();
+        primeiro.focus();
+      } else if (event.shiftKey && document.activeElement === primeiro) {
+        event.preventDefault();
+        ultimo.focus();
+      } else if (!event.shiftKey && document.activeElement === ultimo) {
+        event.preventDefault();
+        primeiro.focus();
       }
     };
 
     window.addEventListener('keydown', handleEscape, true);
     return () => window.removeEventListener('keydown', handleEscape, true);
   }, [showNovoParticipante, showConfigurarCamposCadastro]);
+
+  useEffect(() => {
+    if (!showConfigurarCamposCadastro) return;
+    window.requestAnimationFrame(() => {
+      camposCadastroModalRef.current
+        ?.querySelector<HTMLElement>('button:not([disabled]), input:not([disabled])')
+        ?.focus();
+    });
+  }, [showConfigurarCamposCadastro]);
+
+  useEffect(() => {
+    const frameId = window.requestAnimationFrame(() => {
+      searchRef.current?.focus({ preventScroll: true });
+    });
+    return () => window.cancelAnimationFrame(frameId);
+  }, []);
 
   const categoriasEvento = useMemo(() => Array.from(new Set([
     ...Object.keys(evento?.coresCategorias || {}),
@@ -668,7 +716,7 @@ const AutoAtendimento: React.FC = () => {
   };
 
   // ===== Header =====
-  const Header = () => (
+  const renderHeader = () => (
     <div className="sticky top-0 z-20 bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60 border-b border-gray-100">
       <div className={`max-w-6xl mx-auto px-4 ${usaTemaAutoAtendimento ? 'pt-5 pb-6' : 'py-4'}`}>
         <div className={usaTemaAutoAtendimento ? 'grid grid-cols-[1fr_auto_1fr] items-center' : 'flex items-center justify-between'}>
@@ -737,7 +785,7 @@ const AutoAtendimento: React.FC = () => {
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-6 h-6 text-gray-400" />
             <input
               ref={searchRef}
-              autoFocus
+              disabled={showNovoParticipante}
               value={termo}
               onChange={(e) => {
                 const valor = e.target.value;
@@ -889,18 +937,16 @@ const AutoAtendimento: React.FC = () => {
                     <Pencil className="w-4 h-4" /> Editar
                   </button>
                 )}
-                <button
-                  type="button"
-                  onClick={() => setParticipanteObservacao(p)}
-                  className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 font-medium transition-colors ${
-                    p.observacao?.trim()
-                      ? 'border-red-300 bg-red-50 text-red-700 shadow-sm hover:bg-red-100'
-                      : 'border-violet-200 text-violet-700 hover:bg-violet-50'
-                  }`}
-                  title={p.observacao?.trim() ? 'Este participante possui uma observação' : 'Nenhuma observação cadastrada'}
-                >
-                  <MessageSquareText className="w-4 h-4" /> Observação
-                </button>
+                {p.observacao?.trim() && (
+                  <button
+                    type="button"
+                    onClick={() => setParticipanteObservacao(p)}
+                    className="inline-flex items-center gap-2 rounded-xl border border-red-300 bg-red-50 px-3 py-2 font-medium text-red-700 shadow-sm transition-colors hover:bg-red-100"
+                    title="Este participante possui uma observação"
+                  >
+                    <MessageSquareText className="w-4 h-4" /> Observação
+                  </button>
+                )}
               </>
             )}
           </div>
@@ -941,7 +987,7 @@ const AutoAtendimento: React.FC = () => {
   if (carregando) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <Header />
+        {renderHeader()}
         <div className="max-w-6xl mx-auto px-4 py-10 grid gap-3">
           {Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="h-24 rounded-2xl bg-gray-100 animate-pulse" />
@@ -954,7 +1000,7 @@ const AutoAtendimento: React.FC = () => {
   if (!eventId) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <Header />
+        {renderHeader()}
         <div className="max-w-3xl mx-auto px-4 py-14">
           <div className="rounded-2xl border bg-white p-6 text-gray-700">
             <div className="flex items-start gap-3">
@@ -993,7 +1039,7 @@ const AutoAtendimento: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Header />
+      {renderHeader()}
 
       <div className="max-w-6xl mx-auto px-4 py-6 md:py-10">
         {msg && (
@@ -1162,7 +1208,7 @@ const AutoAtendimento: React.FC = () => {
       {/* Modal: novo participante */}
       {showNovoParticipante && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-2xl shadow-xl max-h-[90vh] overflow-y-auto">
+          <div ref={novoParticipanteModalRef} className="bg-white rounded-2xl w-full max-w-2xl shadow-xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between gap-4 px-6 pt-6 pb-4 border-b border-gray-100">
               <div>
                 <h3 className="text-xl font-semibold">Novo participante</h3>
@@ -1172,6 +1218,7 @@ const AutoAtendimento: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setShowConfigurarCamposCadastro(true)}
+                  data-abrir-campos-cadastro
                   className="inline-flex items-center gap-2 rounded-xl border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
                 >
                   <Settings className="w-4 h-4" />
@@ -1327,6 +1374,7 @@ const AutoAtendimento: React.FC = () => {
       {showNovoParticipante && showConfigurarCamposCadastro && (
         <div className="fixed inset-0 z-[60] bg-black/60 flex items-center justify-center p-4">
           <div
+            ref={camposCadastroModalRef}
             className="bg-white rounded-2xl w-full max-w-lg shadow-xl flex flex-col max-h-[85vh]"
             role="dialog"
             aria-modal="true"
