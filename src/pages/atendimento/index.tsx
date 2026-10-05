@@ -62,6 +62,17 @@ const CAMPOS_PADRAO_LISTA = [
 
 const CAMPOS_VISIVEIS_DEFAULT = ['nome', 'empresa', 'email1', 'celular', 'categoria'];
 
+const CAMPOS_CADASTRO_LISTA = [
+  'nome', 'nomeCracha', 'empresa', 'empresaCracha', 'cargo',
+  'email1', 'email2', 'celular', 'telefone', 'categoria',
+  'cpf', 'rg', 'cnpj',
+  'opcao1', 'opcao2', 'opcao3', 'opcao4', 'opcao5',
+  'opcao6', 'opcao7', 'opcao8', 'opcao9', 'opcao10',
+  'observacao',
+];
+
+const CAMPOS_CADASTRO_DEFAULT = ['nome', 'nomeCracha', 'empresa', 'email1', 'telefone', 'categoria'];
+
 const isOnline = () => (typeof navigator === 'undefined' ? true : navigator.onLine);
 
 const filtrarParticipantes = (lista: Participante[], termo: string) => {
@@ -89,14 +100,10 @@ const stableColorFromString = (valor: string) => {
   return `hsl(${Math.abs(hash) % 360}, 55%, 75%)`;
 };
 
-const NOVO_PARTICIPANTE_INICIAL = {
-  nome: '',
-  nomeCracha: '',
-  empresa: '',
-  email1: '',
-  telefone: '',
-  categoria: '',
-};
+type ValorCampoCadastro = string | boolean;
+
+const criarNovoParticipanteInicial = (): Record<string, ValorCampoCadastro> =>
+  Object.fromEntries(CAMPOS_CADASTRO_LISTA.map((campo) => [campo, '']));
 
 const emailCorrespondeExatamente = (p: Participante, termo: string) => {
   const q = normalizeText(termo.trim());
@@ -131,7 +138,17 @@ const AutoAtendimento: React.FC = () => {
   const [checkinEmAndamento, setCheckinEmAndamento] = useState<string | null>(null);
   const [impressaoEmAndamento, setImpressaoEmAndamento] = useState<string | null>(null);
   const [showNovoParticipante, setShowNovoParticipante] = useState(false);
-  const [novoParticipante, setNovoParticipante] = useState(NOVO_PARTICIPANTE_INICIAL);
+  const [novoParticipante, setNovoParticipante] = useState<Record<string, ValorCampoCadastro>>(criarNovoParticipanteInicial);
+  const [showConfigurarCamposCadastro, setShowConfigurarCamposCadastro] = useState(false);
+  const [camposCadastroVisiveis, setCamposCadastroVisiveis] = useState<string[]>(() => {
+    if (!eventId) return CAMPOS_CADASTRO_DEFAULT;
+    try {
+      const saved = localStorage.getItem(`autoatendimento.cadastro.campos.${eventId}`);
+      return saved ? JSON.parse(saved) : CAMPOS_CADASTRO_DEFAULT;
+    } catch {
+      return CAMPOS_CADASTRO_DEFAULT;
+    }
+  });
   const [salvandoNovoParticipante, setSalvandoNovoParticipante] = useState(false);
   const [participanteObservacao, setParticipanteObservacao] = useState<Participante | null>(null);
   const isWake = evento?.telaAutoAtendimento === 'wake';
@@ -157,10 +174,40 @@ const AutoAtendimento: React.FC = () => {
 
   const searchRef = useRef<HTMLInputElement>(null);
 
+  const fecharNovoParticipante = () => {
+    setShowConfigurarCamposCadastro(false);
+    setShowNovoParticipante(false);
+    window.setTimeout(() => searchRef.current?.focus({ preventScroll: true }), 0);
+  };
+
+  useEffect(() => {
+    if (!showNovoParticipante) return;
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (showConfigurarCamposCadastro) {
+        setShowConfigurarCamposCadastro(false);
+      } else {
+        setShowNovoParticipante(false);
+        window.setTimeout(() => searchRef.current?.focus({ preventScroll: true }), 0);
+      }
+    };
+
+    window.addEventListener('keydown', handleEscape, true);
+    return () => window.removeEventListener('keydown', handleEscape, true);
+  }, [showNovoParticipante, showConfigurarCamposCadastro]);
+
   const categoriasEvento = useMemo(() => Array.from(new Set([
     ...Object.keys(evento?.coresCategorias || {}),
     ...baseParticipantes.map((p) => normalizeCategory(p.categoria || '')).filter(Boolean),
   ])).sort((a, b) => a.localeCompare(b)), [evento?.coresCategorias, baseParticipantes]);
+
+  const camposCadastroDisponiveis = useMemo(() => [
+    ...CAMPOS_CADASTRO_LISTA,
+    ...(evento?.camposPersonalizados || []).map((campo) => `cp:${campo.id}`),
+  ], [evento?.camposPersonalizados]);
 
   // ===== Rede =====
   useEffect(() => {
@@ -342,29 +389,38 @@ const AutoAtendimento: React.FC = () => {
 
     try {
       setSalvandoNovoParticipante(true);
-      const categoria = normalizeCategory(novoParticipante.categoria);
+      const textoCampo = (campo: string) => String(novoParticipante[campo] ?? '').trim();
+      const categoria = normalizeCategory(textoCampo('categoria'));
       const participante: Omit<Participante, 'id' | 'criadoEm' | 'atualizadoEm'> = {
         eventoId: eventId,
-        nome: novoParticipante.nome.trim(),
-        nomeCracha: novoParticipante.nomeCracha.trim() || novoParticipante.nome.trim(),
-        empresa: novoParticipante.empresa.trim(),
-        empresaCracha: novoParticipante.empresa.trim(),
-        cargo: '',
-        email1: novoParticipante.email1.trim(),
-        email2: '',
-        celular: novoParticipante.telefone.trim(),
-        telefone: novoParticipante.telefone.trim(),
+        nome: textoCampo('nome'),
+        nomeCracha: textoCampo('nomeCracha') || textoCampo('nome'),
+        empresa: textoCampo('empresa'),
+        empresaCracha: textoCampo('empresaCracha') || textoCampo('empresa'),
+        cargo: textoCampo('cargo'),
+        email1: textoCampo('email1'),
+        email2: textoCampo('email2'),
+        celular: textoCampo('celular') || textoCampo('telefone'),
+        telefone: textoCampo('telefone'),
         categoria,
-        observacao: '',
-        cpf: '',
-        rg: '',
-        cnpj: '',
+        observacao: textoCampo('observacao'),
+        cpf: textoCampo('cpf'),
+        rg: textoCampo('rg'),
+        cnpj: textoCampo('cnpj'),
         codigoCliente: '',
-        opcao1: '', opcao2: '', opcao3: '', opcao4: '', opcao5: '',
-        opcao6: '', opcao7: '', opcao8: '', opcao9: '', opcao10: '',
+        opcao1: textoCampo('opcao1'), opcao2: textoCampo('opcao2'),
+        opcao3: textoCampo('opcao3'), opcao4: textoCampo('opcao4'),
+        opcao5: textoCampo('opcao5'), opcao6: textoCampo('opcao6'),
+        opcao7: textoCampo('opcao7'), opcao8: textoCampo('opcao8'),
+        opcao9: textoCampo('opcao9'), opcao10: textoCampo('opcao10'),
         status: 'pendente',
         criadoPorId: currentUser.uid,
-        camposPersonalizados: {},
+        camposPersonalizados: Object.fromEntries(
+          (evento?.camposPersonalizados || []).map((campo) => [
+            campo.id,
+            novoParticipante[`cp:${campo.id}`] ?? '',
+          ]),
+        ),
         corCategoria: evento?.coresCategorias?.[categoria]
           || baseParticipantes.find((p) => normalizeCategory(p.categoria) === categoria)?.corCategoria
           || stableColorFromString(categoria),
@@ -383,7 +439,7 @@ const AutoAtendimento: React.FC = () => {
 
       setBaseParticipantes((prev) => [participanteCriado, ...prev]);
       setParticipantes([participanteCriado]);
-      setNovoParticipante(NOVO_PARTICIPANTE_INICIAL);
+      setNovoParticipante(criarNovoParticipanteInicial());
       setShowNovoParticipante(false);
       setTermo('');
       setMsg({ tipo: 'success', texto: 'Participante cadastrado com sucesso! Agora você pode realizar o check-in.' });
@@ -590,6 +646,25 @@ const AutoAtendimento: React.FC = () => {
       : camposVisiveis.filter((c) => c !== campo);
     setCamposVisiveis(novos);
     if (eventId) localStorage.setItem(`recepcao.campos.${eventId}`, JSON.stringify(novos));
+  };
+
+  const toggleCampoCadastro = (campo: string, checked: boolean) => {
+    if (campo === 'nome' || campo === 'categoria') return;
+    const novos = checked
+      ? [...camposCadastroVisiveis, campo]
+      : camposCadastroVisiveis.filter((item) => item !== campo);
+    setCamposCadastroVisiveis(novos);
+    if (eventId) {
+      localStorage.setItem(`autoatendimento.cadastro.campos.${eventId}`, JSON.stringify(novos));
+    }
+  };
+
+  const labelCampoCadastro = (campo: string) => {
+    if (campo.startsWith('cp:')) {
+      const campoId = campo.slice(3);
+      return evento?.camposPersonalizados?.find((item) => item.id === campoId)?.nome || campoId;
+    }
+    return evento?.labelsOpcoes?.[campo] || LABEL_CAMPO[campo] || campo;
   };
 
   // ===== Header =====
@@ -817,7 +892,12 @@ const AutoAtendimento: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setParticipanteObservacao(p)}
-                  className="inline-flex items-center gap-2 rounded-xl border border-violet-200 px-3 py-2 text-violet-700 hover:bg-violet-50"
+                  className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 font-medium transition-colors ${
+                    p.observacao?.trim()
+                      ? 'border-red-300 bg-red-50 text-red-700 shadow-sm hover:bg-red-100'
+                      : 'border-violet-200 text-violet-700 hover:bg-violet-50'
+                  }`}
+                  title={p.observacao?.trim() ? 'Este participante possui uma observação' : 'Nenhuma observação cadastrada'}
                 >
                   <MessageSquareText className="w-4 h-4" /> Observação
                 </button>
@@ -1083,87 +1163,146 @@ const AutoAtendimento: React.FC = () => {
       {showNovoParticipante && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-2xl shadow-xl max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-gray-100">
+            <div className="flex items-center justify-between gap-4 px-6 pt-6 pb-4 border-b border-gray-100">
               <div>
                 <h3 className="text-xl font-semibold">Novo participante</h3>
                 <p className="mt-1 text-sm text-gray-500">Cadastre o participante e faça o check-in em seguida.</p>
               </div>
-              <button
-                type="button"
-                onClick={() => setShowNovoParticipante(false)}
-                className="p-2 rounded-full hover:bg-gray-100"
-                aria-label="Fechar"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setShowConfigurarCamposCadastro(true)}
+                  className="inline-flex items-center gap-2 rounded-xl border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  <Settings className="w-4 h-4" />
+                  <span className="hidden sm:inline">Campos visíveis</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={fecharNovoParticipante}
+                  className="p-2 rounded-full hover:bg-gray-100"
+                  aria-label="Fechar"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             </div>
 
             <form onSubmit={handleCadastrarParticipante} className="p-6">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <label className="sm:col-span-2 text-sm font-medium text-gray-700">
-                  Nome completo *
-                  <input
-                    required
-                    autoFocus
-                    value={novoParticipante.nome}
-                    onChange={(e) => setNovoParticipante((prev) => ({ ...prev, nome: e.target.value }))}
-                    className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2.5 font-normal"
-                  />
-                </label>
-                <label className="text-sm font-medium text-gray-700">
-                  Nome no crachá
-                  <input
-                    value={novoParticipante.nomeCracha}
-                    onChange={(e) => setNovoParticipante((prev) => ({ ...prev, nomeCracha: e.target.value }))}
-                    placeholder="Se vazio, usa o nome completo"
-                    className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2.5 font-normal"
-                  />
-                </label>
-                <label className="text-sm font-medium text-gray-700">
-                  Empresa
-                  <input
-                    value={novoParticipante.empresa}
-                    onChange={(e) => setNovoParticipante((prev) => ({ ...prev, empresa: e.target.value }))}
-                    className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2.5 font-normal"
-                  />
-                </label>
-                <label className="text-sm font-medium text-gray-700">
-                  E-mail (opcional)
-                  <input
-                    type="email"
-                    value={novoParticipante.email1}
-                    onChange={(e) => setNovoParticipante((prev) => ({ ...prev, email1: e.target.value }))}
-                    className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2.5 font-normal"
-                  />
-                </label>
-                <label className="text-sm font-medium text-gray-700">
-                  Telefone
-                  <input
-                    type="tel"
-                    value={novoParticipante.telefone}
-                    onChange={(e) => setNovoParticipante((prev) => ({ ...prev, telefone: e.target.value }))}
-                    className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2.5 font-normal"
-                  />
-                </label>
-                <label className="sm:col-span-2 text-sm font-medium text-gray-700">
-                  Categoria *
-                  <input
-                    required
-                    list="categorias-autoatendimento"
-                    value={novoParticipante.categoria}
-                    onChange={(e) => setNovoParticipante((prev) => ({ ...prev, categoria: e.target.value.toUpperCase() }))}
-                    className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2.5 font-normal uppercase"
-                  />
-                  <datalist id="categorias-autoatendimento">
-                    {categoriasEvento.map((categoria) => <option key={categoria} value={categoria} />)}
-                  </datalist>
-                </label>
+                {camposCadastroDisponiveis
+                  .filter((campo) => {
+                    const personalizadoObrigatorio = campo.startsWith('cp:') && Boolean(
+                      evento?.camposPersonalizados?.find((item) => item.id === campo.slice(3))?.obrigatorio,
+                    );
+                    return camposCadastroVisiveis.includes(campo)
+                      || campo === 'nome'
+                      || campo === 'categoria'
+                      || personalizadoObrigatorio;
+                  })
+                  .map((campo) => {
+                    const obrigatorio = campo === 'nome' || campo === 'categoria';
+                    const campoPersonalizado = campo.startsWith('cp:')
+                      ? evento?.camposPersonalizados?.find((item) => item.id === campo.slice(3))
+                      : undefined;
+                    const classeLabel = `${campo === 'nome' || campo === 'categoria' || campo === 'observacao' ? 'sm:col-span-2 ' : ''}text-sm font-medium text-gray-700`;
+                    const atualizarValor = (valor: ValorCampoCadastro) => setNovoParticipante((prev) => ({ ...prev, [campo]: valor }));
+
+                    if (campo === 'categoria') {
+                      return (
+                        <label key={campo} className={classeLabel}>
+                          Categoria *
+                          <input
+                            required
+                            list="categorias-autoatendimento"
+                            value={String(novoParticipante[campo] ?? '')}
+                            onChange={(e) => atualizarValor(e.target.value.toUpperCase())}
+                            className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2.5 font-normal uppercase"
+                          />
+                          <datalist id="categorias-autoatendimento">
+                            {categoriasEvento.map((categoria) => <option key={categoria} value={categoria} />)}
+                          </datalist>
+                        </label>
+                      );
+                    }
+
+                    if (campoPersonalizado?.tipo === 'checkbox') {
+                      return (
+                        <label key={campo} className={`${classeLabel} flex items-center gap-2 pt-7`}>
+                          <input
+                            type="checkbox"
+                            checked={Boolean(novoParticipante[campo])}
+                            onChange={(e) => atualizarValor(e.target.checked)}
+                            className="h-4 w-4 rounded border-gray-300 text-blue-600"
+                          />
+                          {labelCampoCadastro(campo)}
+                        </label>
+                      );
+                    }
+
+                    if (campoPersonalizado?.tipo === 'selecao') {
+                      return (
+                        <label key={campo} className={classeLabel}>
+                          {labelCampoCadastro(campo)} {campoPersonalizado.obrigatorio ? '*' : ''}
+                          <select
+                            required={campoPersonalizado.obrigatorio}
+                            value={String(novoParticipante[campo] ?? '')}
+                            onChange={(e) => atualizarValor(e.target.value)}
+                            className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2.5 font-normal"
+                          >
+                            <option value="">Selecione uma opção</option>
+                            {(campoPersonalizado.opcoes || []).map((opcao) => <option key={opcao} value={opcao}>{opcao}</option>)}
+                          </select>
+                        </label>
+                      );
+                    }
+
+                    if (campo === 'observacao') {
+                      return (
+                        <label key={campo} className={classeLabel}>
+                          {labelCampoCadastro(campo)}
+                          <textarea
+                            rows={3}
+                            value={String(novoParticipante[campo] ?? '')}
+                            onChange={(e) => atualizarValor(e.target.value)}
+                            className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2.5 font-normal"
+                          />
+                        </label>
+                      );
+                    }
+
+                    const tipo = campoPersonalizado?.tipo === 'numero'
+                      ? 'number'
+                      : campoPersonalizado?.tipo === 'data'
+                        ? 'date'
+                        : campo === 'email1' || campo === 'email2'
+                          ? 'email'
+                          : campo === 'telefone' || campo === 'celular'
+                            ? 'tel'
+                            : 'text';
+                    const campoObrigatorio = obrigatorio || Boolean(campoPersonalizado?.obrigatorio);
+
+                    return (
+                      <label key={campo} className={classeLabel}>
+                        {campo === 'nome' ? 'Nome completo' : labelCampoCadastro(campo)} {campoObrigatorio ? '*' : ''}
+                        <input
+                          autoFocus={campo === 'nome'}
+                          required={campoObrigatorio}
+                          type={tipo}
+                          value={String(novoParticipante[campo] ?? '')}
+                          onChange={(e) => atualizarValor(e.target.value)}
+                          placeholder={campo === 'nomeCracha' ? 'Se vazio, usa o nome completo' : undefined}
+                          className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2.5 font-normal"
+                        />
+                      </label>
+                    );
+                  })}
               </div>
 
               <div className="mt-6 flex justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => setShowNovoParticipante(false)}
+                  onClick={fecharNovoParticipante}
                   className="rounded-xl border px-4 py-2.5 hover:bg-gray-50"
                 >
                   Cancelar
@@ -1180,6 +1319,68 @@ const AutoAtendimento: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: campos visíveis no cadastro rápido */}
+      {showNovoParticipante && showConfigurarCamposCadastro && (
+        <div className="fixed inset-0 z-[60] bg-black/60 flex items-center justify-center p-4">
+          <div
+            className="bg-white rounded-2xl w-full max-w-lg shadow-xl flex flex-col max-h-[85vh]"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="titulo-campos-cadastro"
+          >
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <div>
+                <h3 id="titulo-campos-cadastro" className="text-lg font-semibold">Campos visíveis no cadastro</h3>
+                <p className="mt-0.5 text-sm text-gray-500">Nome e categoria são obrigatórios.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowConfigurarCamposCadastro(false)}
+                className="p-2 rounded-full hover:bg-gray-100"
+                aria-label="Fechar campos visíveis"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="overflow-y-auto px-6 py-4 space-y-1 flex-1">
+              {camposCadastroDisponiveis.map((campo) => {
+                const fixo = campo === 'nome'
+                  || campo === 'categoria'
+                  || Boolean(
+                    campo.startsWith('cp:')
+                    && evento?.camposPersonalizados?.find((item) => item.id === campo.slice(3))?.obrigatorio,
+                  );
+                return (
+                  <label key={campo} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={fixo || camposCadastroVisiveis.includes(campo)}
+                      disabled={fixo}
+                      onChange={(e) => toggleCampoCadastro(campo, e.target.checked)}
+                      className="h-4 w-4 rounded border-gray-300 text-blue-600 disabled:opacity-60"
+                    />
+                    <span className="text-sm text-gray-700">{labelCampoCadastro(campo)}</span>
+                    {campo.startsWith('cp:') && (
+                      <span className="text-xs bg-purple-50 text-purple-600 px-1.5 py-0.5 rounded">personalizado</span>
+                    )}
+                    {fixo && <span className="ml-auto text-xs text-gray-400">obrigatório</span>}
+                  </label>
+                );
+              })}
+            </div>
+            <div className="px-6 py-4 border-t border-gray-100 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowConfigurarCamposCadastro(false)}
+                className="rounded-xl bg-blue-600 px-5 py-2 text-sm text-white hover:bg-blue-700"
+              >
+                Concluir
+              </button>
+            </div>
           </div>
         </div>
       )}
