@@ -839,7 +839,7 @@ const AutoAtendimento: React.FC = () => {
   );
 
   // ===== Card do participante =====
-  const Linha = ({ p }: { p: Participante }) => {
+  const renderLinha = (p: Participante) => {
     const isEditing = editandoId === p.id;
 
     const statusClass =
@@ -848,7 +848,7 @@ const AutoAtendimento: React.FC = () => {
       : 'bg-gray-50 text-gray-700 border-gray-200';
 
     return (
-      <div className="rounded-2xl bg-white border border-gray-100 p-4 md:p-5 shadow-sm hover:shadow transition">
+      <div key={p.id} className="rounded-2xl bg-white border border-gray-100 p-4 md:p-5 shadow-sm hover:shadow transition">
         {/* Linha superior: categoria + nome + ações */}
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
           <div className="min-w-0">
@@ -1054,7 +1054,7 @@ const AutoAtendimento: React.FC = () => {
 
         {participantes.length > 0 && (
           <div className="grid gap-3 md:gap-4">
-            {participantes.map((p) => <Linha key={p.id} p={p} />)}
+            {participantes.map(renderLinha)}
           </div>
         )}
       </div>
