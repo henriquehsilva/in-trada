@@ -400,8 +400,6 @@ VITE_FIREBASE_MEASUREMENT_ID=G-R2QC70GS68
 VITE_FIREBASE_MESSAGING_SENDER_ID=32883437509
 VITE_FIREBASE_PROJECT_ID=in-trada
 VITE_FIREBASE_STORAGE_BUCKET=in-trada.firebasestorage.app
-VITE_ENABLE_QZ_TRAY=1
-VITE_QZ_SIGN_URL=/.netlify/functions/qz-sign
 VITE_USE_EMULATORS=1</code></pre>
       <table class="env">
         <thead>
@@ -416,12 +414,9 @@ VITE_USE_EMULATORS=1</code></pre>
           <tr><td class="key">VITE_FIREBASE_MESSAGING_SENDER_ID</td><td>Sender ID do Firebase Cloud Messaging.</td></tr>
           <tr><td class="key">VITE_FIREBASE_PROJECT_ID</td><td>ID do projeto no Firebase (<code>in-trada</code>).</td></tr>
           <tr><td class="key">VITE_FIREBASE_STORAGE_BUCKET</td><td>Bucket do Firebase Storage para upload de imagens/arquivos.</td></tr>
-          <tr><td class="key">VITE_ENABLE_QZ_TRAY</td><td>Quando igual a <code>1</code>, habilita a conexão com o QZ Tray e a impressão direta.</td></tr>
-          <tr><td class="key">VITE_QZ_SIGN_URL</td><td>Endpoint que assina os pacotes enviados ao QZ Tray (impressão de crachás).</td></tr>
           <tr><td class="key">VITE_USE_EMULATORS</td><td>Quando igual a <code>1</code>, o app conecta no Firestore/Auth/Storage <b>locais</b> em vez do Firebase de produção.</td></tr>
         </tbody>
       </table>
-      <p>Para impressão direta, instale e mantenha o QZ Tray aberto no computador conectado às impressoras. Em produção, configure também <code>QZ_PRIVATE_KEY_B64</code> no Netlify com a chave privada PEM codificada em Base64. Essa chave deve corresponder ao certificado em <code>public/qz/digital-certificate.txt</code> e nunca deve ser adicionada ao repositório.</p>
       <div class="callout">
         <span class="callout-label">Importante</span>
         A chave <code>VITE_FIREBASE_API_KEY</code> é pública por natureza (faz parte do código do app no navegador) — não é um segredo de servidor. Ainda assim, mantenha o arquivo <code>.env</code> fora do controle de versão.

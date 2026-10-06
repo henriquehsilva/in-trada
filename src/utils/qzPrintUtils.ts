@@ -1,59 +1,7 @@
-import qz from 'qz-tray';
 import JsBarcode from 'jsbarcode';
 import QRCode from 'qrcode';
 import { buildQrValue } from './qrcode';
 import type { ComponenteEditor, ModeloCracha } from '../models/types';
-
-/* ===================== Printer type detection ===================== */
-
-const THERMAL_KEYWORDS = [
-  'zebra', 'eltron', 'dymo', 'tsc', 'honeywell', 'datamax', 'citizen',
-  'sato', 'godex', 'argox', 'postek', 'gainscha', 'bixolon', 'star',
-  'brother', 'ql-', 'td-', 'tz/', 'rd/', 'qtt',  // Brother QL/TD series
-];
-const RECEIPT_KEYWORDS = ['epson', 'bixolon', 'star', 'citizen', 'pos', 'receipt'];
-
-export type PrinterCategory = 'thermal-label' | 'thermal-receipt' | 'laser' | 'inkjet' | 'unknown';
-
-export function detectPrinterCategory(printerName: string): PrinterCategory {
-  const lower = printerName.toLowerCase();
-  const isThermal = THERMAL_KEYWORDS.some((kw) => lower.includes(kw));
-  if (!isThermal) return 'unknown';
-  const isReceipt = RECEIPT_KEYWORDS.some((kw) => lower.includes(kw));
-  if (isReceipt) return 'thermal-receipt';
-  return 'thermal-label';
-}
-
-/* ===================== Print config builder ===================== */
-
-export interface PrintConfigOptions {
-  printerName: string;
-  larguraCm: number;
-  alturaCm: number;
-  rodado: boolean;
-  isThermalLabel?: boolean;
-}
-
-export function buildPrintConfig(opts: PrintConfigOptions) {
-  const { printerName, larguraCm, alturaCm, rodado, isThermalLabel } = opts;
-  const pageW = rodado ? alturaCm : larguraCm;
-  const pageH = rodado ? larguraCm : alturaCm;
-
-  const base: Record<string, any> = {
-    size: { width: pageW, height: pageH },
-    units: 'cm',
-    rasterize: true,
-    colorType: 'color',
-    scaleContent: true,
-  };
-
-  if (isThermalLabel) {
-    base.density = 8;
-    base.orientation = 'portrait';
-  }
-
-  return qz.configs.create(printerName, base);
-}
 
 /* ===================== Canvas barcode (no CDN) ===================== */
 
@@ -416,13 +364,10 @@ export async function preGenerateQRCodes(
 export interface PrintBadgeOptions {
   modelo: ModeloCracha;
   participante: Record<string, any>;
-  printerName: string;
-  qzConnected: boolean;
-  directOnly?: boolean;
 }
 
 export async function printBadge(opts: PrintBadgeOptions): Promise<{ method: string }> {
-  const { modelo, participante, printerName, qzConnected, directOnly = false } = opts;
+  const { modelo, participante } = opts;
 
   const barcodeValue = (participante as any)?.codigoCliente || (participante as any)?.id || '';
   const qrCache = await preGenerateQRCodes(modelo.componentes, participante, barcodeValue);
@@ -437,60 +382,7 @@ export async function printBadge(opts: PrintBadgeOptions): Promise<{ method: str
   const rodado = !!modelo.imprimirRodado;
   const pageLarguraPx = rodado ? altura : largura;
   const pageAlturaPx = rodado ? largura : altura;
-  const pageLarguraCm = rodado ? alturaCm : larguraCm;
-  const pageAlturaCm = rodado ? larguraCm : alturaCm;
-
-  const category = detectPrinterCategory(printerName);
-  const isThermalLabel = category === 'thermal-label';
-
-  // O estado React pode ficar desatualizado se o QZ Tray for fechado depois da conexão.
-  // Nesse caso, usa o fallback do navegador em vez de enviar para um socket encerrado.
-  if (qzConnected && qz.websocket.isActive() && printerName) {
-    const config = buildPrintConfig({
-      printerName,
-      larguraCm,
-      alturaCm,
-      rodado,
-      isThermalLabel,
-    });
-
-    console.log('[QZ][print]', {
-      printerName, category, rodado,
-      larguraCm, alturaCm, pageLarguraCm, pageAlturaCm,
-    });
-
-    if (rodado) {
-      const baseCanvas = await renderBadgeToCanvas(
-        modelo.componentes, largura, altura, participante, qrCache, barcodeValue, barcodeBase64,
-      );
-      const rotatedCanvas = rotateCanvas90CW(baseCanvas);
-      const base64 = rotatedCanvas.toDataURL('image/png').split(',')[1];
-      await qz.print(config, [{ type: 'pixel', format: 'image', flavor: 'base64', data: base64 }]);
-      return { method: 'canvas-rotated' };
-    }
-
-    const html = buildPrintHTML({
-      componentes: modelo.componentes,
-      participante,
-      qrCache,
-      barcodeValue,
-      pageLarguraPx,
-      pageAlturaPx,
-      larguraPx: largura,
-      alturaPx: altura,
-      rodado: false,
-      barcodeBase64,
-    });
-
-    await qz.print(config, [{ type: 'pixel', format: 'html', flavor: 'plain', data: html }]);
-    return { method: 'html' };
-  }
-
-  if (directOnly) {
-    throw new Error('O QZ Tray não está conectado ou nenhuma impressora foi selecionada.');
-  }
-
-  // Fallback: browser print window
+  // A impressão é feita exclusivamente pela janela nativa do navegador.
   const html = buildPrintHTML({
     componentes: modelo.componentes,
     participante,

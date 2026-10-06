@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { QrCode, Search, UserPlus, CheckCircle, Printer, Edit, Settings, Pencil, Save, X, Loader2, Wifi, WifiOff, Tag, Monitor, MessageSquareText } from 'lucide-react';
+import { QrCode, Search, UserPlus, CheckCircle, Printer, Edit, Settings, Pencil, Save, X, Loader2, Tag, Monitor, MessageSquareText } from 'lucide-react';
 import LayoutDefault from '../../components/layout/LayoutDefault';
 import QrCodeScanner from '../../components/qrcode/QrCodeScanner';
 import { obterEventoPorId, atualizarEvento } from '../../services/eventoService';
@@ -16,8 +16,7 @@ import { obterModelosCrachaPorEvento } from '../../services/modeloService';
 import { ChromePicker } from 'react-color';
 import { doc, updateDoc, getDoc, collection, query as fsQuery, where, getDocs, onSnapshot } from 'firebase/firestore';
 import { db } from '../../firebase/config';
-import { printBadge, detectPrinterCategory } from '../../utils/qzPrintUtils';
-import { connectQz, QZ_TRAY_ENABLED, selectQzPrinter } from '../../utils/qzConnection';
+import { printBadge } from '../../utils/qzPrintUtils';
 import { obterNomeTelaAutoAtendimento } from '../../config/telasAutoAtendimento';
 
 /* ===================== Helpers & Types ===================== */
@@ -141,15 +140,6 @@ const PainelRecepcao: React.FC = () => {
   const [editValuesInline, setEditValuesInline] = useState<Record<string, any>>({});
   const [salvandoInline, setSalvandoInline] = useState(false);
 
-  // QZ Tray (impressão direta)
-  const [qzConectado, setQzConectado] = useState(false);
-  const [impressoraPadrao, setImpressoraPadrao] = useState<string>(
-    () => localStorage.getItem('impressora.padrao') || ''
-  );
-  const [impressorasDisponiveis, setImpressorasDisponiveis] = useState<string[]>([]);
-  const [showSelecionarImpressora, setShowSelecionarImpressora] = useState(false);
-  const [reconectandoQz, setReconectandoQz] = useState(false);
-
   // ====== Carrega usuário ======
   useEffect(() => {
     const carregarUsuario = async () => {
@@ -238,45 +228,6 @@ const PainelRecepcao: React.FC = () => {
       }
     })();
   }, [eventoId]);
-
-  // ====== QZ Tray: tenta conectar ao iniciar ======
-  const conectarQz = async () => {
-    if (!QZ_TRAY_ENABLED) {
-      setQzConectado(false);
-      return;
-    }
-
-    try {
-      const lista = await connectQz();
-      setQzConectado(true);
-      setImpressorasDisponiveis(lista);
-      setImpressoraPadrao((atual) => {
-        const selecionada = selectQzPrinter(lista, atual);
-        if (selecionada) localStorage.setItem('impressora.padrao', selecionada);
-        else localStorage.removeItem('impressora.padrao');
-        return selecionada;
-      });
-    } catch (err) {
-      console.error('Erro ao conectar ao QZ Tray:', err);
-      setQzConectado(false);
-      setImpressorasDisponiveis([]);
-      setMensagem({
-        tipo: 'error',
-        texto: err instanceof Error
-          ? err.message
-          : 'Não foi possível conectar ao QZ Tray. Verifique se o aplicativo está aberto e autorize a conexão.',
-      });
-    }
-  };
-
-  useEffect(() => {
-    if (QZ_TRAY_ENABLED) conectarQz();
-  }, []);
-
-  const impressoraCategoria = useMemo(
-    () => (impressoraPadrao ? detectPrinterCategory(impressoraPadrao) : null),
-    [impressoraPadrao],
-  );
 
   // ====== Agregações e memos ======
   const statusCounts = participantes.reduce((acc, p) => {
@@ -461,26 +412,16 @@ const PainelRecepcao: React.FC = () => {
         return;
       }
 
-      if (qzConectado && !impressoraPadrao) {
-        setShowSelecionarImpressora(true);
-        if (aposCheckin) {
-          setMensagem({ tipo: 'info', texto: 'Check-in realizado. Selecione uma impressora para imprimir a credencial.' });
-        }
-        return;
-      }
-
-      const resultado = await printBadge({
+      await printBadge({
         modelo: modeloPadrao,
         participante: participante as any,
-        printerName: impressoraPadrao,
-        qzConnected: qzConectado,
       });
 
       setMensagem({
         tipo: 'success',
-        texto: resultado.method !== 'browser-window'
-          ? (aposCheckin ? 'Check-in realizado e credencial enviada para impressão!' : 'Credencial enviada para impressão!')
-          : (aposCheckin ? 'Check-in realizado e janela de impressão aberta no navegador!' : 'Janela de impressão aberta no navegador!'),
+        texto: aposCheckin
+          ? 'Check-in realizado e janela de impressão aberta no navegador!'
+          : 'Janela de impressão aberta no navegador!',
       });
     } catch (err) {
       console.error('Erro ao imprimir:', err);
@@ -1245,22 +1186,11 @@ const PainelRecepcao: React.FC = () => {
                     <div className="flex items-center">
                       <button
                         onClick={() => handlePrintCredencial()}
-                        className={`btn btn-outline flex items-center ${QZ_TRAY_ENABLED ? 'rounded-r-none border-r-0' : ''}`}
+                        className="btn btn-outline flex items-center"
                       >
-                        {qzConectado && impressoraPadrao
-                          ? <Wifi className="w-5 h-5 mr-2 text-green-500" />
-                          : <Printer className="w-5 h-5 mr-2" />}
+                        <Printer className="w-5 h-5 mr-2" />
                         Imprimir Credencial
                       </button>
-                      {QZ_TRAY_ENABLED && (
-                        <button
-                          onClick={() => setShowSelecionarImpressora(true)}
-                          className="btn btn-outline rounded-l-none px-2"
-                          title="Configurar impressora"
-                        >
-                          <Settings className="w-4 h-4" />
-                        </button>
-                      )}
                     </div>
                   </>
                 )}
@@ -1484,90 +1414,6 @@ const PainelRecepcao: React.FC = () => {
         </div>
       )}
 
-      {/* Modal: Configurar impressora */}
-      {showSelecionarImpressora && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl w-full max-w-md shadow-xl">
-            <div className="flex items-center justify-between px-6 pt-6 pb-3 border-b border-gray-100">
-              <div>
-                <h3 className="text-lg font-semibold">Impressora</h3>
-                <p className="text-sm text-gray-500 mt-0.5 flex items-center gap-1">
-                  {qzConectado
-                    ? <><Wifi className="w-3.5 h-3.5 text-green-500" />QZ Tray conectado</>
-                    : <><WifiOff className="w-3.5 h-3.5 text-gray-400" />QZ Tray não disponível</>}
-                </p>
-              </div>
-              <button
-                onClick={() => setShowSelecionarImpressora(false)}
-                className="p-2 rounded-full hover:bg-gray-100"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="px-6 py-4">
-              {!qzConectado ? (
-                <>
-                  <p className="text-sm text-gray-500 mb-3">
-                    O QZ Tray não está em execução ou a conexão não foi autorizada. Instale e inicie o aplicativo, autorize a conexão no aviso do QZ Tray (marque "Remember this decision" para não ver novamente) e tente de novo.
-                  </p>
-                  <button
-                    onClick={async () => {
-                      setReconectandoQz(true);
-                      await conectarQz();
-                      setReconectandoQz(false);
-                    }}
-                    disabled={reconectandoQz}
-                    className="btn btn-outline flex items-center"
-                  >
-                    {reconectandoQz
-                      ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Conectando...</>
-                      : 'Tentar novamente'}
-                  </button>
-                </>
-              ) : (
-                <>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Impressora padrão
-                  </label>
-                  <select
-                    value={impressoraPadrao}
-                    onChange={(e) => {
-                      setImpressoraPadrao(e.target.value);
-                      localStorage.setItem('impressora.padrao', e.target.value);
-                    }}
-                    className="input-field"
-                  >
-                    <option value="">Usar diálogo do navegador</option>
-                    {impressorasDisponiveis.map((p) => {
-                      const cat = detectPrinterCategory(p);
-                      const label = cat !== 'unknown' ? ` (${cat})` : '';
-                      return <option key={p} value={p}>{p}{label}</option>;
-                    })}
-                  </select>
-                  {impressoraCategoria && impressoraCategoria !== 'unknown' && (
-                    <p className="text-xs text-primary mt-1 font-medium">
-                      Tipo detectado: {impressoraCategoria}
-                    </p>
-                  )}
-                  <p className="text-xs text-gray-400 mt-2">
-                    A impressora selecionada será usada em todos os eventos neste dispositivo.
-                  </p>
-                </>
-              )}
-            </div>
-
-            <div className="px-6 py-4 border-t border-gray-100 flex justify-end">
-              <button
-                onClick={() => setShowSelecionarImpressora(false)}
-                className="btn btn-primary"
-              >
-                Fechar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </LayoutDefault>
   );
 };

@@ -2,8 +2,5 @@
   command = "npm run build"
   publish = "dist"
 
-[build.environment]
-  VITE_ENABLE_QZ_TRAY = "1"
-
 [functions]
   directory = "netlify/functions"
