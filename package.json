@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite --debug",
+    "kiosk": "node scripts/open-chrome-kiosk.mjs",
+    "kiosk:local": "node scripts/open-chrome-kiosk.mjs http://localhost:5173",
     "emulators": "node scripts/start-emulators.mjs",
     "build": "vite build",
     "lint": "eslint .",

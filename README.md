@@ -91,6 +91,36 @@ src/
    - Substitua as credenciais no arquivo `src/firebase/config.ts`
 4. Execute o projeto com `npm run dev`
 
+### Impressão automática no Chrome
+
+O sistema chama `window.print()` automaticamente depois de montar o crachá. Para
+abrir `https://intradacredenciamentos.com.br/` e imprimir diretamente na
+impressora padrão, sem exibir o diálogo de impressão, execute:
+
+```bash
+npm run kiosk
+```
+
+O comando abre o domínio de produção no Chrome com `--kiosk-printing` e usa um
+perfil exclusivo, salvo em `.chrome-kiosk-profile/`. Na primeira abertura, faça
+login no sistema e confirme a impressora padrão nas configurações do Chrome.
+
+Para testar o servidor local, deixe `npm run dev` aberto em outro terminal e use:
+
+```bash
+npm run kiosk:local
+```
+
+Para abrir outra URL, informe-a após `--`:
+
+```bash
+npm run kiosk -- https://outro-dominio.com
+```
+
+Feche todas as janelas desse perfil antes de reabri-lo caso altere as opções de
+inicialização. A opção `--kiosk-printing` envia qualquer chamada a
+`window.print()` diretamente para a impressora padrão do sistema operacional.
+
 ### Emuladores locais com dados persistentes
 
 Inicie os emuladores em outro terminal com:
@@ -105,6 +135,17 @@ emuladores com `Ctrl+C` antes de desligar ou reiniciar a máquina para garantir
 que as alterações mais recentes sejam gravadas.
 
 ## Deploy
+
+O deploy de produção está configurado no Netlify para executar `npm run build` e
+publicar a pasta `dist`. O domínio de produção é:
+
+```text
+https://intradacredenciamentos.com.br/
+```
+
+No painel do Netlify, associe esse domínio ao site e configure os registros DNS
+indicados pelo próprio Netlify. O arquivo `public/_redirects` já garante que as
+rotas da aplicação React funcionem ao serem acessadas diretamente.
 
 Realize o deploy usando Firebase Hosting:
 

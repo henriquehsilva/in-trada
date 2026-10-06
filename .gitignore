@@ -27,3 +27,6 @@ dist-ssr
 
 # Dados locais dos Firebase Emulators (persistem entre execuções)
 firebase-data/
+
+# Perfil exclusivo do Chrome usado na impressão automática
+.chrome-kiosk-profile/
