@@ -753,7 +753,6 @@ const AutoAtendimento: React.FC = () => {
           </div>
           <div className="mt-2 text-sm text-gray-500 flex items-center gap-2 min-h-[1.25rem]">
             {buscando && <><Loader2 className="w-4 h-4 animate-spin" /> <span>Buscando...</span></>}
-            {!buscando && termo.trim() && participantes.length > 0 && <span>{participantes.length} resultado(s)</span>}
           </div>
           {!isWake && evento && (
             <button
