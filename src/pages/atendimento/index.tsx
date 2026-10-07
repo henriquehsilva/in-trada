@@ -88,6 +88,17 @@ const filtrarParticipantes = (lista: Participante[], termo: string) => {
   );
 };
 
+const filtrarParticipantesWake = (lista: Participante[], termo: string) => {
+  const q = normalizeText(termo.trim());
+  if (!q) return [];
+
+  return lista.filter((p) =>
+    [p.nome, p.email1, p.email2]
+      .map((valor) => normalizeText(valor).trim())
+      .some((valor) => valor === q),
+  );
+};
+
 const normalizeCategory = (valor: string) => valor.trim().toUpperCase();
 
 const stableColorFromString = (valor: string) => {
@@ -305,9 +316,11 @@ const AutoAtendimento: React.FC = () => {
     if (!q) { setParticipantes([]); setMsg(null); return; }
     try {
       setBuscando(true);
-      const res = filtrarParticipantes(baseParticipantes, q);
+      const res = isWake
+        ? filtrarParticipantesWake(baseParticipantes, q)
+        : filtrarParticipantes(baseParticipantes, q);
       setParticipantes(res);
-      if (res.length > 0) setTermo('');
+      if (res.length > 0 && !isWake) setTermo('');
       setMsg(res.length ? null : { tipo: 'info', texto: online ? 'Nenhum participante encontrado.' : 'Sem rede: exibindo resultados locais.' });
     } catch (e) {
       console.error(e);
@@ -318,6 +331,8 @@ const AutoAtendimento: React.FC = () => {
   };
 
   useEffect(() => {
+    if (isWake) return;
+
     const valor = termo.trim();
     if (!valor) return;
 
@@ -333,7 +348,7 @@ const AutoAtendimento: React.FC = () => {
     }, 300);
 
     return () => window.clearTimeout(timeoutId);
-  }, [termo, baseParticipantes]);
+  }, [termo, baseParticipantes, isWake]);
 
   // ===== Ações =====
   const podeImprimir = (p: Participante) => !(p as any).etiquetaImpressaEm;
@@ -696,11 +711,11 @@ const AutoAtendimento: React.FC = () => {
                 setTermo(valor);
                 setParticipantes([]);
                 setMsg(null);
-                setBuscando(Boolean(valor.trim()));
+                setBuscando(isWake ? false : Boolean(valor.trim()));
                 requestAnimationFrame(() => searchRef.current?.focus({ preventScroll: true }));
               }}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === 'Tab') {
+                if (e.key === 'Enter' || (!isWake && e.key === 'Tab')) {
                   e.preventDefault();
                   executarBusca().finally(() => {
                     const el = searchRef.current;
@@ -711,16 +726,28 @@ const AutoAtendimento: React.FC = () => {
                   });
                 }
               }}
-              placeholder="DIGITE SEU NOME OU E-MAIL, OU ESCANEIE SEU QR-CODE"
-              className={`w-full pl-14 pr-12 py-4 rounded-2xl shadow-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-400 text-lg ${usaTemaAutoAtendimento ? 'border-2 border-gray-900' : 'border border-gray-200'}`}
+              placeholder={isWake ? 'DIGITE SEU NOME OU E-MAIL' : 'DIGITE SEU NOME OU E-MAIL, OU ESCANEIE SEU QR-CODE'}
+              className={`w-full pl-14 ${isWake ? 'pr-40' : 'pr-12'} py-4 rounded-2xl shadow-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-400 text-lg ${usaTemaAutoAtendimento ? 'border-2 border-gray-900' : 'border border-gray-200'}`}
             />
             {!!termo && (
               <button
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => { setTermo(''); setParticipantes([]); setMsg(null); searchRef.current?.focus({ preventScroll: true }); }}
-                className="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-full hover:bg-gray-100"
+                className={`absolute ${isWake ? 'right-28' : 'right-3'} top-1/2 -translate-y-1/2 p-2 rounded-full hover:bg-gray-100`}
+                aria-label="Limpar busca"
               >
                 <X className="w-5 h-5 text-gray-500" />
+              </button>
+            )}
+            {isWake && (
+              <button
+                type="button"
+                onClick={executarBusca}
+                disabled={!termo.trim() || buscando}
+                className="absolute right-2 top-1/2 inline-flex -translate-y-1/2 items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {buscando ? <Loader2 className="h-5 w-5 animate-spin" /> : <Search className="h-5 w-5" />}
+                Buscar
               </button>
             )}
           </div>
