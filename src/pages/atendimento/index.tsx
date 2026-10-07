@@ -95,7 +95,7 @@ const filtrarParticipantesWake = (lista: Participante[], termo: string) => {
   return lista.filter((p) =>
     [p.nome, p.email1, p.email2]
       .map((valor) => normalizeText(valor).trim())
-      .some((valor) => valor === q),
+      .some((valor) => valor.includes(q)),
   );
 };
 
